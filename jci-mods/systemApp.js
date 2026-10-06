@@ -315,28 +315,44 @@ systemApp.prototype.appInit = function()
             },
         }, // end of "DisplayOff" 
 
-        "Disclaimer" : {
-            "template" : "Dialog3Tmplt",
-            "controlProperties": {
-                "Dialog3Ctrl" : {
-                    titleStyle : "titleStyle01", 
-                    titleId : "WarningTitle", 
-                    contentStyle : "style02", 
-                    fullScreen : true,
-                    defaultSelectCallback :  this._selectCallbackDisclaimer.bind(this),
-                    buttonCount : 1,
-                    buttonConfig : {
-                        button1 : {
-                            labelId : "agree", 
-                            appData : "Global.Yes" 
-                        },
-                    },
-                    text1Id : 'DisclaimerText',     
-                }
+        // "Disclaimer" : {
+        //     "template" : "Dialog3Tmplt",
+        //     "controlProperties": {
+        //         "Dialog3Ctrl" : {
+        //             titleStyle : "titleStyle01", 
+        //             titleId : "WarningTitle", 
+        //             contentStyle : "style02", 
+        //             fullScreen : true,
+        //             defaultSelectCallback :  this._selectCallbackDisclaimer.bind(this),
+        //             buttonCount : 1,
+        //             buttonConfig : {
+        //                 button1 : {
+        //                     labelId : "agree", 
+        //                     appData : "Global.Yes" 
+        //                 },
+        //             },
+        //             text1Id : 'DisclaimerText',     
+        //         }
+        //     },
+        //     "displayedFunction" : this._displayedDisclaimer.bind(this),
+        //     "noLongerDisplayedFunction" : this._noLongerDisplayedDisclaimer.bind(this),
+        //     "contextOutFunction": this._displayedDisclaimerOut.bind(this),
+        // }, // end of Disclaimer
+
+        "Disclaimer": {
+            // No More Disclaimer
+            "template": "NoCtrlTmplt",
+            "hideHomeBtn": true,
+            "properties": {
+                "visibleSurfaces": ["TRANLOGO_SURFACE", "TRANLOGOEND_SURFACE"],
+                "statusBarVisible": false,
+                "customBgImage": "common/images/FullTransparent.png",
             },
-            "displayedFunction" : this._displayedDisclaimer.bind(this),
-            "noLongerDisplayedFunction" : this._noLongerDisplayedDisclaimer.bind(this),
-            "contextOutFunction": this._displayedDisclaimerOut.bind(this),
+            "readyFunction": function () {
+                framework.sendEventToMmui("system", "DisposeIntroVideo");
+                framework.sendEventToMmui("common", "Global.Yes");
+                framework.sendEventToMmui("system", "NotifyDisclaimerEnd");
+            }.bind(this),
         }, // end of Disclaimer
 
         "SystemWarning" : {
