@@ -1,0 +1,99 @@
+name: Release
+
+# Builds the shims in mazda/patches/ with the m3-toolchain, so users never have to.
+#
+#  - push to main that touches the shim sources (or manual run): if the build output
+#    differs from jci-shims/, open a PR that updates jci-shims/*.so and *.so.md5.
+#    (Needs: Settings > Actions > General > "Allow GitHub Actions to create and
+#    approve pull requests".)
+#  - pushed tag X.Y.Z: build, check that jci-shims/ matches the build, and publish a
+#    GitHub release with a ready-to-copy USB drive ZIP (all scripts, jci-*, js, mp3)
+#    plus a ZIP with just the shims.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mazda/patches/**'
+      - 'build/**'
+      - '.gitmodules'
+      - '.github/workflows/release.yml'
+      - '.github/actions/m3-toolchain/**'
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/m3-toolchain
+
+      - name: Build shims
+        run: |
+          set -euo pipefail
+          sh build/build.sh
+          for so in jci-shims/*.so; do
+            file "$so"
+            file "$so" | grep -q 'ELF 32-bit.*ARM' || { echo "::error::$so is not an ARM shared object"; exit 1; }
+          done
+          git status --short jci-shims
+
+      # Branch build: propose the new binaries as a PR (only if they changed).
+      - name: Open PR with updated shims
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          add-paths: jci-shims/*
+          branch: auto/update-jci-shims
+          delete-branch: true
+          commit-message: "chore: Rebuild jci-shims from mazda/patches"
+          title: "chore: Rebuild jci-shims from mazda/patches"
+          body: |
+            Automatically built by the Release workflow with the m3-toolchain pinned by the
+            `mazda/m3-toolchain` submodule. The `.so.md5` files are updated with the binaries,
+            so the installers will accept them.
+
+      # Tag build: the committed shims must be exactly the build output.
+      - name: Check jci-shims matches the build (tags only)
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain jci-shims)" ]; then
+            git status --short jci-shims
+            echo "::error::jci-shims/ differs from the build output - merge the auto PR first"
+            exit 1
+          fi
+
+      - name: Package and publish the release (tags only)
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists - refusing to overwrite."
+            exit 1
+          fi
+          mkdir -p dist staging
+          # Ready-to-copy USB drive content (what the README tells users to copy).
+          usb="staging/mzd-v74-tweaks-${TAG}"
+          mkdir -p "$usb"
+          cp -r *.sh *.md5 README.md mp3title.txt js mp3 jci-mods jci-org jci-shims "$usb/"
+          ( cd staging && zip -r "../dist/mzd-v74-tweaks-${TAG}.zip" "mzd-v74-tweaks-${TAG}" )
+          # Just the shims, for those who copy files by hand.
+          ( cd jci-shims && zip "../dist/jci-shims-${TAG}.zip" ./*.so ./*.so.md5 )
+          ( cd dist && sha256sum ./*.zip > SHA256SUMS )
+          for z in dist/*.zip; do unzip -l "$z"; done
+          gh release create "$TAG" dist/*.zip dist/SHA256SUMS --title "$TAG" --generate-notes
