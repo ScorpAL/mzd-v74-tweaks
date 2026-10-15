@@ -37,7 +37,15 @@ A collection of tweaks and modifications for the Mazda infotainment system (CMU 
 ## Available Scripts
 
 ### 1. `hud-eu-region.sh` - HUD Settings Europe Region Mod
-**Purpose**: Enables HUD (Heads-Up Display) hidden settings in the Europe region - **Street information: Always/At Maneuver/Off**.
+**Purpose**: Enables Active Driving Display hidden settings in the Europe region and non-English/French/Spanish languages - **Street information: Always/At Maneuver/Off** with Windshield Head-Up Display only.
+
+![MZD Active Driving Display Settings](images/WHUD-supported-CHUD-unsupported.jpg)
+
+![MZD Active Driving Display Settings](images/mzd-hud.jpg)
+
+![MZD Active Driving Display Settings > Display Information](images/mzd-hud-display-info.jpg)
+
+![MZD Active Driving Display Settings > Street Information](images/mzd-hud-street-info.jpg)
 
 **What it does**:
 - Modifies the vehicle settings application to unlock HUD configuration options
@@ -50,8 +58,13 @@ A collection of tweaks and modifications for the Mazda infotainment system (CMU 
 - Logs are saved to `logs/install.log` or `logs/uninstall.log`
 - After reboot navigate to **Settings** > **Active Driving Display** > **Display Information**
 
+**Issues**:
+- *Street Information* menu is grayed out - your HUD doesn't support displaying road name
+
 ### 2. `no-more-disclaimer.sh` - No More Disclaimer Mod
-**Purpose**: Removes the disclaimer/warning screens that appear on system startup.
+**Purpose**: Removes entirely the disclaimer/warning screen that appears on the system startup. With the stock behavior it disappears in 3.5 seconds.
+
+![MZD Active Driving Display Settings](images/mzd-disclaimer.jpg)
 
 **What it does**:
 - Modifies the system application to skip disclaimer prompts
@@ -99,6 +112,7 @@ A collection of tweaks and modifications for the Mazda infotainment system (CMU 
 ```
 mzd-v74-tweaks/
 ├── README.md                          # This file
+├── images/                            # Screenshosts for documentation
 ├── hud-eu-region.sh                   # HUD settings modification script
 ├── no-more-disclaimer.sh              # Disclaimer removal script
 ├── backup-jci.sh                      # System backup script
@@ -111,9 +125,9 @@ mzd-v74-tweaks/
 │   └── systemApp.js.org               # Original system app
 ├── js/                                # JavaScript utility files
 │   └── run.js                         # Execution script
-└── mp3/                               # Audio files for testing
-    ├── a.mp3, b.mp3, c.mp3, d.mp3     # Audio test files
-    └── mp3title.txt                   # Metadata for audio loading
+├── mp3/                               # Audio files for testing
+|   └── a.mp3, b.mp3, c.mp3, d.mp3     # Audio test files
+└── mp3title.txt                       # Metadata for audio loading
 ```
 
 ## Common Issues & Troubleshooting
@@ -127,11 +141,17 @@ mzd-v74-tweaks/
   - Check the path is typed correctly (case-sensitive)
 
 ### "command not found"
-- **Cause**: Script filename is misspelled or incorrect syntax
+- **Cause**: command is misspelled or incorrect syntax
+- **Solution**:
+  - Type the command carefully, paying attention to capitalization and spacing
+
+### "sh: 0: cannot open ...: No such file"
+- **Cause**: misspelled filename
 - **Solution**:
   - Verify the exact filename: use `ls` to list files
   - Ensure you're using the correct script name with the `.sh` extension
   - Type the command carefully, paying attention to capitalization and spacing
+  - Press TAB key to autocomplete the filename
 
 ## Technical Details
 
@@ -158,4 +178,6 @@ These modifications alter system files on your Mazda infotainment system. Use at
 
 ## License
 
-Original modifications by the community. This fork based on `shunceyb/mzd74-tweaks-no-touch`.
+Original modifications by the community.
+The terminal access based on https://github.com/shunceyb/mzd74-tweaks-no-touch.
+MZD UI changes tested and screenshoted with https://github.com/ScorpAL/mzd-emu.
