@@ -107,6 +107,33 @@ A collection of tweaks and modifications for the Mazda infotainment system (CMU 
 - System will reboot automatically upon completion
 - Check `logs/uninstall.log` if errors occur
 
+### 5. `fuel-consumption.sh` - Fuel Consumption Tweaks
+**Purpose**: Three tweaks for the Fuel Consumption app. Each one can be installed, uninstalled or skipped on its own:
+- **Bar values**: the L/100km value above every bar of both graphs. Stock firmware shows it only above "Current".
+- **Fuel ending screen**: at ignition off, show the Fuel Consumption screen instead of the i-stop screen (cars with i-stop always get the i-stop screen), for 7 s instead of 5 s.
+- **Fuel ending data**: on i-stop cars, the ending screen also gets its data (graphs filled). This is a small shim for the MMUI service (`jci-shims/fuel_ending_mmui.so`).
+
+**Is i-stop required?** No. The head unit picks the ending screen from the *equipped* features (reported by the EEM service), not from whether i-stop is switched on right now:
+- **Bar values** works on every car.
+- **Fuel ending screen**: on a car equipped with i-stop it replaces the i-stop ending screen. Without i-stop, the stock ending screen already is the Fuel Consumption screen, so the tweak only makes it 7 s long.
+- **Fuel ending data** only changes something on a car equipped with i-stop; otherwise it passes everything through unchanged.
+- Turning i-stop off with its button makes no difference (tested: in the test car i-stop is switched off at every engine start, the same way as with the button). The Instrument Cluster setting should behave the same (not tested). If i-stop was disabled in the as-built data (FORScan) and the EEM then reports no i-stop, the car behaves like one without i-stop (not tested). See [docs/fuel-consumption.md](docs/fuel-consumption.md#is-i-stop-required).
+
+| | Stock | Tweak |
+|---|---|---|
+| Fuel Consumption screen | ![stock](images/fuel-bar-values-stock.jpg) | ![tweak](images/fuel-bar-values-tweak.jpg) |
+| At ignition off (i-stop car) | ![stock](images/fuel-ending-stock.jpg) | ![tweak](images/fuel-ending-tweak.jpg) |
+
+**Running**:
+- Run `sh fuel-consumption.sh`. First answer **Continue** or **Exit** (Exit changes nothing).
+- For each tweak, choose **Continue** or **Skip**, then **Install** or **Uninstall**, then **OK** (or **Exit** to skip the remaining tweaks).
+- The system reboots at the end, but only if something was changed.
+- Everything is checked with md5 before any change: the script itself (`fuel-consumption.sh.md5`), every file it brings (`*.md5`), and the exact original on the head unit. Backups: `<file>.org` and `/jci/sm/*.fuelend-orig`. On an error, that tweak is restored.
+- While it runs, the script renames `mp3/` to `mp3_off/` on the USB drive, so the head unit does not jump back to the JCI Test Mode after HOME. It renames it back at the end. Only if a restore failed ("Do NOT reboot") does it stay `mp3_off`: then rename it back to `mp3` on your PC before the next run.
+- At the end, remove the USB drive. If nothing was changed, press HOME to leave the terminal.
+- Log: `logs/fuel-consumption.log`.
+- Details, checksums, how to rebuild the shim or re-create the JS files: [docs/fuel-consumption.md](docs/fuel-consumption.md).
+
 ## File Structure
 
 ```
@@ -115,14 +142,28 @@ mzd-v74-tweaks/
 ├── images/                            # Screenshosts for documentation
 ├── hud-eu-region.sh                   # HUD settings modification script
 ├── no-more-disclaimer.sh              # Disclaimer removal script
+├── fuel-consumption.sh                # Fuel Consumption tweaks (+ fuel-consumption.sh.md5)
 ├── backup-jci.sh                      # System backup script
 ├── revert-aio.sh                      # AIO tweaks uninstaller
-├── jci-mods/                          # Modified application files
+├── jci-mods/                          # Modified application files (+ .md5)
 │   ├── vehsettingsApp.js              # Modified vehicle settings app
-│   └── systemApp.js                   # Modified system app
-├── jci-org/                           # Original backup files
+│   ├── systemApp.js                   # Modified system app
+│   ├── ecoenergyApp.js                # Modified Fuel Consumption app
+│   └── FuelConsumptionCtrl.js         # Modified Fuel Consumption graphs
+├── jci-org/                           # Original backup files (+ .md5)
 │   ├── vehsettingsApp.js.org          # Original vehicle settings app
-│   └── systemApp.js.org               # Original system app
+│   ├── systemApp.js.org               # Original system app
+│   ├── ecoenergyApp.js.org            # Original Fuel Consumption app
+│   └── FuelConsumptionCtrl.js.org     # Original Fuel Consumption graphs
+├── jci-patches/                       # Scripts that create jci-mods files from jci-org
+├── jci-shims/                         # Prebuilt shims (+ .md5), built by the Release workflow
+│   └── fuel_ending_mmui.so            # LD_PRELOAD shim for jciMMUI
+├── mazda/
+│   ├── m3-toolchain/                  # Cross toolchain (git submodule, Git LFS)
+│   └── patches/fuel_ending_mmui/      # Shim source
+├── build/build.sh                     # Builds mazda/patches/* into jci-shims/
+├── docs/                              # Details, build and patch instructions
+├── tests/                             # CI tests: installer in busybox, shims in qemu-arm
 ├── js/                                # JavaScript utility files
 │   └── run.js                         # Execution script
 ├── mp3/                               # Audio files for testing
@@ -171,6 +212,12 @@ If you encounter issues:
 3. Ensure USB drive is properly formatted (FAT32)
 4. Try a different USB port on the vehicle
 5. Review the error messages in the dialog boxes carefully
+
+## Contributing
+
+- Every file an installer brings, and the installer itself, has an `.md5` next to it (`md5sum` format). The **CI** workflow fails if any `.md5` does not match its file. It also checks that `jci-patches/` reproduces `jci-mods/`, that the shell scripts parse, and that `jci-shims/` matches what `mazda/patches/` builds to.
+- CI also runs the tests in `tests/`: `tests/installer/run.sh` simulates `fuel-consumption.sh` in busybox (`docker run --rm --tmpfs /usb -v "$PWD:/repo:ro" busybox:1.36 sh /repo/tests/installer/run.sh`), and `tests/shim/run.sh` runs the shims under qemu-arm against stand-in libraries (needs the m3-toolchain and `qemu-user`). The Release workflow runs both before it publishes anything.
+- The **Release** workflow builds the shims with the pinned m3-toolchain. On `main` it opens a PR when `jci-shims/` changes. On an `X.Y.Z` tag it publishes a release with a ready-to-copy USB drive ZIP.
 
 ## Disclaimer
 

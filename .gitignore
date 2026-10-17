@@ -1,0 +1,8 @@
+# Written by the scripts on the USB drive
+logs/
+JCI-*.zip
+mp3_off/
+# Local build / tooling leftovers
+__pycache__/
+*.pyc
+*.o
