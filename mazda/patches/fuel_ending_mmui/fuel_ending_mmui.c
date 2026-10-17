@@ -24,14 +24,23 @@
  *   - Fuel guard          -> original Fuel || original Effectiveness
  *   - EEM_SetEEMUpdateScreenEnable: code 11 -> 12, everything else untouched.
  *
- * The originals are found in the defining library's OWN dynamic symbol table
- * (dl_iterate_phdr), never through dlsym, so we can never resolve back to
- * ourselves. If anything is not found, the shim degrades:
- *   - guards: return the original result if the original was found, else 0;
- *   - the code remap is only active when both original guards were found;
- *   - EEM: forwards unchanged to the original (RTLD_NEXT as last resort).
- * Nothing runs at load time. jciMMUI is reset_board="yes".
- * Log: /tmp/fuel-ending-mmui.log (tmpfs, capped at 32 KB).
+ * The originals are looked up in the defining library's OWN dynamic symbol
+ * table (dl_iterate_phdr), not through dlsym, so the lookup cannot resolve
+ * back to ourselves. Fallbacks and failures:
+ *   - guards: if an original is not found, it is treated as returning 0;
+ *     the redirect and the code remap are only active when BOTH original
+ *     guards were found, otherwise each guard returns its original result;
+ *   - EEM: if the original is not in libjcieem_client.so's own table,
+ *     dlsym(RTLD_NEXT, ...) is tried as a last resort (a result pointing back
+ *     into this shim is rejected); if it is still not found, the call is not
+ *     forwarded: it is logged and returns -1;
+ *   - every resolved pointer is compared with our own functions, so the shim
+ *     never calls itself.
+ * Nothing runs at load time; the lookup happens once, on the first call.
+ * jciMMUI is reset_board="yes".
+ * Log: /tmp/fuel-ending-mmui.log (tmpfs, capped at 32 KB): one init line,
+ * then only the guard calls and the 11 -> 12 remap, i.e. a few lines per
+ * ignition off; other EEM codes are not logged.
  * Links only against libc/libdl/libpthread (no librt: old glibc).
  * Only ASCII.
  */
