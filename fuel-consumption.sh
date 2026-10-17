@@ -36,13 +36,23 @@ exec > "$LOG" 2>&1
 echo "=== Fuel Consumption tweaks start ==="
 date
 
-# Rename the mp3 folder so the head unit does not jump back to the JCI test mode after HOME.
-# Rename it back to "mp3" on your PC before the next run.
+# Rename the mp3 folder while the script runs, so the head unit does not jump back to
+# the JCI test mode after HOME. It is renamed back at the end (the USB drive is removed
+# then), except after a failed restore: then the drive stays in the head unit for the
+# logs, and mp3_off keeps it out of the test mode. Rename it back on your PC then.
 if [ -d "${MP}/mp3" ]
 then
   mv "${MP}/mp3" "${MP}/mp3_off" && sync
   echo "renamed ${MP}/mp3 -> mp3_off"
 fi
+mp3_back() {
+  if [ -d "${MP}/mp3_off" ] && [ ! -e "${MP}/mp3" ]
+  then
+    mv "${MP}/mp3_off" "${MP}/mp3"
+    echo "renamed ${MP}/mp3_off -> mp3"
+  fi
+  sync
+}
 
 md5_of() { md5sum "$1" 2>/dev/null | cut -d' ' -f1; }
 md5_from() { cut -c1-32 "$1" 2>/dev/null; }
@@ -66,7 +76,7 @@ _want=$(md5_from "${SELF}.md5")
 if [ -z "$_want" ] || [ "$_want" != "$(md5_of "$SELF")" ]
 then
   echo "ERROR: md5 of fuel-consumption.sh does not match fuel-consumption.sh.md5"
-  sync
+  mp3_back
   info "The installer on the USB drive is damaged (md5).\nNOTHING was changed.\nCopy it again."
   sleep 15
   dialog_kill
@@ -79,7 +89,7 @@ CMU_VER=$(grep '^JCI_SW_VER=' /jci/version.ini | grep -oE '[0-9]+\.[0-9]+\.[0-9]
 echo "CMU version: ${CMU_VER}"
 if [ "${CMU_VER}" != "74.00.324" ]
 then
-  sync
+  mp3_back
   info "This installer only supports CMU firmware V74.00.324.\nDetected version: ${CMU_VER}\nNOTHING was changed."
   sleep 15
   dialog_kill
@@ -90,7 +100,7 @@ fi
 if ! ask "Fuel Consumption tweaks:\nbar values, fuel ending screen, fuel ending data.\nEach step can be skipped.\nExit: nothing is changed." "Continue" "Exit"
 then
   echo "exit requested by the user"
-  sync
+  mp3_back
   dialog_kill
   exit 0
 fi
@@ -239,13 +249,59 @@ MMUI=/jci/mmui/svcjcimmui.so
 MMUI_MD5=3b63fa37aa2ae4989c1febaa18c1f292
 EEM=/jci/lib/libjcieem_client.so
 
+# Copy sm.conf and sm_WCP.conf to *.fuelend-orig right before they are edited.
+# An existing copy is overwritten, so a restore always goes back to the state
+# just before this run, never to an older copy. Returns 1 if a copy failed
+# (then no copy is left behind).
+shim_backup_confs() {
+  for _c in sm.conf sm_WCP.conf
+  do
+    cp -a "/jci/sm/${_c}" "/jci/sm/${_c}.fuelend-orig"
+    if [ "$(md5_of "/jci/sm/${_c}.fuelend-orig")" != "$(md5_of "/jci/sm/${_c}")" ]
+    then
+      echo "backup of ${_c} failed"
+      shim_remove_backups
+      return 1
+    fi
+    echo "backup done: /jci/sm/${_c}.fuelend-orig"
+  done
+  sync
+  return 0
+}
+
+shim_remove_backups() {
+  rm -f /jci/sm/sm.conf.fuelend-orig /jci/sm/sm_WCP.conf.fuelend-orig
+  sync
+}
+
+# Undo a failed install: the conf files back from the copies made by
+# shim_backup_confs, then the shim file. A copy is deleted once its file is
+# restored and verified. Returns 0 if both conf files were restored (the shim
+# file alone is harmless without the LD_PRELOAD line), 1 otherwise.
 shim_restore_all() {
+  _rc=0
   for _r in sm.conf sm_WCP.conf
   do
-    [ -e "/jci/sm/${_r}.fuelend-orig" ] && cp -a "/jci/sm/${_r}.fuelend-orig" "/jci/sm/${_r}"
+    _orig="/jci/sm/${_r}.fuelend-orig"
+    if [ ! -e "$_orig" ]
+    then
+      echo "restore ${_r}: no copy"; _rc=1; continue
+    fi
+    _want=$(md5_of "$_orig")
+    cp -a "$_orig" "/jci/sm/${_r}" && sync
+    [ "$(md5_of "/jci/sm/${_r}")" = "$_want" ] || { cp -a "$_orig" "/jci/sm/${_r}"; sync; }
+    if [ "$(md5_of "/jci/sm/${_r}")" = "$_want" ]
+    then
+      echo "restore ${_r}: OK"
+      rm -f "$_orig"
+    else
+      echo "restore ${_r}: FAILED, copy kept: ${_orig}"; _rc=1
+    fi
   done
   rm -f "${SHIM_DIR}/${SHIM}"
+  rmdir "$SHIM_DIR" 2>/dev/null
   sync
+  return $_rc
 }
 
 shim_install() {
@@ -293,11 +349,12 @@ shim_install() {
   fi
   info "${_name}:\ninstalling...\nDo not remove the USB drive."
   make_rw
-  for _c in sm.conf sm_WCP.conf
-  do
-    [ -e "/jci/sm/${_c}.fuelend-orig" ] || cp -a "/jci/sm/${_c}" "/jci/sm/${_c}.fuelend-orig"
-  done
-  sync
+  if ! shim_backup_confs
+  then
+    RESULT="${_name}:
+the backup of sm.conf failed.
+Nothing was changed."; return 1
+  fi
   mkdir -p "$SHIM_DIR"
   cat "$_src" > "${SHIM_DIR}/${SHIM}" && chmod 0644 "${SHIM_DIR}/${SHIM}" && sync
   if [ "$(md5_of "${SHIM_DIR}/${SHIM}")" != "$_so_md5" ]
@@ -306,7 +363,9 @@ shim_install() {
     cat "$_src" > "${SHIM_DIR}/${SHIM}" && chmod 0644 "${SHIM_DIR}/${SHIM}" && sync
     if [ "$(md5_of "${SHIM_DIR}/${SHIM}")" != "$_so_md5" ]
     then
-      rm -f "${SHIM_DIR}/${SHIM}"; sync
+      rm -f "${SHIM_DIR}/${SHIM}"
+      rmdir "$SHIM_DIR" 2>/dev/null
+      shim_remove_backups
       RESULT="${_name}:\ncopying the shim failed (md5).\nNothing was enabled."; return 1
     fi
   fi
@@ -320,8 +379,11 @@ shim_install() {
     grep -n -A2 'name="jciMMUI"' "$_f"
     if [ "$_n" != "1" ] || [ "$_after" != "$SHIM_LINE" ]
     then
-      shim_restore_all
-      RESULT="${_name}:\nediting ${_c} failed.\nEverything was restored."; return 1
+      if shim_restore_all
+      then
+        RESULT="${_name}:\nediting ${_c} failed.\nEverything was restored."; return 1
+      fi
+      RESULT="${_name}:\nediting ${_c} failed and the restore failed!\nDo NOT reboot, check logs/fuel-consumption.log."; STOP=1; FATAL=1; return 1
     fi
   done
   CHANGED=1
@@ -405,22 +467,24 @@ sync
 if [ "$FATAL" = "1" ]
 then
   echo "=== Fuel Consumption tweaks STOPPED after a failed restore, no reboot ==="
-  info "A restore failed.
-Do NOT reboot, check logs/fuel-consumption.log."
+  sync
+  info "A restore failed.\nDo NOT reboot, check logs/fuel-consumption.log.\nThe mp3 folder on the USB drive is now mp3_off."
   sleep 15
   dialog_kill
   exit 1
 elif [ "$CHANGED" = "1" ]
 then
   echo "=== Fuel Consumption tweaks complete, rebooting ==="
-  info "Done.\nYou can remove the USB drive.\nRebooting in 5 seconds..."
-  sleep 5
+  mp3_back
+  info "Done.\nRemove the USB drive.\nRebooting in 15 seconds..."
+  sleep 15
   dialog_kill
   reboot
 else
   echo "=== Fuel Consumption tweaks complete, nothing changed ==="
-  info "Nothing was changed.\nYou can remove the USB drive."
-  sleep 5
+  mp3_back
+  info "Nothing was changed.\nRemove the USB drive.\nThen press HOME to leave the terminal."
+  sleep 15
   dialog_kill
 fi
 exit 0
