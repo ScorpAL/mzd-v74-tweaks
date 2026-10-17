@@ -15,6 +15,7 @@ on:
     paths:
       - 'mazda/patches/**'
       - 'build/**'
+      - 'tests/shim/**'
       - '.gitmodules'
       - '.github/workflows/release.yml'
       - '.github/actions/m3-toolchain/**'
@@ -48,6 +49,17 @@ jobs:
             file "$so" | grep -q 'ELF 32-bit.*ARM' || { echo "::error::$so is not an ARM shared object"; exit 1; }
           done
           git status --short jci-shims
+
+      # Same tests as CI, on the binaries this workflow is about to publish.
+      - name: Test the shims under qemu-arm
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-user
+          sh tests/shim/run.sh
+
+      - name: Simulate fuel-consumption.sh in busybox
+        run: docker run --rm --tmpfs /usb -v "$PWD:/repo:ro" busybox:1.36 sh /repo/tests/installer/run.sh
 
       # Branch build: propose the new binaries as a PR (only if they changed).
       - name: Open PR with updated shims
