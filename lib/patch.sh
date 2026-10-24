@@ -49,6 +49,12 @@ mzd_patch_prepare() (
   mode=${5:-normal}
   mzd_require_tools patch diff cp cmp md5sum || exit 1
   mzd_require_assets "$patch_file" || exit 1
+  # Probe copies must never redirect a patch to another runtime path.
+  awk '
+    /^--- / {old++; if ($0 != "--- target.data") invalid=1}
+    /^\+\+\+ / {new++; if ($0 != "+++ target.data") invalid=1}
+    END {exit (invalid || old!=1 || new!=1)}
+  ' "$patch_file" || mzd_fail 'A patch must change only the relative file target.data.'
   if [ ! -f "$target" ] || [ -L "$target" ]
   then
     mzd_fail 'Target is missing or is a symbolic link.'

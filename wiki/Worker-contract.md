@@ -60,7 +60,8 @@ not to reboot. Signals/transport loss are not successful outcomes.
 
 The worker owns target locks, prerequisites, exact patch application, backups,
 rollback, mount/watchdog restoration and reports. Tweaks touching the same target
-share a lock. Apply/reverse only this tweak and preserve unrelated edits. Verify
+share a lock. Unified patches must contain exactly one relative `target.data`
+file; no absolute or additional target paths are accepted. Apply/reverse only this tweak and preserve unrelated edits. Verify
 writes and rollback. Do not overwrite an unknown OEM backup or silently replace
 unknown service files. No automatic reboot. The launcher serializes actions,
 shows the result and rechecks status after acknowledgement.

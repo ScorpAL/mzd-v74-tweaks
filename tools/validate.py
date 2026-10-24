@@ -44,6 +44,10 @@ for folder in sorted((ROOT / 'tweaks').iterdir()):
                 'Manifest/worker configuration mismatch: ' + folder.name + ' ' + field)
     require(not re.search(r'(^|\n|;)\s*(/jci/tools/)?(reboot|jci-dialog)(?=\s|$)', '\n'.join(line for line in source.splitlines() if not line.lstrip().startswith('#'))),
             'Workers must not open dialogs or reboot: ' + folder.name)
+    patch = folder / 'assets/change.patch'
+    if patch.is_file():
+        headers = [line for line in patch.read_text(encoding='utf-8').splitlines() if line.startswith(('--- ', '+++ '))]
+        require(headers == ['--- target.data', '+++ target.data'], 'Patch must target only target.data: ' + folder.name)
     manifests[m['id']] = m
 for id_, m in manifests.items():
     for other in m['requires'] + m['conflicts']:

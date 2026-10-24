@@ -39,6 +39,8 @@ jobs:
             -v "$(command -v busybox):/usr/local/bin/busybox:ro" \
             -v "$PWD:/repo:ro" -w /repo python:3.12-alpine \
             python tests/contract/test_workers.py
+      - name: Verify all shared-target patch combinations
+        run: python tests/contract/test_combinations.py
       - name: Exercise the real SSH supervisor with fake system commands
         run: python tests/contract/test_ssh_service.py
       - name: Test Hello entrypoint

@@ -170,6 +170,17 @@ for id_, runner in CASES.items():
         write(p, source); checksum(p)
         write(p, source + '# checksum deliberately not refreshed\n')
         run(['status'], code=1)
+        write(p, source); checksum(p)
+        patch_path = worker / 'assets/change.patch'
+        write(patch_path, patch.replace('--- target.data', '--- forbidden.data')); checksum(patch_path)
+        run(['status'], code=1)
+        write(patch_path, patch); checksum(patch_path)
+        # An unavailable/crashed probe tool is an inspection failure, not an
+        # assertion that this target is incompatible.
+        write(bins / 'patch', '#!/bin/sh\nprintf "patch: applet not found\\n" >&2\nexit 127\n')
+        run(['status'], code=1)
+        (bins / 'patch').unlink()
+        if os.environ.get('CMU_TEST_BUSYBOX'): os.symlink(busybox, bins / 'patch')
         # Exercise successful changes and rollback through the same entrypoint.
         # Only mount/watchdog/service effects are simulated; real patching,
         # integrity checks, reports, locks and result cleanup still execute.
