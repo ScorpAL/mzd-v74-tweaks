@@ -79,6 +79,10 @@ for id_, runner in CASES.items():
         write(p, source)
         for lib in (usb / 'lib').glob('*.sh'):
             text = lib.read_text(encoding='utf-8').replace('/jci/version.ini', bp(version))
+            if lib.name == 'status.sh':
+                # Keep sandbox probe diagnostics only for an actionable CI failure.
+                text = text.replace('trap \'rm -rf "$MZD_REPORT"\' 0',
+                    'trap \'cp -R "$MZD_REPORT" ' + shlex.quote(bp(base / 'probe-debug')) + '; rm -rf "$MZD_REPORT"\' 0')
             write(lib, text); checksum(lib)
         checksum(p)
         env = dict(os.environ, PATH=bp(bins) + ':/usr/bin:/bin')
@@ -89,6 +93,9 @@ for id_, runner in CASES.items():
             result = subprocess.run([SHELL, bp(p)] + action, env=env, capture_output=True, text=True, timeout=30)
             assert result.returncode == code, (id_, action, result.returncode, result.stdout, result.stderr)
             if state is not None:
+                if result.stdout != state + '\n':
+                    for log in (base / 'probe-debug').rglob('*.log'):
+                        print(log.relative_to(base), log.read_text(errors='replace'), flush=True)
                 assert result.stdout == state + '\n', (id_, action, result.stdout, result.stderr)
                 if reason: assert result.stderr.strip(), (id_, state, 'missing reason')
             elif code:

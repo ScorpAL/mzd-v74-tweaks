@@ -167,4 +167,3 @@ mzd_patch_rollback() (
   sync
   [ "$(mzd_hash "$target")" = "$before" ] || mzd_fatal 'Rollback failed. Do NOT reboot.'
 )
-

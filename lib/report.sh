@@ -127,4 +127,3 @@ mzd_finish() {
   fi
   exit "$MZD_EXIT"
 }
-

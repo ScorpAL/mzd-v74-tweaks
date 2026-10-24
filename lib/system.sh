@@ -93,4 +93,3 @@ mzd_system_cleanup() (
   fi
   exit "$result"
 )
-
