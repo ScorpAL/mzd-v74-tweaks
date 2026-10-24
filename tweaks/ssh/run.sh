@@ -71,6 +71,7 @@ PATCH_FILE="$HERE/assets/change.patch"
 # Keep service provisioning separate from the generic file-patching workflow.
 SERVICE=/tmp/mnt/resources/mzd-v74-tweaks/ssh
 PAYLOAD="$HERE/assets"
+PATCH_MODE=additive
 
 resources_rw() {
     mzd_system_remount_rw /tmp/mnt/resources || exit 1
@@ -108,6 +109,38 @@ mzd_check_prerequisites() {
     check_dir=$PAYLOAD
     [ ! -d "$SERVICE" ] || check_dir=$SERVICE
     sh "$check_dir/service.sh" check
+}
+
+# Worker-specific persistent-state checks; shared status code knows no tweak IDs.
+mzd_status_assets() {
+    mzd_require_assets "$PAYLOAD/service.sh" "$PAYLOAD/sshd_config" \
+        "$PAYLOAD/password.hash" "$PAYLOAD/usb-log-marker.txt"
+}
+
+mzd_status_target_missing() {
+    if [ -e "$SERVICE/enabled" ] || [ -L "$SERVICE/enabled" ]; then
+        mzd_status_emit broken 'SSH is enabled but its startup target is missing or invalid.'
+    else
+        mzd_status_emit unavailable 'The supported startup target is missing or invalid.'
+    fi
+}
+
+mzd_check_status() {
+    if [ "$1" = installed ]; then
+        if ! ssh_hook_ok; then
+            mzd_status_emit broken 'The SSH startup hook is duplicated or incomplete.'
+        elif ! ssh_payload_ok; then
+            mzd_status_emit broken 'SSH hook is present but its service files are missing or changed.'
+        elif [ ! -f "$SERVICE/enabled" ] || [ -L "$SERVICE/enabled" ] || ! mzd_line_is enabled "$SERVICE/enabled"; then
+            mzd_status_emit broken 'SSH hook is present but its enabled marker is missing or invalid.'
+        else
+            mzd_status_emit installed
+        fi
+    elif [ -e "$SERVICE/enabled" ] || [ -L "$SERVICE/enabled" ]; then
+        mzd_status_emit broken 'SSH payload is enabled but its startup hook is missing or incompatible.'
+    else
+        mzd_status_emit "$1"
+    fi
 }
 
 ssh_prepare() {

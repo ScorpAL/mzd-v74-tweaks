@@ -53,13 +53,14 @@ mzd_read_status() (
     ACTION=status
     [ ! -e "$LOCK" ] || mzd_fail 'Target is busy; retry status after the other operation.'
     mzd_require_assets "$SELF" "$HERE/manifest.json" "$PATCH_FILE" || exit 1
+    if command -v mzd_status_assets >/dev/null 2>&1; then mzd_status_assets || exit 1; fi
     [ -r /jci/version.ini ] || mzd_fail 'Cannot read the firmware version.'
     if ! mzd_line_is "JCI_SW_VER=\"MAZ_CMU-150_$FIRMWARE\"" /jci/version.ini; then
         mzd_status_emit unavailable "Requires firmware $FIRMWARE."; exit 0
     fi
     if [ ! -f "$APP" ] || [ -L "$APP" ]; then
-        if [ "$ID" = ssh ] && [ -e "$SERVICE/enabled" ]; then
-            mzd_status_emit broken 'SSH is enabled but its startup target is missing or invalid.'
+        if command -v mzd_status_target_missing >/dev/null 2>&1; then
+            mzd_status_target_missing
         else
             mzd_status_emit unavailable 'The supported target file is missing or is a symbolic link.'
         fi
@@ -71,8 +72,7 @@ mzd_read_status() (
     trap 'exit 130' INT
     trap 'exit 143' TERM
     STATUS_PATCH=$PATCH_FILE
-    mode=normal
-    [ "$ID" != ssh ] || mode=additive
+    mode=${PATCH_MODE:-normal}
     if mzd_patch_prepare "$APP" "$STATUS_PATCH" "$ORIGINAL" "$MZD_REPORT/target" "$mode" > "$MZD_REPORT/probe.log" 2>&1; then
         state=$(mzd_patch_state "$MZD_REPORT/target") || exit 1
     else
@@ -89,18 +89,12 @@ mzd_read_status() (
     fi
     [ ! -e "$LOCK" ] && cmp -s "$APP" "$MZD_REPORT/target/before.data" ||
         mzd_fail 'Target changed during status inspection; retry status.'
-    if [ "$ID" = ssh ]; then
-        if [ "$state" = installed ]; then
-            if ! ssh_hook_ok; then
-                state=broken; reason='The SSH startup hook is duplicated or incomplete.'
-            elif ! ssh_payload_ok; then
-                state=broken; reason='SSH hook is present but its service files are missing or changed.'
-            elif [ ! -f "$SERVICE/enabled" ] || [ -L "$SERVICE/enabled" ] || ! mzd_line_is enabled "$SERVICE/enabled"; then
-                state=broken; reason='SSH hook is present but its enabled marker is missing or invalid.'
-            fi
-        elif [ -e "$SERVICE/enabled" ] || [ -L "$SERVICE/enabled" ]; then
-            state=broken; reason='SSH payload is enabled but its startup hook is missing or incompatible.'
-        fi
+    if command -v mzd_check_status >/dev/null 2>&1; then
+        state=$(mzd_check_status "$state" 2> "$MZD_REPORT/worker-reason") || {
+            cat "$MZD_REPORT/worker-reason" >&2; exit 1;
+        }
+        case "$state" in installed|uninstalled|unavailable|broken) ;; *) mzd_fail 'Invalid worker status adjustment.' ;; esac
+        [ ! -s "$MZD_REPORT/worker-reason" ] || reason=$(cat "$MZD_REPORT/worker-reason")
     fi
     if [ "$state" = installed ] || [ "$state" = uninstalled ]; then
         if [ -f "$APP.org" ] && [ ! -r "$APP.org" ]; then
