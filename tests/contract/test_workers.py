@@ -47,6 +47,7 @@ def fixture(patch, installed=False):
 
 checks = 0
 for id_, runner in CASES.items():
+    if os.environ.get('CMU_TEST_ONLY') and id_ != os.environ['CMU_TEST_ONLY']: continue
     assert runner == 'shared-patch', 'Add a dedicated runner for this implementation.'
     with tempfile.TemporaryDirectory(prefix='cmu-contract-') as directory:
         base = Path(directory); usb = base / 'usb'; usb.mkdir()
@@ -243,6 +244,10 @@ esac
         def mutate(action, code=0):
             global checks
             r = subprocess.run([SHELL, bp(p), action], env=env, capture_output=True, text=True, timeout=30)
+            if r.returncode != code:
+                print('TARGET_ON_FAILURE', repr(target.read_text()), flush=True)
+                logs = sorted((base / 'probe-debug').rglob('*.log'), key=lambda x: x.stat().st_mtime_ns)
+                for log in logs[-10:]: print(log.relative_to(base), log.read_text(errors='replace'), flush=True)
             assert r.returncode == code, (id_, action, code, r.returncode, r.stdout, r.stderr)
             assert not lock.exists() and gpio.read_text().strip() == '0'
             if code == 2: assert 'Do NOT reboot' in r.stderr, (id_, r.stderr)
