@@ -19,5 +19,5 @@ payload, password overlay and firewall rule. An unrelated listener is not replac
 
 Modifying actions recheck prerequisites, use exact reversible patches, retain a
 verified OEM backup, preserve other tweaks and restore owned mount/watchdog state.
-See ../../wiki/Worker-contract.md and ../../tests/runs/ for protocol and evidence.
+See ../../../wiki/Worker-contract.md and ../../../tests/runs/ for protocol and evidence.
 The shared runtime/contract migration still requires a fresh vehicle test.

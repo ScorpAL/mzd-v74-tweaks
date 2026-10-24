@@ -4,15 +4,16 @@ import hashlib
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+USB = ROOT / 'usb'
 UPDATE = '--update' in sys.argv
-paths = list((ROOT / 'lib').glob('*.sh'))
-paths += [p for p in (ROOT / 'bin').iterdir() if p.is_file() and p.name.endswith('-arm')]
+paths = list((USB / 'lib').glob('*.sh'))
+paths += [p for p in (USB / 'bin').iterdir() if p.is_file() and p.name.endswith('-arm')]
 for base in ['tweaks', 'examples']:
-    paths += [p for p in (ROOT / base).rglob('*') if p.is_file() and
+    paths += [p for p in (USB / base if base == 'tweaks' else ROOT / base).rglob('*') if p.is_file() and
               (p.name in ['run.sh', 'manifest.json'] or 'assets' in p.parts) and
               not p.name.endswith('.md5')]
 for name in ['autorun.sh', 'installer.sh']:
-    paths.append(ROOT / name)
+    paths.append(USB / name)
 failures = []
 for target in sorted(set(paths)):
     digest = hashlib.md5(target.read_bytes()).hexdigest()

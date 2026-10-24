@@ -14,7 +14,7 @@ import subprocess
 import tempfile
 from cases import CASES
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[2] / 'usb'
 SHELL = 'C:/Program Files/Git/bin/bash.exe' if os.name == 'nt' else '/bin/sh'
 
 def bp(path):

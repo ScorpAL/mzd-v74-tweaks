@@ -6,7 +6,7 @@ import shlex
 import subprocess
 import tempfile
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[2] / 'usb'
 SHELL = 'C:/Program Files/Git/bin/bash.exe' if os.name == 'nt' else '/bin/sh'
 IDS = ['list-beep', 'shorter-delay', 'list-loop']
 

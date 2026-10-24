@@ -1,7 +1,7 @@
 # Repository instructions
 
 Read CONTRIBUTING.md and wiki/Worker-contract.md before editing. User directions
-have precedence. Target the new ready-to-run launcher only; no legacy layout or
+have precedence. Runtime files live in usb/; keep developer files outside it. Target the new ready-to-run launcher only; no legacy layout or
 compatibility wrappers. Keep executable ARM helpers checked in alongside source.
 Use English documentation, comments and runtime messages. Runtime is POSIX sh
 and Opera-compatible ES5 JavaScript. Do not normalize binary or patch payloads.

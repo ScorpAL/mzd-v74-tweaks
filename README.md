@@ -1,4 +1,4 @@
-# CMU Tweaks — development
+# CMU Tweaks - development
 
 Ready-to-run USB layout for the native shell bridge and styled Secondary Opera
 launcher. This branch targets the new launcher directly. No MP3 entry,
@@ -6,22 +6,24 @@ compatibility layer or assembly step is included.
 
 ## Use
 
-Download this branch, extract it, and copy its contents to the USB root, including
+Download this branch, extract it, and copy the contents of `usb/` to the USB root, including
 `jci-autoupdate` and the long `.up` filename. Insert the USB drive and select
 **Start**. No Python, Node.js or compiler is required on the CMU.
 
-The menu discovers `tweaks/*/manifest.json`, groups buttons by `group`, asks each
+Development files stay outside `usb/`; no assembly step is required.
+
+The menu discovers `usb/tweaks/*/manifest.json`, groups buttons by `group`, asks each
 `run.sh status`, and calls its declared actions. Exit returns to the Mazda UI.
 Only firmware **74.00.324** is currently supported by the included tweaks.
 
 | Path | Purpose |
 | --- | --- |
-| `autorun.sh`, `.up`, `jci-autoupdate` | Automatic USB entry and process lifecycle |
-| `installer.sh` | Discovery and direct argument-based worker invocation |
-| `bin/` | Ready-to-run ARM shell bridge and HTTP adapter |
-| `ui/` | Styled launcher, compatible with the vehicle's Opera engine |
-| `tweaks/` | Five maintained tweaks, assets, manifests and technical READMEs |
-| `lib/` | Shared report, system, patch and read-only status functions |
+| `usb/autorun.sh`, `.up`, `usb/jci-autoupdate` | Automatic USB entry and process lifecycle |
+| `usb/installer.sh` | Discovery and direct argument-based worker invocation |
+| `usb/bin/` | Ready-to-run ARM shell bridge and HTTP adapter |
+| `usb/ui/` | Styled launcher, compatible with the vehicle's Opera engine |
+| `usb/tweaks/` | Five maintained tweaks, assets, manifests and technical READMEs |
+| `usb/lib/` | Shared report, system, patch and read-only status functions |
 | `docs/` | Website sources |
 | `wiki/` | Sources published by the Wiki sync workflow |
 | `examples/` | Hello command and patch-worker template |

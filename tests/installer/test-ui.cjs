@@ -1,7 +1,7 @@
 // Functional UI test with a minimal DOM and simulated worker replies.
 // This is not a rendering test and never executes a vehicle patch.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
-const ROOT=path.join(__dirname,'../..');
+const ROOT=path.join(__dirname,'../../usb');
 class Node {
   constructor(tag,doc){this.tagName=tag;this.doc=doc;this.children=[];this.className='';this.disabled=false;this.scrollTop=0;this._text='';this.attributes={};}
   appendChild(node){this.children.push(node);node.parentNode=this;return node;}
@@ -32,7 +32,7 @@ function boot(manifestVersion,includeCommand){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
     if(a[0]==='event')return ok();
     if(a[0]==='list')return ok('list-beep\nmain-menu-loop\nssh\nbroken\n'+(includeCommand?'hello\n':''));
-    if(a[0]==='manifest'){if(a[1]==='broken')return ok('{broken');const m=JSON.parse(fs.readFileSync(a[1]==='hello'?path.join(ROOT,'examples/hello/manifest.json'):path.join(ROOT,'tweaks',a[1],'manifest.json'),'utf8'));if(manifestVersion)m.contract_version=manifestVersion;return ok(JSON.stringify(m));}
+    if(a[0]==='manifest'){if(a[1]==='broken')return ok('{broken');const m=JSON.parse(fs.readFileSync(a[1]==='hello'?path.join(ROOT,'../examples/hello/manifest.json'):path.join(ROOT,'tweaks',a[1],'manifest.json'),'utf8'));if(manifestVersion)m.contract_version=manifestVersion;return ok(JSON.stringify(m));}
     if(a[2]==='status')return states[a[1]]==='error'?ok('',1,'Patch state is ambiguous.'):ok(states[a[1]]+'\n',0,['unavailable','broken'].includes(states[a[1]])?(reasons[a[1]]||''):'');
     const code=outcomes[a[1]]||0;
     if(code===0)states[a[1]]=a[2]==='install'?'installed':'uninstalled';

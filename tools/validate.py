@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+USB = ROOT / 'usb'
 SHELL = 'C:/Program Files/Git/bin/bash.exe' if os.name == 'nt' else '/bin/sh'
 sys.path.insert(0, str(ROOT / 'tests/contract'))
 from cases import CASES
@@ -15,7 +16,7 @@ def require(ok, message):
     if not ok:
         raise SystemExit(message)
 
-schema_path = ROOT / 'tweaks/tweak-manifest.schema.json'
+schema_path = USB / 'tweaks/tweak-manifest.schema.json'
 schema = json.loads(schema_path.read_text(encoding='utf-8'))
 try:
     import jsonschema
@@ -23,7 +24,7 @@ except ImportError:
     raise SystemExit('Install developer dependency: python -m pip install jsonschema')
 jsonschema.Draft202012Validator.check_schema(schema)
 manifests = {}
-for folder in sorted((ROOT / 'tweaks').iterdir()):
+for folder in sorted((USB / 'tweaks').iterdir()):
     if not folder.is_dir():
         continue
     require((folder / 'manifest.json').is_file(), 'Unexpected folder under tweaks/: ' + folder.name)
@@ -62,10 +63,10 @@ for id_ in manifests:
 for path in ROOT.rglob('*.sh'):
     subprocess.run([SHELL, '-n', str(path)], check=True)
 for name in ['shell-bridge-arm', 'browser-adapter-arm']:
-    data = (ROOT / 'bin' / name).read_bytes()
+    data = (USB / 'bin' / name).read_bytes()
     require(data[:4] == b'\x7fELF' and data[18:20] == b'\x28\x00', 'Not an ARM ELF binary: ' + name)
-require((ROOT / 'jci-autoupdate').is_file(), 'USB autoupdate marker missing.')
-require(len(list(ROOT.glob('*.up'))) == 1, 'Expected exactly one automatic USB entry file.')
-require(not (ROOT / 'start-ssh.sh').exists() and not (ROOT / 'mazda.pub').exists(), 'Temporary SSH must not ship.')
+require((USB / 'jci-autoupdate').is_file(), 'USB autoupdate marker missing.')
+require(len(list(USB.glob('*.up'))) == 1, 'Expected exactly one automatic USB entry file.')
+require(not (USB / 'start-ssh.sh').exists() and not (USB / 'mazda.pub').exists(), 'Temporary SSH must not ship.')
 subprocess.run([sys.executable, str(ROOT / 'tools/checksums.py')], check=True)
 print('Validated', len(manifests), 'tweaks, dependency graph, syntax and runnable USB structure.')

@@ -23,7 +23,7 @@ jobs:
       - name: Validate manifests, checksums, shell syntax and registered coverage
         run: python tools/validate.py
       - name: Check shell errors
-        run: shellcheck --severity=error --shell=sh autorun.sh installer.sh lib/*.sh tweaks/*/run.sh examples/hello/run.sh
+        run: shellcheck --severity=error --shell=sh usb/autorun.sh usb/installer.sh usb/lib/*.sh usb/tweaks/*/run.sh examples/hello/run.sh
       - name: Install full static BusyBox test applets
         run: |
           sudo apt-get update -qq

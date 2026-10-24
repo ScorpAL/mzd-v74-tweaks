@@ -2,8 +2,8 @@
 
 ## Discovery
 
-A tweak is `tweaks/<id>/manifest.json` plus `run.sh`. The manifest has
-`contract_version: 1`; see `tweaks/tweak-manifest.schema.json`. It is data, never
+A tweak is `usb/tweaks/<id>/manifest.json` plus `run.sh`. The manifest has
+`contract_version: 1`; see `usb/tweaks/tweak-manifest.schema.json`. It is data, never
 shell code. The launcher starts `/bin/sh <path>/run.sh <action>` using separate
 arguments and captures stdout, stderr, exitCode, signals and output truncation.
 No worker depends on interactive stdin, dialogs, a reboot or a build step.

@@ -1,6 +1,6 @@
 # Vehicle/runtime output
-/installer-logs/
-/reports/
+/usb/installer-logs/
+/usb/reports/
 # Private local evidence and development leftovers
 /private/
 __pycache__/

@@ -1,6 +1,6 @@
 CMU TWEAK INSTALLER - DEVELOPMENT
 
-Copy the repository contents to the USB root, including jci-autoupdate and .up.
+Copy the contents of the usb/ directory to the USB root, including jci-autoupdate and .up.
 Insert USB and select Start. No compilation or package assembly is required.
 
 Tabs come from tweak manifests. Green means installed, grey means uninstalled,

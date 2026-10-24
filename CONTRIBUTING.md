@@ -1,11 +1,11 @@
 # Contributing
 
-Target branch: `development`. The repository itself is the runnable USB package.
+Target branch: `development`. The `usb/` directory contains the runnable USB package. Copy its contents to the USB root.
 Keep changes scoped to a tweak or a separately explained infrastructure change.
 Do not introduce a second legacy launcher or generated runtime tree.
 
 1. Read [the worker contract](wiki/Worker-contract.md).
-2. Copy `examples/patch/` for patch tweaks, or `examples/hello/` for commands.
+2. Copy `examples/patch/` or `examples/hello/` into `usb/tweaks/<id>/`.
 3. Supply an English manifest, README, entrypoint, assets and checksum sidecars.
 4. Declare firmware, dependencies, conflicts, lock group and reboot needs.
    Mirror dependencies/conflicts in `REQUIRES`/`CONFLICTS`; CI checks parity.

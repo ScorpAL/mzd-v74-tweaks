@@ -11,7 +11,7 @@ import time
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--bash', default='C:/Program Files/Git/bin/bash.exe' if os.name == 'nt' else '/bin/sh')
 args = p.parse_args()
-root = Path(__file__).resolve().parents[2]
+root = Path(__file__).resolve().parents[2] / 'usb'
 def bp(path):
     s = Path(path).resolve().as_posix()
     return '/' + s[0].lower() + s[2:] if len(s) > 1 and s[1] == ':' else s
