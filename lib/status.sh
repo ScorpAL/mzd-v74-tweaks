@@ -103,6 +103,15 @@ mzd_read_status() (
         fi
     fi
     if [ "$state" = installed ] || [ "$state" = uninstalled ]; then
+        if [ -f "$APP.org" ] && [ ! -r "$APP.org" ]; then
+            mzd_fail 'Cannot read the original backup.'
+        fi
+        if ! mzd_patch_validate_backup "$MZD_REPORT/target" 2> "$MZD_REPORT/backup-reason"; then
+            reason=$(cat "$MZD_REPORT/backup-reason")
+            if [ "$state" = installed ]; then state=broken; else state=unavailable; fi
+        fi
+    fi
+    if [ "$state" = installed ] || [ "$state" = uninstalled ]; then
         if ! mzd_status_dependencies 2> "$MZD_REPORT/prerequisites.txt"; then
             reason=$(cat "$MZD_REPORT/prerequisites.txt")
             if [ "$state" = installed ]; then state=broken; else state=unavailable; fi

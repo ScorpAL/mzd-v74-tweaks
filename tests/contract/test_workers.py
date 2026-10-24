@@ -76,6 +76,7 @@ for id_, runner in CASES.items():
         p = worker / 'run.sh'; source = p.read_text(encoding='utf-8')
         source = source.replace('#!/bin/sh\n', '#!/bin/sh\nPATH=' + shlex.quote(bp(bins) + ':/usr/bin:/bin') + '\nexport PATH\n', 1)
         source = re.sub(r'^APP=.*$', 'APP=' + shlex.quote(bp(target)), source, flags=re.M)
+        source = re.sub(r'^ORIGINAL=.*$', 'ORIGINAL=' + hashlib.md5(original.encode()).hexdigest(), source, flags=re.M)
         source = re.sub(r'^SERVICE=.*$', 'SERVICE=' + shlex.quote(bp(service)), source, flags=re.M)
         source = re.sub(r'^LOCK=.*$', 'LOCK=' + shlex.quote(bp(lock)), source, flags=re.M)
         write(p, source)
@@ -114,12 +115,17 @@ for id_, runner in CASES.items():
         run(['unknown'], code=1); run(['status', 'extra'], code=1)
         # Build the installed fixture using the actual patch command, preserving offsets.
         subprocess.run([SHELL, '-c', 'cd "$1" && patch -N -p0 -i "$2"', '--', bp(base), bp(worker / 'assets/change.patch')], env=env, check=True, capture_output=True)
+        backup = Path(str(target) + '.org')
+        write(backup, original)
         if id_ == 'ssh':
             service.mkdir()
             for name in ['service.sh', 'sshd_config', 'password.hash']:
                 shutil.copyfile(worker / 'assets' / name, service / name)
             write(service / 'enabled', 'enabled\n')
         run(['status'], 'installed')
+        write(backup, 'corrupt original backup\n')
+        run(['status'], 'broken', reason=True)
+        write(backup, original)
         # Installed state plus a failed worker-owned prerequisite is broken.
         injected = 'mzd_check_prerequisites() { printf "Required component missing.\\n" >&2; return 1; }\n'
         write(p, source.replace("REQUIRES=''", injected + "REQUIRES=''")); checksum(p)
