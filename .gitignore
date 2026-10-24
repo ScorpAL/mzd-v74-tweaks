@@ -1,8 +1,9 @@
-# Written by the scripts on the USB drive
-logs/
-JCI-*.zip
-mp3_off/
-# Local build / tooling leftovers
+# Vehicle/runtime output
+/installer-logs/
+/reports/
+# Private local evidence and development leftovers
+/private/
 __pycache__/
 *.pyc
 *.o
+/tests/runs/local/

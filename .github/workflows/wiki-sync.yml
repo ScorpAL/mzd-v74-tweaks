@@ -1,0 +1,22 @@
+name: Sync Wiki
+on:
+  push:
+    branches: [development]
+    paths: ['wiki/**', '.github/workflows/wiki-sync.yml', 'tools/sync-wiki.sh']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: wiki-sync
+  cancel-in-progress: false
+jobs:
+  wiki:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish reviewed Wiki sources
+        env:
+          WIKI_TOKEN: ${{ secrets.WIKI_TOKEN }}
+          WIKI_REPOSITORY: ${{ github.repository }}
+        run: sh tools/sync-wiki.sh

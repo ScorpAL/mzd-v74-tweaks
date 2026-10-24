@@ -1,0 +1,130 @@
+#!/bin/sh
+# --- Local common helpers ---
+# Functions using scratch variables run in subshells to isolate caller state.
+mzd_hash() (
+  md5sum "$1" | cut -d' ' -f1
+)
+
+mzd_check_asset() (
+  expected=$(cut -c1-32 "$1.md5" 2>/dev/null)
+  [ -n "$expected" ] && [ -f "$1" ] && [ ! -L "$1" ] &&
+    [ "$(mzd_hash "$1")" = "$expected" ]
+)
+
+mzd_require_assets() (
+  for asset in "$@"
+  do
+    mzd_check_asset "$asset" || mzd_fail "Asset checksum mismatch: $asset"
+  done
+)
+
+mzd_require_tools() (
+  for tool in "$@"
+  do
+    command -v "$tool" >/dev/null 2>&1 || mzd_fail "Missing tool: $tool"
+  done
+)
+
+# Exact line comparison supported by the CMU's BusyBox awk. Its grep has no -x.
+mzd_line_is() (
+  awk -v expected="$1" '$0 == expected {found=1} END {exit !found}' "$2"
+)
+
+# This check has no target-file or patch dependency.
+mzd_validate_firmware() (
+  mzd_line_is "JCI_SW_VER=\"MAZ_CMU-150_$1\"" /jci/version.ini ||
+    mzd_fail "This tweak requires firmware $1."
+)
+
+mzd_report_message() {
+  printf '%s\n' "$*"
+  printf '%s\n' "$*" >&3
+}
+
+# Before begin, errors use stderr only. During an operation they also reach USB.
+mzd_fail() {
+  if [ "${ACTION:-}" != status ] && [ -n "${MZD_REPORT:-}" ]
+  then
+    printf 'ERROR: %s\n' "$*"
+    printf 'ERROR: %s\nReports: %s\n' "$*" "$MZD_REPORT" >&4
+    : > "$MZD_REPORT/error-reported" 2>/dev/null || :
+  else
+    printf 'ERROR: %s\n' "$*" >&2
+  fi
+  exit "${MZD_FAILURE_CODE:-1}"
+}
+
+# Persist severity because patch helpers run in subshells.
+# Exit 2 means manual intervention is required; never continue or reboot.
+mzd_fatal() {
+  printf '%s\n' "$*" > "$MZD_REPORT/critical-error" || :
+  MZD_FAILURE_CODE=2
+  mzd_fail "$@"
+}
+
+# Explicit session start: script path, tweak ID, optional cleanup function.
+# Only MZD_USB/MZD_REPORT/MZD_CLEANUP are shared session variables.
+mzd_begin() {
+  MZD_CLEANUP=${3:-}
+  MZD_USB=$(dirname "$1")
+  while [ "$MZD_USB" != / ] && ! grep -q " $MZD_USB " /proc/mounts
+  do
+    MZD_USB=$(dirname "$MZD_USB")
+  done
+  if [ "$MZD_USB" = / ]
+  then
+    echo 'Cannot identify the startup storage mount.' >&2
+    exit 1
+  fi
+  mount -o rw,remount "$MZD_USB" || exit 1
+  MZD_REPORT="$MZD_USB/reports/diffpatch/$2-$(date +%Y%m%d-%H%M%S)-$$"
+  mkdir -p "$MZD_REPORT" || exit 1
+  : > "$MZD_REPORT/run.log" || exit 1
+  exec 3>&1
+  exec 4>&2
+  exec > "$MZD_REPORT/run.log" 2>&1
+  trap mzd_finish 0
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+}
+
+# Cleanup is an optional worker-supplied function name, never evaluated code.
+mzd_finish() {
+  MZD_EXIT=$?
+  trap - 0
+  case "${ACTION:-}:$MZD_EXIT" in
+    install:130|install:143|uninstall:130|uninstall:143)
+      printf 'ERROR: The operation was interrupted; changes may be incomplete. Do NOT reboot.\nReports: %s\n' "$MZD_REPORT" >&4
+      MZD_EXIT=2 ;;
+  esac
+  if [ -n "$MZD_CLEANUP" ] && ! "$MZD_CLEANUP"
+  then
+    printf 'ERROR: Cleanup failed; system state could not be fully restored. Do NOT reboot.\nReports: %s\n' "$MZD_REPORT" >&4
+    MZD_EXIT=2
+  fi
+  if [ -f "$MZD_REPORT/critical-error" ]
+  then
+    MZD_EXIT=2
+  fi
+  if [ "$MZD_EXIT" != 0 ] && [ ! -f "$MZD_REPORT/error-reported" ]
+  then
+    printf 'ERROR: Operation failed or was interrupted (exit %s). Check the report before continuing.\nReports: %s\n' "$MZD_EXIT" "$MZD_REPORT" >&4
+  fi
+  if ! printf 'exit_code=%s\n' "$MZD_EXIT" > "$MZD_REPORT/status.txt"
+  then
+    printf 'ERROR: Cannot save the final result. Check USB storage.\nReports: %s\n' "$MZD_REPORT" >&4
+    [ "$MZD_EXIT" = 0 ] && MZD_EXIT=1
+  fi
+  sync
+  # Never announce success before cleanup and result recording have succeeded.
+  if [ "$MZD_EXIT" = 0 ] && [ -n "${MZD_SUCCESS:-}" ]
+  then
+    mzd_report_message "$MZD_SUCCESS"
+  fi
+  if [ "$MZD_EXIT" = 0 ] && [ -n "${MZD_STATUS:-}" ]
+  then
+    printf '%s\n' "$MZD_STATUS" >&3
+  fi
+  exit "$MZD_EXIT"
+}
+

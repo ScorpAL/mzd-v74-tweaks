@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Installer shell transport</title></head><body><script>
+/* Same-origin HTTP transport for the local-file UI. Token stays session-local. */
+(function () {
+    var token = location.hash.substring(1), queue = [], active = false;
+    function next() {
+        if (active || !queue.length) return;
+        active = true;
+        var job = queue.shift(), xhr = new XMLHttpRequest();
+        var body = "program=" + encodeURIComponent(job.program);
+        for (var i = 0; i < job.args.length; i++) body += "&arg=" + encodeURIComponent(job.args[i]);
+        xhr.open("POST", "/exec", true);
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        xhr.setRequestHeader("X-Poc-Token", token);
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) return;
+            var result = null, error = null;
+            try {
+                if (xhr.status !== 200) throw new Error("Shell transport HTTP " + xhr.status + ". Outcome may be unknown.");
+                result = JSON.parse(xhr.responseText);
+            } catch (e) { error = String(e); }
+            window.parent.postMessage({type:"shell-result",token:token,id:job.id,result:result,error:error}, "*");
+            active = false; next();
+        };
+        xhr.send(body);
+    }
+    window.addEventListener("message", function (event) {
+        if (event.source !== window.parent) return;
+        var data = event.data;
+        if (!data || data.type !== "shell-exec" || data.token !== token) return;
+        if (typeof data.id !== "number" || typeof data.program !== "string" || !Array.isArray(data.args)) return;
+        queue.push(data); next();
+    }, false);
+    window.parent.postMessage({type:"shell-ready",token:token}, "*");
+}());
+</script></body></html>

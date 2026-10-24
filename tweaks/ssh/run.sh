@@ -1,0 +1,261 @@
+#!/bin/sh
+# SSH Access for Mazda firmware 74.00.324.
+# Launcher worker; shared runtime helpers are in ../../lib/.
+#
+# Reading guide:
+#   1. Validate the requested action without changing the system.
+#   2. Define local reporting, system-state and patch helpers.
+#   3. Set this tweak's paths/checksum in the configuration section below.
+#   4. Run the installation flow at the end of the file.
+# The manifest describes the tweak for discovery; this script executes it.
+set -u
+
+# Help and invalid actions return before reports, mounts or system changes.
+mzd_worker_usage() {
+    echo 'Usage: sh run.sh <install|uninstall|status>'
+    echo 'No arguments or --help: show usage without changing anything.'
+}
+
+if [ "$#" -gt 1 ]
+then
+    echo 'Expected exactly one action, or no arguments for usage.' >&2
+    mzd_worker_usage >&2
+    exit 1
+fi
+ACTION=${1:-}
+case "$ACTION" in
+    ''|--help|-h)
+        mzd_worker_usage
+        exit 0
+        ;;
+    install|uninstall|status)
+        ;;
+    *)
+        echo 'Unknown action. Use install, uninstall or status.' >&2
+        exit 1
+        ;;
+esac
+
+# Run directly from the ready-to-use repository; no build step is needed.
+SELF=$(readlink -f "$0") || exit 1
+HERE=$(dirname "$SELF")
+
+# The repository is the ready-to-run USB package. Verify shared helpers before
+# sourcing them; checksums detect package corruption, not malicious changes.
+ROOT=$(CDPATH= cd "$HERE/../.." && pwd) || exit 1
+for library in report system patch status; do
+    file="$ROOT/lib/$library.sh"
+    expected=$(cut -c1-32 "$file.md5" 2>/dev/null)
+    actual=$(md5sum "$file" 2>/dev/null | cut -d' ' -f1)
+    if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+        printf 'ERROR: Shared library checksum mismatch: %s\n' "$library" >&2
+        exit 1
+    fi
+    . "$file" || exit 1
+done
+
+# --- Tweak configuration --------------------------------------------------
+# Maintain these values together with manifest.json; offline tests check them.
+# ORIGINAL identifies the unmodified OEM file, not a file with other tweaks.
+# Tweaks editing the same file share LOCK to avoid simultaneous writes.
+# JSON is not executed or parsed on the CMU.
+ID=ssh
+FIRMWARE=74.00.324
+APP=/jci/scripts/stage_wifi.sh
+ORIGINAL=d740449dea568696660a62fce0fb35bd
+LOCK=/tmp/mzd-stage_wifi-tweak.lock
+PATCH_FILE="$HERE/assets/change.patch"
+
+# --- SSH payload preparation ------------------------------------------------
+# SSH owns a resources directory in addition to its patched startup hook.
+# Keep service provisioning separate from the generic file-patching workflow.
+SERVICE=/tmp/mnt/resources/mzd-v74-tweaks/ssh
+PAYLOAD="$HERE/assets"
+
+resources_rw() {
+    mzd_system_remount_rw /tmp/mnt/resources || exit 1
+}
+
+# Never replace an unknown service payload, even if the boot hook looks known.
+ssh_payload_ok() {
+    if [ ! -d "$SERVICE" ] || [ -L "$SERVICE" ]
+    then
+        return 1
+    fi
+    for _file in service.sh sshd_config password.hash
+    do
+        if [ -L "$SERVICE/$_file" ] || ! cmp -s "$PAYLOAD/$_file" "$SERVICE/$_file"
+        then
+            return 1
+        fi
+    done
+}
+
+ssh_prepare() {
+    for _file in service.sh sshd_config password.hash usb-log-marker.txt
+    do
+        mzd_check_asset "$PAYLOAD/$_file" || mzd_fail 'SSH asset checksum mismatch.'
+    done
+
+    if [ -e "$SERVICE" ]
+    then
+        ssh_payload_ok || mzd_fail 'Existing SSH service files differ. Nothing overwritten.'
+    elif [ "$STATE" = installed ]
+    then
+        mzd_fail 'The SSH boot hook is installed but the service payload is missing.'
+    fi
+
+    if [ "$ACTION" != install ]
+    then
+        return 0
+    fi
+
+    # Check account layout, executable/config compatibility and port ownership
+    # before copying anything into resources or changing the startup hook.
+    _check=$PAYLOAD
+    if [ -d "$SERVICE" ]
+    then
+        _check=$SERVICE
+    fi
+    sh "$_check/service.sh" check || mzd_fail 'SSH prerequisites failed; an unrelated port 22 listener is never replaced.'
+
+    if [ ! -e "$SERVICE" ]
+    then
+        resources_rw
+        mkdir -p "$(dirname "$SERVICE")" || mzd_fail 'Cannot create SSH parent directory.'
+        _stage="$SERVICE.new-$$"
+        mkdir "$_stage" || mzd_fail 'Cannot prepare SSH service directory.'
+
+        # Publish a directory only after all three payload files are verified.
+        for _file in service.sh sshd_config password.hash
+        do
+            if ! cp "$PAYLOAD/$_file" "$_stage/$_file" || ! cmp -s "$PAYLOAD/$_file" "$_stage/$_file"
+            then
+                rm -f "$_stage/service.sh" "$_stage/sshd_config" "$_stage/password.hash"
+                rmdir "$_stage"
+                mzd_fail 'Cannot copy and verify SSH service payload.'
+            fi
+        done
+        if ! chmod 700 "$_stage/service.sh" ||
+            ! chmod 600 "$_stage/sshd_config" "$_stage/password.hash"
+        then
+            mzd_fail 'Cannot set SSH payload permissions.'
+        fi
+        sync
+        mv "$_stage" "$SERVICE" || mzd_fail 'Cannot publish SSH service directory.'
+    fi
+
+    cp "$PAYLOAD/usb-log-marker.txt" "$USB/diffpatch-ssh-log-marker.txt" || mzd_fail 'Cannot save USB runtime-log marker.'
+}
+
+
+# --- SSH activation, selective removal and startup rollback ------------------
+ssh_rollback_hook() {
+    if [ "$NO_CHANGE" = 0 ]
+    then
+        mzd_patch_rollback "$CONTEXT" || exit $?
+    fi
+}
+
+ssh_complete() {
+    if [ "$ACTION" = install ]
+    then
+        resources_rw
+        if ! printf 'enabled\n' > "$SERVICE/enabled"
+        then
+            rm -f "$SERVICE/enabled"
+            ssh_rollback_hook || exit $?
+            mzd_fail 'Cannot enable the SSH service. The new boot hook was reverted.'
+        fi
+        sync
+
+        # Close both caller streams in the detached supervisor. It handles its
+        # own USB runtime logs and does not require WLAN to have an address yet.
+        sh "$SERVICE/service.sh" boot "$USB" >/dev/null 2>&1 3>&- 4>&- &
+        sleep 2
+        if ! sh "$SERVICE/service.sh" status
+        then
+            rm -f "$SERVICE/enabled"
+            sh "$SERVICE/service.sh" stop || mzd_fatal 'SSH startup and service cleanup failed. Do NOT reboot.'
+            ssh_rollback_hook || exit $?
+            mzd_fail 'SSH did not start. The new boot hook and runtime changes were reverted.'
+        fi
+        printf 'SSH: port 22, user cmu, password jci.\n' >&3
+
+    elif [ -d "$SERVICE" ]
+    then
+        # The generic inverse patch has already removed the startup hook.
+        # Stop the owned service before removing only its verified payload.
+        resources_rw
+        rm -f "$SERVICE/enabled"
+        sync
+        sh "$SERVICE/service.sh" stop || mzd_fatal 'Boot hook removed; service cleanup failed. Do NOT reboot.'
+        for _file in service.sh sshd_config password.hash
+        do
+            rm -f "$SERVICE/$_file"
+        done
+        rmdir "$SERVICE" || mzd_fail 'SSH stopped; service directory is not empty.'
+        printf 'Managed SSH service, password overlay and firewall access removed.\n' >&3
+    fi
+}
+
+# Declared dependencies/conflicts are enforced for direct CLI calls as well.
+REQUIRES=''
+CONFLICTS=''
+if [ "$ACTION" = status ]; then
+    mzd_read_status
+    exit $?
+fi
+# Recheck immediately before opening a modifying session.
+mzd_action_preflight || exit 1
+
+# --- Execution flow -------------------------------------------------------
+# Open USB reports and register cleanup before acquiring a lock. Cleanup restores
+# only the mount/watchdog state changed by this invocation, including on failure.
+mzd_begin "$SELF" "$ID" mzd_system_cleanup
+mzd_system_begin
+mzd_require_tools awk md5sum cp cmp || exit 1
+mzd_require_assets "$SELF" "$HERE/manifest.json" || exit 1
+mzd_validate_firmware "$FIRMWARE" || exit 1
+mzd_system_lock "$LOCK" || exit 1
+
+# Probe both patch directions on USB copies before making the target writable.
+# Keep a complete pre-change copy so rollback preserves other installed tweaks.
+CONTEXT="$MZD_REPORT/target"
+mzd_patch_prepare "$APP" "$PATCH_FILE" "$ORIGINAL" "$CONTEXT" || exit 1
+STATE=$(mzd_patch_state "$CONTEXT") || exit 1
+
+
+# Repeated install/uninstall is a successful no-op for the patch itself.
+NO_CHANGE=0
+case "$ACTION:$STATE" in
+    install:installed|uninstall:uninstalled) NO_CHANGE=1 ;;
+esac
+if [ "$NO_CHANGE" = 0 ]
+then
+    mzd_patch_validate_backup "$CONTEXT" || exit 1
+fi
+
+# Prepare/validate the SSH payload before changing the boot hook. Activate the
+# service afterwards; activation failure rolls the newly added hook back.
+USB=$MZD_USB
+REPORT=$MZD_REPORT
+mzd_report_message "$ACTION in progress. Do not remove the USB drive."
+ssh_prepare || exit $?
+if [ "$NO_CHANGE" = 0 ]
+then
+    mzd_system_watchdog_disable || exit 1
+    mzd_system_remount_rw / || exit 1
+    mzd_patch_apply "$CONTEXT" "$ACTION" || exit $?
+fi
+ssh_complete || exit $?
+
+# Report completion; the launcher owns dialogs and any reboot decision.
+if [ "$NO_CHANGE" = 1 ]
+then
+    MZD_SUCCESS="Requested setting is already present.
+Reports: $MZD_REPORT"
+else
+    MZD_SUCCESS="$ACTION completed. Other changes were preserved.
+Reports: $MZD_REPORT"
+fi

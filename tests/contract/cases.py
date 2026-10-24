@@ -1,0 +1,12 @@
+"""Every discovered tweak needs explicit executable contract/fixture coverage.
+
+These tests cover the shared patch-worker implementation. New implementation
+types must add their own real-entrypoint runner instead of claiming coverage.
+"""
+CASES = {
+    'list-beep': 'shared-patch',
+    'list-loop': 'shared-patch',
+    'shorter-delay': 'shared-patch',
+    'main-menu-loop': 'shared-patch',
+    'ssh': 'shared-patch',
+}
