@@ -120,7 +120,18 @@ for id_, runner in CASES.items():
                 shutil.copyfile(worker / 'assets' / name, service / name)
             write(service / 'enabled', 'enabled\n')
         run(['status'], 'installed')
+        # Installed state plus a failed worker-owned prerequisite is broken.
+        injected = 'mzd_check_prerequisites() { printf "Required component missing.\\n" >&2; return 1; }\n'
+        write(p, source.replace("REQUIRES=''", injected + "REQUIRES=''")); checksum(p)
+        run(['status'], 'broken', reason=True)
+        write(p, source); checksum(p)
         if id_ == 'ssh':
+            saved = target.read_text()
+            additions = ''.join(line[1:] for line in patch.splitlines(keepends=True) if line.startswith('+') and not line.startswith('+++'))
+            write(target, saved + additions)
+            run(['status'], 'broken', reason=True)
+            run(['install'], code=1); run(['uninstall'], code=1)
+            write(target, saved)
             (service / 'enabled').unlink(); run(['status'], 'broken', reason=True)
             write(service / 'enabled', 'enabled\n')
             (service / 'service.sh').unlink(); run(['status'], 'broken', reason=True)
@@ -173,7 +184,7 @@ for id_, runner in CASES.items():
             text = text.replace('/sys/class/gpio/Watchdog\\ Disable/value', bp(gpio))
             write(lib, text); checksum(lib)
         modified = re.sub(r'^ORIGINAL=.*$', 'ORIGINAL=' + hashlib.md5(original.encode()).hexdigest(), source, flags=re.M)
-        modified = modified.replace('/tmp/mnt/resources', bp(resources))
+        modified = modified.replace('mzd_system_remount_rw /tmp/mnt/resources', 'mzd_system_remount_rw ' + bp(resources))
         write(p, modified); checksum(p)
         write(bins / 'sync', '#!/bin/sh\nprintf "sync\\n" >> ' + shlex.quote(bp(events)) + '\n')
         write(bins / 'mount', '''#!/bin/sh
