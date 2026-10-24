@@ -71,7 +71,9 @@ mzd_read_status() (
     trap 'exit 130' INT
     trap 'exit 143' TERM
     STATUS_PATCH=$PATCH_FILE
-    if mzd_patch_prepare "$APP" "$STATUS_PATCH" "$ORIGINAL" "$MZD_REPORT/target" > "$MZD_REPORT/probe.log" 2>&1; then
+    mode=normal
+    [ "$ID" != ssh ] || mode=additive
+    if mzd_patch_prepare "$APP" "$STATUS_PATCH" "$ORIGINAL" "$MZD_REPORT/target" "$mode" > "$MZD_REPORT/probe.log" 2>&1; then
         state=$(mzd_patch_state "$MZD_REPORT/target") || exit 1
     else
         # Only a completed forward/reverse inspection proves incompatibility.
@@ -89,7 +91,9 @@ mzd_read_status() (
         mzd_fail 'Target changed during status inspection; retry status.'
     if [ "$ID" = ssh ]; then
         if [ "$state" = installed ]; then
-            if ! ssh_payload_ok; then
+            if ! ssh_hook_ok; then
+                state=broken; reason='The SSH startup hook is duplicated or incomplete.'
+            elif ! ssh_payload_ok; then
                 state=broken; reason='SSH hook is present but its service files are missing or changed.'
             elif [ ! -f "$SERVICE/enabled" ] || [ -L "$SERVICE/enabled" ] || ! mzd_line_is enabled "$SERVICE/enabled"; then
                 state=broken; reason='SSH hook is present but its enabled marker is missing or invalid.'

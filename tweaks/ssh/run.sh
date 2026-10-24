@@ -76,6 +76,17 @@ resources_rw() {
     mzd_system_remount_rw /tmp/mnt/resources || exit 1
 }
 
+# The additive hook must occur exactly once, as an adjacent marker/command pair.
+# Some patch versions otherwise accept inserting the same block a second time.
+ssh_hook_ok() {
+    awk -v command='sh /tmp/mnt/resources/mzd-v74-tweaks/ssh/service.sh boot >/dev/null 2>&1 &' '
+      $0 == "# MZD v74 SSH" {markers++; adjacent=1; next}
+      $0 == command {commands++; if (adjacent) pairs++}
+      {adjacent=0}
+      END {exit !(markers==1 && commands==1 && pairs==1)}
+    ' "$APP"
+}
+
 # Never replace an unknown service payload, even if the boot hook looks known.
 ssh_payload_ok() {
     if [ ! -d "$SERVICE" ] || [ -L "$SERVICE" ]
@@ -222,7 +233,7 @@ mzd_system_lock "$LOCK" || exit 1
 # Probe both patch directions on USB copies before making the target writable.
 # Keep a complete pre-change copy so rollback preserves other installed tweaks.
 CONTEXT="$MZD_REPORT/target"
-mzd_patch_prepare "$APP" "$PATCH_FILE" "$ORIGINAL" "$CONTEXT" || exit 1
+mzd_patch_prepare "$APP" "$PATCH_FILE" "$ORIGINAL" "$CONTEXT" additive || exit 1
 STATE=$(mzd_patch_state "$CONTEXT") || exit 1
 
 

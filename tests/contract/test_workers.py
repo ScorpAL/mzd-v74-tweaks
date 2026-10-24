@@ -23,6 +23,8 @@ def bp(path):
 
 def write(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink():
+        path.unlink()
     path.write_text(text, encoding='utf-8', newline='\n')
     path.chmod(0o755)
 

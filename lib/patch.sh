@@ -46,6 +46,7 @@ mzd_patch_prepare() (
   patch_file=$2
   original=$3
   context=$4
+  mode=${5:-normal}
   mzd_require_tools patch diff cp cmp md5sum || exit 1
   mzd_require_assets "$patch_file" || exit 1
   if [ ! -f "$target" ] || [ -L "$target" ]
@@ -89,6 +90,13 @@ mzd_patch_prepare() (
   case "$forward:$reverse" in
     1:0) state=uninstalled; direction=install ;;
     0:1) state=installed; direction=uninstall ;;
+    1:1)
+      # Pure insertion patches can be inserted again by some patch versions.
+      # Only opt in for a worker that separately validates unique ownership.
+      [ "$mode" = additive ] &&
+        awk '/^-/ && !/^---/ {removed=1} END {exit removed}' "$patch_file" ||
+        mzd_fail 'Patch state is unknown, partial or ambiguous. No system file changed.'
+      state=installed; direction=uninstall ;;
     *) mzd_fail 'Patch state is unknown, partial or ambiguous. No system file changed.' ;;
   esac
   mzd_hash "$context/$direction/target.data" > "$context/desired.md5" || exit 1
