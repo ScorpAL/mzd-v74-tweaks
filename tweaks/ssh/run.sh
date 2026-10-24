@@ -102,6 +102,14 @@ ssh_payload_ok() {
     done
 }
 
+# The supervisor's check action only reads prerequisites/configuration/ports.
+# Use its deployed path when present so it recognizes its own running listener.
+mzd_check_prerequisites() {
+    check_dir=$PAYLOAD
+    [ ! -d "$SERVICE" ] || check_dir=$SERVICE
+    sh "$check_dir/service.sh" check
+}
+
 ssh_prepare() {
     for _file in service.sh sshd_config password.hash usb-log-marker.txt
     do

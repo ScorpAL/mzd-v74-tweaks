@@ -53,6 +53,11 @@ for id_, runner in CASES.items():
         shutil.copytree(ROOT / 'lib', usb / 'lib')
         worker = usb / 'tweaks' / id_
         shutil.copytree(ROOT / 'tweaks' / id_, worker)
+        if id_ == 'ssh':
+            # The real supervisor has its own fake-kernel/network suite. Here
+            # only its read-only prerequisite interface is represented.
+            write(worker / 'assets/service.sh', '#!/bin/sh\n[ "$1" = check ] || exit 1\nprintf "Prerequisites checked.\\n"\n')
+            checksum(worker / 'assets/service.sh')
         target = base / 'target.data'; service = base / 'service'
         version = base / 'version.ini'; lock = base / 'lock'; events = base / 'events'
         bins = base / 'bin'; bins.mkdir()
@@ -93,6 +98,9 @@ for id_, runner in CASES.items():
         def run(action, state=None, code=0, reason=False):
             global checks
             snapshot = before_usb(); data = target.read_bytes(); v = version.read_bytes()
+            backup_path = Path(str(target) + '.org')
+            backup_data = backup_path.read_bytes() if backup_path.exists() else None
+            service_data = {q.name: q.read_bytes() for q in service.glob('*') if q.is_file()}
             result = subprocess.run([SHELL, bp(p)] + action, env=env, capture_output=True, text=True, timeout=30)
             assert result.returncode == code, (id_, action, result.returncode, result.stdout, result.stderr)
             if state is not None:
@@ -105,6 +113,8 @@ for id_, runner in CASES.items():
                 assert result.stdout == '' and result.stderr.strip(), (id_, action, result.stdout, result.stderr)
             assert before_usb() == snapshot, 'Query/refusal wrote to USB.'
             assert target.read_bytes() == data and version.read_bytes() == v, 'Query/refusal changed target.'
+            assert (backup_path.read_bytes() if backup_path.exists() else None) == backup_data, 'Query/refusal changed backup.'
+            assert {q.name: q.read_bytes() for q in service.glob('*') if q.is_file()} == service_data, 'Query/refusal changed service.'
             assert not events.exists(), 'Query/refusal reached a modifying command.'
             checks += 1
             print('PASS', id_, ' '.join(action) or 'usage', state or code, flush=True)

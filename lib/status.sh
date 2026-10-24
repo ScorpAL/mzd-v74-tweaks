@@ -32,7 +32,7 @@ mzd_status_dependencies() (
     [ "${#trail}" -lt 512 ] || { printf 'Dependency chain is too long.\n' >&2; exit 1; }
     MZD_DEPENDENCY_TRAIL="$trail$ID:"; export MZD_DEPENDENCY_TRAIL
     if command -v mzd_check_prerequisites >/dev/null 2>&1; then
-        mzd_check_prerequisites || exit 1
+        mzd_check_prerequisites >&2 || exit 1
     fi
     for dependency in $REQUIRES; do
         case "$dependency" in ''|*[!a-z0-9-]*) printf 'Invalid dependency ID.\n' >&2; exit 1 ;; esac
