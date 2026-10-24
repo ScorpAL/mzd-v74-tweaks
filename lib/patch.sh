@@ -4,6 +4,18 @@
 # The worker owns locks, writable mounts and multi-file orchestration.
 
 
+# Distinguish an ordinary rejected hunk from an unavailable/crashed patch tool.
+mzd_patch_tool() (
+  context=$1; work=$2; flag=$3; patch_file=$4; log=$5
+  (cd "$work" && patch -N $flag -p0 -i "$patch_file" < /dev/null) > "$log" 2>&1
+  result=$?
+  if [ "$result" -gt 1 ] || awk '/applet not found|not found|invalid option|unrecognized option|Permission denied|No space left|Read-only file system|out of memory/ {found=1} END {exit !found}' "$log"
+  then
+    : > "$context/probe-error"
+  fi
+  exit "$result"
+)
+
 # Native BusyBox has no dry-run. Probe a copy and require an exact inverse.
 mzd_patch_probe() (
   context=$1
@@ -14,16 +26,16 @@ mzd_patch_probe() (
   cp "$context/before.data" "$work/target.data" || exit 1
   if [ "$direction" = install ]
   then
-    (cd "$work" && patch -N -p0 -i "$patch_file" < /dev/null) > "$work/patch.log" 2>&1 || exit 1
+    mzd_patch_tool "$context" "$work" '' "$patch_file" "$work/patch.log" || exit 1
     inverse=-R
   else
-    (cd "$work" && patch -N -R -p0 -i "$patch_file" < /dev/null) > "$work/patch.log" 2>&1 || exit 1
+    mzd_patch_tool "$context" "$work" -R "$patch_file" "$work/patch.log" || exit 1
     inverse=
   fi
   cmp -s "$context/before.data" "$work/target.data" && exit 1
   cp "$work/target.data" "$work/inverse/target.data" || exit 1
   # inverse is either the fixed -R flag or empty; never caller-provided code.
-  (cd "$work/inverse" && patch -N $inverse -p0 -i "$patch_file" < /dev/null) > "$work/inverse.log" 2>&1 || exit 1
+  mzd_patch_tool "$context" "$work/inverse" "$inverse" "$patch_file" "$work/inverse.log" || exit 1
   cmp -s "$context/before.data" "$work/inverse/target.data"
 )
 
@@ -73,6 +85,7 @@ mzd_patch_prepare() (
   reverse=0
   mzd_patch_probe "$context" install "$patch_file" && forward=1
   mzd_patch_probe "$context" uninstall "$patch_file" && reverse=1
+  [ ! -e "$context/probe-error" ] || mzd_fail 'Patch tool failed; the target state could not be inspected.'
   case "$forward:$reverse" in
     1:0) state=uninstalled; direction=install ;;
     0:1) state=installed; direction=uninstall ;;

@@ -24,12 +24,19 @@ jobs:
         run: python tools/validate.py
       - name: Check shell errors
         run: shellcheck --severity=error --shell=sh autorun.sh installer.sh lib/*.sh tweaks/*/run.sh examples/hello/run.sh
+      - name: Install full static BusyBox test applets
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y busybox-static
+          busybox patch --help
+          busybox diff --help
       - name: Run actual workers in a read-only, networkless BusyBox container
         run: |
           docker run --rm --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
             --tmpfs /tmp:rw,exec,nosuid,size=128m \
             -e PYTHONDONTWRITEBYTECODE=1 -e CMU_TEST_BUSYBOX=1 \
+            -v "$(command -v busybox):/usr/local/bin/busybox:ro" \
             -v "$PWD:/repo:ro" -w /repo python:3.12-alpine \
             python tests/contract/test_workers.py
       - name: Exercise the real SSH supervisor with fake system commands
