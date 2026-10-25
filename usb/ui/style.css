@@ -12,9 +12,14 @@ button:focus{outline:3px solid #fff;outline-offset:-4px}button:active{background
 .tab{height:42px;min-width:150px;margin-right:8px;padding:0 19px;border:0;border-bottom:3px solid #42444a;background:#1b1c21;font-size:19px}
 .tab.selected{border-bottom:3px solid #ec2848;background:#431723;color:#fff}
 #content{position:absolute;left:20px;right:14px;top:156px;bottom:47px;overflow:auto}
-#cards{padding:3px 3px 8px}.tweak{position:relative;display:inline-block;vertical-align:top;width:359px;height:105px;margin:0 11px 12px 0;text-align:left;border:1px solid #46484e;border-left:3px solid #8b1d31;background:#202126}
-.tweak .dot{position:absolute;left:18px;top:24px}.tweak-name{position:absolute;left:45px;right:10px;top:18px;font-size:21px;line-height:25px;max-height:51px;overflow:hidden}
-.tweak-status{position:absolute;left:45px;right:10px;bottom:12px;font-size:13px;color:#b8b9c0}
+/* Compact, single-column CMU-style rows; five entries fit below the tabs. */
+#cards{padding:3px 3px 8px}
+.tweak{position:relative;display:block;box-sizing:border-box;width:100%;height:48px;margin:0 0 4px;padding:0;text-align:left;border:0;border-bottom:1px solid #41434a;border-left:3px solid #8b1d31;background:#202126}
+.tweak:focus{background:#481923;border-left-color:#ec2848}
+.tweak .dot{position:absolute;left:16px;top:16px}
+.tweak-name{position:absolute;left:43px;right:215px;top:11px;font-size:20px;line-height:25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tweak-status{position:absolute;right:17px;top:15px;width:185px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px;line-height:19px;color:#b8b9c0}
+
 .dot{display:inline-block;width:13px;height:13px;border-radius:8px;background:#777b84;border:1px solid #9b9da4;vertical-align:middle}
 .dot.installed{background:#56bc6c;border-color:#86da98}.dot.uninstalled{background:#777b84;border-color:#a5a7ae}.dot.error{background:#e33b52;border-color:#ff8090}.dot.checking{background:#24262c;border-color:#9b9da4}
 #empty{padding:30px 10px;color:#b8bac2;font-size:22px}

@@ -37,6 +37,14 @@ Only firmware **74.00.324** is currently supported by the included tweaks.
 | `tests/runs/` | Reviewed evidence and manual vehicle test records |
 | `tools/` | Development validation and optional native compilation |
 
+## Offline styling preview (Windows)
+
+Double-click `tools/preview.cmd` to open a disposable local HTML preview with
+example states and simulated actions. It embeds the current UI and manifests;
+no shell worker executes. Run it again after editing CSS or JavaScript to rebuild
+the preview. Python, Node.js and a web server are not needed for this preview.
+The tweak menu uses compact single-column rows with status on the right.
+
 ## State contract
 
 `status` prints exactly one state and a newline on stdout, with exit code 0:
