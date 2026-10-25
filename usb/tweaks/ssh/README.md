@@ -21,3 +21,12 @@ Modifying actions recheck prerequisites, use exact reversible patches, retain a
 verified OEM backup, preserve other tweaks and restore owned mount/watchdog state.
 See ../../../wiki/Worker-contract.md and ../../../tests/runs/ for protocol and evidence.
 The shared runtime/contract migration still requires a fresh vehicle test.
+
+## System reset
+
+`reset.sh check|prepare|finish` integrates with System > Restore originals. It
+validates the remaining payload, archives it on USB, disables and stops the owned
+supervisor, then deletes only its verified payload after the startup file has
+been restored. Native SSH and unknown files are left alone. A missing or altered
+payload with active runtime can require manual review. File rollback does not
+automatically restart SSH. Never invoke finish alone; use the System reset tool.

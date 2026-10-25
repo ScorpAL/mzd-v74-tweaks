@@ -56,3 +56,14 @@ determined `unavailable` state, as specified in the worker contract.
 `progress=true` enables asynchronous Run execution for command workers. It defaults to false and must be a literal boolean. A command may use `target` for its source directory; OEM backup hashes and patch locks are not required for commands.
 
 The launcher calls `installer.sh start-run <id>`, polls `job-status <token>`, and reads `job-output <token> stdout|stderr` after completion. Jobs and progress files live in the temporary installer session, not on USB. The unchanged native bridge executes these short requests serially.
+
+## Reset and confirmation metadata
+
+- `confirmation`: optional literal warning shown in a second confirmation dialog
+  before a command runs. No shell evaluation. Cancelling executes no worker.
+- `refresh_all`: optional boolean, default false; recheck all tweak statuses after
+  acknowledging an operation result. Restore declares true because it affects
+  multiple files/tweaks, even when a later cleanup phase fails.
+- `reset_entrypoint`: optional fixed value `reset.sh`. Required by repository
+  validation for service/files workers owning persistent extras. The reset hook
+  must be a regular local file, not a link.

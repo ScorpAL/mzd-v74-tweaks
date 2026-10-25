@@ -26,6 +26,10 @@ for folder in sorted((USB / 'tweaks').iterdir()):
     require(m['id'] == folder.name, 'Manifest ID/folder mismatch: ' + folder.name)
     require(len(m['firmware']) == 1, 'Add explicit multi-firmware worker coverage before advertising it: ' + folder.name)
     require(m['id'] in CASES, 'Register entrypoint tests in tests/contract/cases.py: ' + m['id'])
+    if m.get('reset_entrypoint'):
+        require((folder / m['reset_entrypoint']).is_file() and not (folder / m['reset_entrypoint']).is_symlink(), 'Reset hook missing or linked: ' + folder.name)
+    if m['type'] in ['service', 'files']:
+        require(m.get('reset_entrypoint') == 'reset.sh', 'Managed persistent extras require a reset hook: ' + folder.name)
     source = (folder / 'run.sh').read_text(encoding='utf-8')
     require(('mzd_manifest_load "$HERE/manifest.conf"' in source or (CASES[m['id']] == 'export-command' and 'mzd_export_main "$@"' in source)), 'Worker must load its manifest: ' + folder.name)
     require(not re.search(r'^(ID|FIRMWARE|APP|ORIGINAL|LOCK|REQUIRES|CONFLICTS)=', source, re.M),

@@ -14,7 +14,7 @@ mzd_manifest_load() {
     }
     CONTRACT_VERSION=; ID=; NAME=; DESCRIPTION=; VERSION=; TYPE=; GROUP=
     FIRMWARE=; ENTRYPOINT=; ACTIONS=; APP=; ORIGINAL=; LOCK_GROUP=
-    STATUS_SCOPE=; REBOOT_REQUIRED=; REQUIRES=; CONFLICTS=; PROGRESS=false
+    STATUS_SCOPE=; REBOOT_REQUIRED=; REQUIRES=; CONFLICTS=; PROGRESS=false; CONFIRMATION=; REFRESH_ALL=false; RESET_ENTRYPOINT=
     mzd_manifest_seen=' '; mzd_manifest_cr=$(printf '\r')
     while IFS= read -r mzd_manifest_line || [ -n "$mzd_manifest_line" ]; do
         mzd_manifest_line=${mzd_manifest_line%"$mzd_manifest_cr"}
@@ -24,7 +24,7 @@ mzd_manifest_load() {
         mzd_manifest_key=${mzd_manifest_line%%=*}
         mzd_manifest_value=${mzd_manifest_line#*=}
         case "$mzd_manifest_key" in
-            contract_version|id|name|description|version|type|group|firmware|entrypoint|actions|target|oem_backup_md5|lock_group|status_scope|reboot_required|requires|conflicts|progress) ;;
+            contract_version|id|name|description|version|type|group|firmware|entrypoint|actions|target|oem_backup_md5|lock_group|status_scope|reboot_required|requires|conflicts|progress|confirmation|refresh_all|reset_entrypoint) ;;
             *) mzd_manifest_error "Unknown field: $mzd_manifest_key"; return 1 ;;
         esac
         case "$mzd_manifest_seen" in *" $mzd_manifest_key "*) mzd_manifest_error "Duplicate field: $mzd_manifest_key"; return 1 ;; esac
@@ -48,6 +48,9 @@ mzd_manifest_load() {
             requires) REQUIRES=$mzd_manifest_value ;;
             conflicts) CONFLICTS=$mzd_manifest_value ;;
             progress) PROGRESS=$mzd_manifest_value ;;
+            confirmation) CONFIRMATION=$mzd_manifest_value ;;
+            refresh_all) REFRESH_ALL=$mzd_manifest_value ;;
+            reset_entrypoint) RESET_ENTRYPOINT=$mzd_manifest_value ;;
         esac
     done < "$mzd_manifest_file"
     for mzd_manifest_key in contract_version id name description version type group firmware entrypoint actions status_scope reboot_required requires conflicts; do
@@ -80,6 +83,8 @@ mzd_manifest_load() {
         done
     done
     case "$PROGRESS" in true|false) ;; *) mzd_manifest_error 'Expected true or false for progress.'; return 1 ;; esac
+    case "$REFRESH_ALL" in true|false) ;; *) mzd_manifest_error 'Expected true or false for refresh_all.'; return 1 ;; esac
+    case "$RESET_ENTRYPOINT" in ''|reset.sh) ;; *) mzd_manifest_error 'Reset entrypoint must be reset.sh.'; return 1 ;; esac
     LOCK=
     if [ "$TYPE" != command ]; then
         case "$APP" in /*) ;; *) mzd_manifest_error 'An absolute target is required.'; return 1 ;; esac

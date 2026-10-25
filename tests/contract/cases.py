@@ -11,5 +11,6 @@ CASES = {
     'no-more-disclaimer': 'shared-patch',
     'backup-jci': 'export-command',
     'logs-collector': 'export-command',
+    'restore-originals': 'restore-command',
     'ssh': 'shared-patch',
 }

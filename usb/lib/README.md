@@ -14,3 +14,5 @@ export.sh: read-only source exports, originating USB detection, unique output fo
 jobs.sh: detached command execution and RAM progress/result polling through the serial bridge.
 
 metrics.sh: read-only CPU tick deltas and free space for mounted block filesystems.
+
+restore.sh: internal backup discovery, USB archives, owned reset hooks, verified publication and rollback.

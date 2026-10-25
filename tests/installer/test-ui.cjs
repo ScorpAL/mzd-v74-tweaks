@@ -14,7 +14,7 @@ class Node {
   getElementsByTagName(tag){let all=[];for(const n of this.children){if(n.tagName===tag)all.push(n);all=all.concat(n.getElementsByTagName(tag));}return all;}
 }
 function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
-  const nodes={},jobs=[],calls=[],timers=[],intervals=[],listeners={},states={'backup-jci':'uninstalled','logs-collector':'uninstalled',hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
+  const nodes={},jobs=[],calls=[],timers=[],intervals=[],listeners={},states={'restore-originals':'uninstalled','backup-jci':'uninstalled','logs-collector':'uninstalled',hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
   const doc={activeElement:null,createElement(t){return new Node(t,doc);},getElementById(id){return nodes[id]||walk(nodes.app).concat(walk(nodes.overlay)).find(n=>n.id===id)||null;}};
   function walk(n){return [n].concat(n.children.flatMap(walk));}
   for(const id of ['app','header','system-info','tabs','content','cards','empty','footer-status','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-meta','dialog-output','dialog-actions','back','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
@@ -36,7 +36,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
     if(a[0]==='start-run'){background=a[1];polls=0;return ok('job.test01\n');}
     if(a[0]==='job-status'){polls++;return ok(polls===1?'running\n0\n0\nCreating archive\n':polls===2?'running\n5\n10\nCopying files\n':'done\n'+(outcomes[background]||0)+'\n');}
     if(a[0]==='job-output')return ok(a[2]==='stdout'?'Saved to USB: /mnt/sdb1/exports/'+background:'');
-    if(a[0]==='list')return ok('list-beep\nmain-menu-loop\nssh\nbroken\n'+(includeCommand?'hello\n':'')+(includeExports?'backup-jci\nlogs-collector\n':''));
+    if(a[0]==='list')return ok('list-beep\nmain-menu-loop\nssh\nbroken\n'+(includeCommand?'hello\n':'')+(includeExports?'backup-jci\nlogs-collector\nrestore-originals\n':''));
     if(a[0]==='manifest'){if(a[1]==='broken')return ok('{broken');let m=fs.readFileSync(a[1]==='hello'?path.join(ROOT,'../examples/hello/manifest.conf'):path.join(ROOT,'tweaks',a[1],'manifest.conf'),'utf8');if(manifestVersion)m=m.replace(/^contract_version=.*$/m,'contract_version='+manifestVersion);return ok(m);}
     if(a[2]==='status')return states[a[1]]==='error'?ok('',1,'Patch state is ambiguous.'):ok(states[a[1]]+'\n',0,['unavailable','broken'].includes(states[a[1]])?(reasons[a[1]]||''):'');
     const code=outcomes[a[1]]||0;
@@ -182,3 +182,25 @@ x.intervals[0]();x.pump();assert.equal(x.calls.filter(a=>a[0]==='metrics').lengt
 x.click('result-ok');x.pump();x.intervals[0]();x.pump();
 assert.equal(x.calls.filter(a=>a[0]==='metrics').length,metricCount+1);
 console.log('SYSTEM_METRICS_UI_PASSED: CPU sampling, partition free space and paused polling during operations.');
+
+// Restore is a deliberate second confirmation and refreshes every tweak afterwards.
+x=boot(undefined,false,false,true);
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();
+x.click('tweak-restore-originals');x.click('action');
+assert.match(x.nodes['dialog-title'].textContent,/Confirm:/);
+assert.match(x.nodes['dialog-description'].textContent,/SSH access will stop/);
+assert(!x.calls.some(a=>a[0]==='start-run'));
+x.click('back');assert.equal(x.nodes.action.textContent,'Run');
+x.click('action');x.click('action');x.pump();
+while(x.timers.length){x.timers.shift()();x.pump();}
+assert.equal(x.nodes['dialog-title'].textContent,'Operation completed');
+let statusBefore=x.calls.filter(a=>a[0]==='action'&&a[1]==='list-beep'&&a[2]==='status').length;
+x.click('result-ok');x.pump();
+assert.equal(x.calls.filter(a=>a[0]==='action'&&a[1]==='list-beep'&&a[2]==='status').length,statusBefore+1);
+for(const blockedState of ['broken','unavailable']) {
+ x=boot();x.states['list-beep']=blockedState;x.reasons['list-beep']='Target mismatch';x.click('refresh');x.pump();
+ x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();x.click('tweak-list-beep');
+ assert.match(x.nodes['dialog-description'].textContent,/System > Restore originals/);
+ assert.match(x.nodes['dialog-description'].textContent,/ALL patches/);
+}
+console.log('RESTORE_UI_PASSED: confirmation/cancel, reset action, full status refresh and repair guidance.');

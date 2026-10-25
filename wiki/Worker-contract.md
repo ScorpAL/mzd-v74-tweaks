@@ -77,3 +77,33 @@ System export commands declare `actions=run status`. A ready command returns `un
 With optional `progress=true`, Run executes as a background job. Shared export workers call `mzd_export_progress <done> <total> <message>`; zero total means a phase without a meaningful percentage. Progress is written atomically in RAM. Completion retains the worker exit code, stdout and stderr for the usual result dialog. Only one progress job runs per session; Exit is disabled while working. Launcher cleanup waits for an active export before restoring storage state. Direct shell `run` remains synchronous.
 
 Exports write unique folders below the originating USB's `exports/<id>/`. Completed folders end in `-complete`; failed exports retain `.incomplete` and diagnostics. They do not alter source data, root mount mode, watchdog or log rotation settings.
+
+## Explicit reset and owned extras
+
+`System > Restore originals` resets `.org` snapshots on internal Linux filesystems
+and runs registered cleanup hooks. This is a separately confirmed command, never
+an automatic response to broken/unavailable status. Known backups require the OEM
+hash; uncatalogued old snapshots have no guarantee of OEM provenance. Preserve
+both current files and backup data on USB, verify writes, then remove internal
+`.org` backups only after restored files and cleanup are verified. Recheck all
+statuses afterwards. Normal uninstall continues to reverse only its own patch.
+
+Workers that create persistent extras declare `reset_entrypoint=reset.sh` with:
+
+- `check`: read-only ownership/cleanup preflight, no deletion or service changes.
+- `prepare`: archive extras in `MZD_RESET_DIR`, then stop/disable owned services.
+  Use exported `MZD_REPORT`, `MZD_SYSTEM`, `MZD_USB`, `ACTION` and shared mount
+  helpers so the reset worker restores mount state. Do not stop foreign services.
+- `finish`: verify that owned runtime is stopped, then delete only registered,
+  verified extras. This runs after file restoration; do not restore patch backups
+  inside hooks. Failure retains remaining `.org` backups and reports the phase.
+
+Hooks are trusted repository code, never arbitrary files discovered on the CMU.
+Missing files may be repairable; unknown/changed payloads must not be blindly
+removed. A new service/files worker must provide an entrypoint hook and isolated
+behavior tests. Old installer extras need an explicit reviewed hook; a generic
+`.org` reset cannot discover their ownership. No automatic reboot.
+
+Reset hook outcomes use the same severity: 0 success, 1 known safe refusal/failure,
+2 incomplete/uncertain runtime cleanup. The restore worker preserves critical
+severity and prevents backup deletion after a failed hook.

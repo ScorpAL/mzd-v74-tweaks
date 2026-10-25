@@ -116,7 +116,7 @@
         el("content").scrollTop = 0; controls();
     }
     function parseManifest(id, raw) {
-        var m = {}, lines = raw.split("\n"), fields = "contract_version id name description version type group firmware entrypoint actions target oem_backup_md5 lock_group status_scope reboot_required requires conflicts progress".split(" ");
+        var m = {}, lines = raw.split("\n"), fields = "contract_version id name description version type group firmware entrypoint actions target oem_backup_md5 lock_group status_scope reboot_required requires conflicts progress confirmation refresh_all reset_entrypoint".split(" ");
         for (var n = 0; n < lines.length; n++) {
             var line = lines[n].replace(/\r$/, "");
             if (/[\x00-\x1f\x7f]/.test(line)) throw new Error("Manifest contains control characters.");
@@ -134,6 +134,9 @@
         m.reboot_required = m.reboot_required === "true";
         if (m.progress !== undefined && m.progress !== "true" && m.progress !== "false") throw new Error("Invalid progress value.");
         m.progress = m.progress === "true";
+        if (m.refresh_all !== undefined && m.refresh_all !== "true" && m.refresh_all !== "false") throw new Error("Invalid refresh_all value.");
+        m.refresh_all = m.refresh_all === "true";
+        if (m.reset_entrypoint !== undefined && m.reset_entrypoint !== "" && m.reset_entrypoint !== "reset.sh") throw new Error("Invalid reset entrypoint.");
         var lists = ["firmware","actions","requires","conflicts"];
         for (var l = 0; l < lists.length; l++) m[lists[l]] = trim(m[lists[l]]) ? trim(m[lists[l]]).split(/ +/) : [];
         if (!m || m.contract_version !== 1 || m.id !== id || typeof m.name !== "string" || !trim(m.name) || typeof m.description !== "string" || !Array.isArray(m.actions) || m.entrypoint !== "run.sh") throw new Error("Invalid manifest: expected contract version 1, matching id, name, description, actions and entrypoint run.sh.");
@@ -212,10 +215,15 @@
     }
     function openDetails(item) {
         if (operating || closing || !item) return;
+        text("back","Back"); el("back").onclick=closeDialog;
         selected = item; returnFocusId = "tweak-" + item.id; dialogMode = "details";
         text("dialog-title", item.name); el("dialog-dot").className = "dot " + item.state;
         text("dialog-state", itemLabel(item) + (item.error ? "\n" + item.error : ""));
-        text("dialog-description", item.manifest.description || "Manifest could not be loaded.");
+        var description = item.manifest.description || "Manifest could not be loaded.";
+        if (item.manifest.type === "patch" || item.manifest.type === "service" || item.manifest.type === "files") {
+            if (item.state === "broken" || item.state === "unavailable") description += "\n\nFor a damaged or incompatible target file, use System > Restore originals, then retry. Restore resets ALL patches on affected files. It cannot fix unsupported firmware or missing hardware; check the reason above.";
+        }
+        text("dialog-description", description);
         clear(el("dialog-meta")); text("dialog-output", "");
         // Present the manifest information needed to choose an action. Patch
         // hashes, lock names and internal file paths remain worker concerns.
@@ -235,8 +243,18 @@
             if (action === "status") {
                 scanning = true; controls(); el("action").disabled = true;
                 checkStatus(item,function () {scanning=false;controls();openDetails(item);});
-            } else perform(item,action);
+            } else if (action === "run" && item.manifest.confirmation) confirmRun(item);
+            else perform(item,action);
         };
+    }
+    function confirmRun(item) {
+        dialogMode = "confirm";
+        text("dialog-title", "Confirm: " + item.name);
+        text("dialog-state", "This action changes the system.");
+        text("dialog-description", item.manifest.confirmation); clear(el("dialog-meta"));
+        text("action", "Restore"); text("back", "Cancel"); el("back").focus();
+        el("back").onclick = function () {text("back","Back");openDetails(item);};
+        el("action").onclick = function () {text("back","Back");el("back").onclick=closeDialog;perform(item,"run");};
     }
     function closeDialog() {
         show("overlay",false); dialogMode = "";
@@ -317,6 +335,7 @@
             var title = critical ? "Manual check required" : problem ? "Operation failed" : "Operation completed";
             showResult(title,message,critical,function () {
                 if (locked) return;
+                if (item.manifest.refresh_all) {refreshAll();return;}
                 scanning=true; controls(); footer("Checking " + item.name + "...");
                 checkStatus(item,function () {scanning=false;controls();footer(locked ? "Critical worker failure. Do NOT reboot." : "Status updated - " + item.name);});
             });
@@ -342,7 +361,7 @@
         // Backspace is the CMU Back button. Always suppress browser history.
         if(event.preventDefault)event.preventDefault();event.returnValue=false;
         if(operating || closing)return;
-        if(dialogMode==="details")closeDialog();else if(dialogMode==="disclaimer" || !dialogMode)exit();
+        if(dialogMode==="confirm")openDetails(selected);else if(dialogMode==="details")closeDialog();else if(dialogMode==="disclaimer" || !dialogMode)exit();
     }
     document.onkeydown=function (event) {
         event=event||window.event; var key=event.keyCode||event.which, nodes, buttons=[],i,index=-1;
@@ -354,7 +373,7 @@
         // Route rotation to focus navigation; up/down keep detail-text scrolling.
         if(key===77)key=39;else if(key===78)key=37;
         if (key===27) {
-            if (dialogMode==="details") closeDialog(); else if (dialogMode==="disclaimer" || !dialogMode) exit(); else return;
+            if (dialogMode==="confirm") openDetails(selected); else if (dialogMode==="details") closeDialog(); else if (dialogMode==="disclaimer" || !dialogMode) exit(); else return;
         } else if (key===38 || key===40 || key===37 || key===39) {
             // Up/down scroll detail text; left/right selects its action buttons.
             if (dialogMode && (key===38 || key===40)) el("dialog-body").scrollTop += key===38 ? -70 : 70;
