@@ -56,3 +56,4 @@ jobs:
           node-version: '22'
       - run: node tests/installer/test-ui.cjs
       - run: node tests/installer/test-transport.cjs
+      - run: node tests/tweaks/no-more-disclaimer/behavior.cjs

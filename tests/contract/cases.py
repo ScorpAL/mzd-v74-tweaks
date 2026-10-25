@@ -8,5 +8,6 @@ CASES = {
     'list-loop': 'shared-patch',
     'shorter-delay': 'shared-patch',
     'main-menu-loop': 'shared-patch',
+    'no-more-disclaimer': 'shared-patch',
     'ssh': 'shared-patch',
 }
