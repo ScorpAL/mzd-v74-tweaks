@@ -4,7 +4,7 @@
     var config = window.installerConfig, frame = document.getElementById("transport");
     var pending = {}, requestId = 0, connected = false, manager = null;
     var tweaks = [], selectedGroup = "", selected = null, scanning = false;
-    var operating = false, closing = false, locked = false, dialogMode = "", returnFocusId = "";
+    var operating = false, closing = false, locked = false, dialogMode = "", returnFocusId = "", accepted = false;
     function el(id) { return document.getElementById(id); }
     function text(id, value) { el(id).textContent = value; }
     function show(id, visible) { el(id).className = visible ? el(id).className.replace(/\bhidden\b/g, "") : el(id).className.replace(/\bhidden\b/g, "") + " hidden"; }
@@ -39,7 +39,7 @@
         return "Checking status...";
     }
     function controls() {
-        el("refresh").disabled = scanning || operating || closing || locked;
+        el("refresh").disabled = !accepted || scanning || operating || closing || locked;
         el("exit").disabled = scanning || operating || closing;
         var nodes = el("tabs").getElementsByTagName("button"), i;
         for (i = 0; i < nodes.length; i++) nodes[i].disabled = operating || closing;
@@ -216,6 +216,24 @@
         show("overlay",false); dialogMode = "";
         var button = document.getElementById(returnFocusId); if (button) button.focus();
     }
+    function showDisclaimer() {
+        dialogMode="disclaimer";
+        text("dialog-title","Before you begin"); el("dialog-dot").className="dot";
+        text("dialog-state","Use only while parked.");
+        text("dialog-description","This installer can modify CMU software. Review each tweak before installing. Keep power on and leave the USB connected until changes finish.");
+        clear(el("dialog-meta")); text("dialog-output","");
+        text("back","Exit"); text("action","OK");
+        show("back",true); show("action",true); show("result-ok",false); show("overlay",true);
+        el("dialog-body").scrollTop=0;
+        el("back").disabled=false; el("action").disabled=false;
+        el("back").onclick=exit;
+        el("action").onclick=function () {
+            if(accepted || closing)return;
+            accepted=true; text("back","Back"); el("back").onclick=closeDialog;
+            closeDialog(); discover();
+        };
+        controls(); footer("Read the notice, then select OK or Exit."); el("action").focus();
+    }
     function showResult(title, message, critical, callback) {
         dialogMode = "result"; show("overlay",true); text("dialog-title",title);
         el("dialog-dot").className = "dot " + (critical ? "error" : "uninstalled");
@@ -262,13 +280,13 @@
         });
     }
     el("back").onclick=closeDialog;
-    el("refresh").onclick=function () {if (!scanning && !operating && !locked) refreshAll();};
+    el("refresh").onclick=function () {if (accepted && !scanning && !operating && !locked) refreshAll();};
     el("exit").onclick=exit;
     function controllerBack(event) {
         // Backspace is the CMU Back button. Always suppress browser history.
         if(event.preventDefault)event.preventDefault();event.returnValue=false;
         if(operating || closing)return;
-        if(dialogMode==="details")closeDialog();else if(!dialogMode)exit();
+        if(dialogMode==="details")closeDialog();else if(dialogMode==="disclaimer" || !dialogMode)exit();
     }
     document.onkeydown=function (event) {
         event=event||window.event; var key=event.keyCode||event.which, nodes, buttons=[],i,index=-1;
@@ -280,7 +298,7 @@
         // Route rotation to focus navigation; up/down keep detail-text scrolling.
         if(key===77)key=39;else if(key===78)key=37;
         if (key===27) {
-            if (dialogMode==="details") closeDialog(); else if (!dialogMode) exit(); else return;
+            if (dialogMode==="details") closeDialog(); else if (dialogMode==="disclaimer" || !dialogMode) exit(); else return;
         } else if (key===38 || key===40 || key===37 || key===39) {
             // Up/down scroll detail text; left/right selects its action buttons.
             if (dialogMode && (key===38 || key===40)) el("dialog-body").scrollTop += key===38 ? -70 : 70;
@@ -326,8 +344,8 @@
         // after this event; successful JS calls alone did not make it visible.
         call(["event","ready","viewport="+window.innerWidth+"x"+window.innerHeight+"; native="+(nativeMessage||"requested")],function(error,result) {
             if(error || resultError(result)) {footer("Cannot initialize USB session");return;}
-            discover();
+            showDisclaimer();
         });
     },false);
-    frame.src=config.origin+"/#"+config.token;
+    controls(); frame.src=config.origin+"/#"+config.token;
 }());

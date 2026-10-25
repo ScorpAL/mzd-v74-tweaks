@@ -13,7 +13,7 @@ class Node {
   focus(){this.doc.activeElement=this;}
   getElementsByTagName(tag){let all=[];for(const n of this.children){if(n.tagName===tag)all.push(n);all=all.concat(n.getElementsByTagName(tag));}return all;}
 }
-function boot(manifestVersion,includeCommand){
+function boot(manifestVersion,includeCommand,keepDisclaimer){
   const nodes={},jobs=[],calls=[],listeners={},states={hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
   const doc={activeElement:null,createElement(t){return new Node(t,doc);},getElementById(id){return nodes[id]||walk(nodes.app).concat(walk(nodes.overlay)).find(n=>n.id===id)||null;}};
   function walk(n){return [n].concat(n.children.flatMap(walk));}
@@ -41,6 +41,7 @@ function boot(manifestVersion,includeCommand){
   function pump(){let count=0;while(jobs.length){if(++count>100)throw new Error('request loop');const j=jobs.shift();event({type:'shell-result',token:'secret',id:j.id,result:process(j),error:null});}}
   event({type:'shell-ready',token:'wrong'});event({type:'shell-ready',token:'secret'},'http://wrong');assert.equal(jobs.length,0);
   event({type:'shell-ready',token:'secret'});pump();
+  if(!keepDisclaimer){nodes.action.onclick();pump();}
   const click=id=>{const n=doc.getElementById(id);assert(n,'missing '+id);assert(!n.disabled,'disabled '+id);n.onclick();};
   return {nodes,doc,jobs,calls,states,outcomes,reasons,pump,click,ok,event};
 }
@@ -129,3 +130,25 @@ for(const raw of [rawConf+'id=list-beep\n',rawConf+'unknown=value\n',rawConf.rep
   assert.throws(()=>parseConf('list-beep',raw));
 }
 console.log('MANIFEST_UI_PASSED: literal values, lists, booleans, duplicate/unknown/missing/control rejection.');
+
+// Startup is entirely in the styled UI; no discovery or worker runs before OK.
+x=boot(undefined,false,true);
+assert.equal(x.nodes['dialog-title'].textContent,'Before you begin');
+assert.equal(x.nodes.action.textContent,'OK');assert.equal(x.nodes.back.textContent,'Exit');
+assert.equal(x.doc.activeElement,x.nodes.action);assert.equal(x.nodes.refresh.disabled,true);
+assert(!x.calls.some(a=>['list','manifest','action'].includes(a[0])));
+controller('onkeydown',77);assert.equal(x.doc.activeElement,x.nodes.back);
+controller('onkeydown',78);assert.equal(x.doc.activeElement,x.nodes.action);
+controller('onkeydown',13);x.pump();assert.equal(x.calls.filter(a=>a[0]==='list').length,1);
+assert.equal(x.nodes.back.textContent,'Back');assert.equal(x.nodes.refresh.disabled,false);
+x=boot(undefined,false,true);x.click('back');x.pump();
+assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
+assert(!x.calls.some(a=>['list','manifest','action'].includes(a[0])));
+x=boot(undefined,false,true);controller('onkeydown',8);
+assert(!x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
+controller('onkeyup',8);x.pump();assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
+x.click('action');x.pump();assert(!x.calls.some(a=>a[0]==='list'));
+x=boot(undefined,false,true);controller('onkeydown',27);x.pump();
+assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
+assert(!fs.readFileSync(path.join(ROOT,'autorun.sh'),'utf8').includes('/jci/tools/jci-dialog'));
+console.log('STARTUP_NOTICE_PASSED: controller OK/Exit/Back/Escape, no discovery before acceptance, no native dialog.');

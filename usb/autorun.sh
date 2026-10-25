@@ -33,14 +33,17 @@ finish() {
   done
   checkpoint "Installer closed; exit=$code"; save_logs
   if [ "$USB_CHANGED" = 1 ]; then
-    mount -o ro,remount "$USB_MOUNT" || /jci/tools/jci-dialog --error --title='CMU Tweaks' --text='Could not restore USB read-only state.' --no-cancel
+    if ! mount -o ro,remount "$USB_MOUNT"; then
+      code=1
+      checkpoint 'ERROR: Could not restore USB read-only state.'; save_logs
+      printf 'Could not restore USB read-only state. See installer-logs on USB.\n' >&2
+    fi
   fi
   exit "$code"
 }
 fail() {
   checkpoint "ERROR: $*"; save_logs
-  /jci/tools/jci-dialog --error --title='CMU Tweaks' --text="$*
-Logs: installer-logs on USB." --no-cancel || :
+  printf 'ERROR: %s\nLogs: installer-logs on USB.\n' "$*" >&2
   exit 1
 }
 trap finish 0
@@ -58,9 +61,7 @@ case ",$MODE," in *,ro,*) mount -o rw,remount "$MP" || fail 'Cannot write USB lo
 mkdir -p "$LOG_DIR" || fail 'Cannot create USB logs.'
 printf 'USB logging ready\n' > "$LOG_DIR/write-check.txt" || fail 'USB logs are not writable.'
 checkpoint 'USB logging ready'
-# Keep the native startup dialog short and on one line. Literal line breaks
-# can appear as unsupported characters in the CMU dialog renderer.
-/jci/tools/jci-dialog --info --title='CMU Tweaks' --text='Start the tweak installer?' --ok-label=Start --no-cancel || exit 1
+# The styled UI owns the startup notice and Exit. Never block on jci-dialog.
 export XDG_RUNTIME_DIR=/tmp
 export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
 export WAYLAND_IVI_SURFACE_ID=2

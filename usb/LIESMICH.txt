@@ -1,7 +1,8 @@
 CMU TWEAK INSTALLER - DEVELOPMENT
 
 Copy the contents of the usb/ directory to the USB root, including jci-autoupdate and .up.
-Insert USB and select Start. No compilation or package assembly is required.
+Insert USB. The styled installer opens directly with a notice and OK / Exit.
+OK starts tweak discovery; Exit returns to Mazda without running any tweak. No compilation or package assembly is required.
 
 Tabs come from tweak manifests. Green means installed, grey means uninstalled,
 amber means unavailable, red means broken or a failed status inspection.

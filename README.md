@@ -7,8 +7,8 @@ compatibility layer or assembly step is included.
 ## Use
 
 Download this branch, extract it, and copy the contents of `usb/` to the USB root, including
-`jci-autoupdate` and the long `.up` filename. Insert the USB drive and select
-**Start**. No Python, Node.js or compiler is required on the CMU.
+`jci-autoupdate` and the long `.up` filename. Insert the USB drive. The styled installer starts directly and shows a notice
+with **OK** and **Exit**. Select OK to load the tweak menu. No Python, Node.js or compiler is required on the CMU.
 
 Development files stay outside `usb/`; no assembly step is required.
 
