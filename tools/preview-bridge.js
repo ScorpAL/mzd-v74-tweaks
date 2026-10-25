@@ -16,6 +16,9 @@
     function process(args) {
         var id = args[1], action = args[2], state, job, raw;
         if (args[0] === "event") {
+            if (id === "restart") {
+                document.body.innerHTML = '<p style="padding:35px">Preview: restart requested. No device is restarted. Reload to restart the preview.</p>';
+            }
             if (id === "close") {
                 document.body.innerHTML = '<p style="padding:35px">Preview closed. Reload to restart.</p>';
             }

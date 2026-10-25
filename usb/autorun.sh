@@ -53,6 +53,10 @@ finish() {
       printf 'Could not restore USB read-only state. See installer-logs on USB.\n' >&2
     fi
   fi
+  if [ "$code" = 0 ] && [ -f "$STATE/ui-restart" ]; then
+    # All workers, services owned by the launcher and storage cleanup are done.
+    . "$HERE/lib/restart.sh" && mzd_launcher_restart "$code" || code=1
+  fi
   exit "$code"
 }
 fail() {

@@ -16,3 +16,5 @@ jobs.sh: detached command execution and RAM progress/result polling through the 
 metrics.sh: read-only CPU tick deltas and free space for mounted block filesystems.
 
 restore.sh: internal backup discovery, USB archives, owned reset hooks, verified publication and rollback.
+
+restart.sh: explicitly requested launcher reboot after successful cleanup; never called by workers.

@@ -107,3 +107,18 @@ behavior tests. Old installer extras need an explicit reviewed hook; a generic
 Reset hook outcomes use the same severity: 0 success, 1 known safe refusal/failure,
 2 incomplete/uncertain runtime cleanup. The restore worker preserves critical
 severity and prevents backup deletion after a failed hook.
+
+## Restart after leaving the launcher
+
+Workers still never reboot. The UI remembers successful install/uninstall/run
+operations with `reboot_required=true` for the current session. Exit then offers
+**Restart** or **Exit** (leave without restarting). Back/Escape on this dialog
+also leaves without restarting. Status checks, failed operations and operations
+without the flag do not create a restart recommendation. A critical error blocks
+the Restart choice even if an earlier operation requested one.
+
+Explicit Restart sends a session event over the existing shell bridge. The
+launcher waits for work, closes its own processes, saves logs and restores USB
+mount state before invoking `reboot`. Launcher/cleanup errors suppress reboot.
+There is no SSH dependency and no persistent installation registry. In the offline
+preview this event is simulated; it never restarts the computer.

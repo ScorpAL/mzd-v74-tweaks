@@ -119,6 +119,8 @@ x.click('tweak-list-beep');x.click('action');controller('onkeydown',8);controlle
 assert(!x.nodes.overlay.className.includes('hidden'));x.pump();controller('onkeyup',8);
 assert.equal(x.nodes['dialog-title'].textContent,'Operation completed');
 x.click('result-ok');x.pump();controller('onkeydown',8);controller('onkeyup',8);x.pump();
+assert.equal(x.nodes['dialog-title'].textContent,'Restart recommended');
+controller('onkeyup',8);x.pump();
 assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
 console.log('MULTICONTROLLER_PASSED: rotate, tilt up/down, Back on release, browser-history suppression and action guards.');
 
@@ -152,7 +154,7 @@ assert(!x.calls.some(a=>['list','manifest','action'].includes(a[0])));
 x=boot(undefined,false,true);controller('onkeydown',8);
 assert(!x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
 controller('onkeyup',8);x.pump();assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
-x.click('action');x.pump();assert(!x.calls.some(a=>a[0]==='list'));
+x.nodes.action.onclick();x.pump();assert(!x.calls.some(a=>a[0]==='list'));
 x=boot(undefined,false,true);controller('onkeydown',27);x.pump();
 assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
 assert(!fs.readFileSync(path.join(ROOT,'autorun.sh'),'utf8').includes('/jci/tools/jci-dialog'));
@@ -198,6 +200,7 @@ assert.equal(x.nodes['dialog-title'].textContent,'Operation completed');
 let statusBefore=x.calls.filter(a=>a[0]==='action'&&a[1]==='list-beep'&&a[2]==='status').length;
 x.click('result-ok');x.pump();
 assert.equal(x.calls.filter(a=>a[0]==='action'&&a[1]==='list-beep'&&a[2]==='status').length,statusBefore+1);
+x.click('exit');assert.equal(x.nodes['dialog-title'].textContent,'Restart recommended');x.click('back');x.pump();
 for(const blockedState of ['broken','unavailable']) {
  x=boot();x.states['list-beep']=blockedState;x.reasons['list-beep']='Target mismatch';x.click('refresh');x.pump();
  x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();x.click('tweak-list-beep');
@@ -205,3 +208,36 @@ for(const blockedState of ['broken','unavailable']) {
  assert.match(x.nodes['dialog-description'].textContent,/ALL patches/);
 }
 console.log('RESTORE_UI_PASSED: confirmation/cancel, reset action, full status refresh and repair guidance.');
+
+function finishPatch(action='install',code=0) {
+ const y=boot();y.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
+ const id=action==='uninstall'?'main-menu-loop':'list-beep';y.outcomes[id]=code;
+ y.click('tweak-'+id);y.click('action');y.pump();y.click('result-ok');y.pump();return y;
+}
+for(const action of ['install','uninstall']) {
+ x=finishPatch(action);x.click('exit');x.pump();
+ assert.equal(x.nodes['dialog-title'].textContent,'Restart recommended');
+ assert.equal(x.nodes.back.textContent,'Exit');assert.equal(x.nodes.action.textContent,'Restart');
+ assert(!x.calls.some(a=>a[0]==='event'&&['restart','close'].includes(a[1])));
+ x.click('back');x.pump();assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
+ assert(!x.calls.some(a=>a[0]==='event'&&a[1]==='restart'));
+}
+x=finishPatch();x.click('exit');x.click('action');x.pump();
+assert(x.calls.some(a=>a[0]==='event'&&a[1]==='restart'));
+for(const code of [1,2]) {
+ x=finishPatch('install',code);x.click('exit');x.pump();
+ assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
+ assert(!x.calls.some(a=>a[0]==='event'&&a[1]==='restart'));
+}
+x=boot();x.click('exit');x.pump();assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
+x=boot();x.states.ssh='uninstalled';x.click('refresh');x.pump();
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();
+x.click('tweak-ssh');x.click('action');x.pump();x.click('result-ok');x.pump();x.click('exit');x.pump();
+assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));assert(!x.calls.some(a=>a[0]==='event'&&a[1]==='restart'));
+// A rejected restart request leaves both choices usable.
+x=finishPatch();x.click('exit');x.click('action');
+let restartRequest=x.jobs.shift();assert.equal(restartRequest.args[2],'restart');
+x.event({type:'shell-result',token:'secret',id:restartRequest.id,result:x.ok('',1,'Restart unavailable')});
+assert.equal(x.nodes.back.disabled,false);assert.equal(x.nodes.action.disabled,false);
+x.click('back');x.pump();assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
+console.log('RESTART_UI_PASSED: successful install/uninstall, optional Exit, explicit restart, failed/critical/no-restart actions and request failure.');

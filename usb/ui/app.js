@@ -4,6 +4,7 @@
     var config = window.installerConfig, frame = document.getElementById("transport");
     var pending = {}, requestId = 0, connected = false, manager = null;
     var tweaks = [], selectedGroup = "", selected = null, scanning = false;
+    var restartRequired = false;
     var operating = false, closing = false, locked = false, dialogMode = "", returnFocusId = "", accepted = false;
     function el(id) { return document.getElementById(id); }
     function text(id, value) { el(id).textContent = value; }
@@ -327,6 +328,7 @@
             var problem = error || resultError(result);
             var critical = !!error || !result || (result.started && (result.exitCode === 2 || !!result.signal || result.exitCode === null));
             if (critical) locked=true;
+            if (!problem && item.manifest.reboot_required && (action === "install" || action === "uninstall" || action === "run")) restartRequired=true;
             var message = result ? trim(result.stdout + (result.stderr ? "\n" + result.stderr : "")) : "";
             if (!message) message = problem ? String(problem) : "Operation completed successfully.";
             if (result && (result.stdoutTruncated || result.stderrTruncated)) message += "\n\nOutput was truncated. See the tweak reports on USB.";
@@ -346,13 +348,35 @@
         try {manager.SetRequiredSurfaces("JCI_OPERA_PRIMARY",0);manager.SetKeyboardFocus("JCI_OPERA_PRIMARY");return "";}
         catch (e) {return String(e);}
     }
+    function leaveInstaller(restart) {
+        if (scanning || operating || closing || (restart && locked)) return;
+        closing=true;controls();
+        el("back").disabled=true;el("action").disabled=true;
+        footer(restart ? "Preparing restart..." : "Returning to Mazda...");
+        var problem = restart ? "User confirmed restart" : restorePrimary();
+        call(["event",restart ? "restart" : "close",problem || "Primary visibility and focus requested"],function (error,result) {
+            if(error || resultError(result)) {
+                closing=false;controls();
+                el("back").disabled=false;el("action").disabled=false;
+                text("dialog-state","Could not close: "+(error || resultError(result)));
+                footer("Exit failed; retry Exit.");
+            }
+        });
+    }
     function exit() {
         if (scanning || operating || closing) return;
-        closing=true;controls();footer("Returning to Mazda...");
-        var problem = restorePrimary();
-        call(["event","close",problem || "Primary visibility and focus requested"],function (error,result) {
-            if (error || resultError(result)) {closing=false;controls();footer("Exit failed; retry Exit.");}
-        });
+        if (!restartRequired || locked) {leaveInstaller(false);return;}
+        dialogMode="restart";returnFocusId="exit";
+        text("dialog-title","Restart recommended");el("dialog-dot").className="dot installed";
+        text("dialog-state","Changes were made during this session.");
+        text("dialog-description","Restart the CMU to activate all changes.\nSelect Restart now, or Exit to restart later.");
+        clear(el("dialog-meta"));text("dialog-output","");
+        text("back","Exit");text("action","Restart");
+        show("back",true);show("action",true);show("result-ok",false);show("overlay",true);
+        el("back").disabled=false;el("action").disabled=false;el("dialog-body").scrollTop=0;
+        el("back").onclick=function(){leaveInstaller(false);};
+        el("action").onclick=function(){leaveInstaller(true);};
+        el("back").focus();
     }
     el("back").onclick=closeDialog;
     el("refresh").onclick=function () {if (accepted && !scanning && !operating && !locked) refreshAll();};
@@ -361,7 +385,7 @@
         // Backspace is the CMU Back button. Always suppress browser history.
         if(event.preventDefault)event.preventDefault();event.returnValue=false;
         if(operating || closing)return;
-        if(dialogMode==="confirm")openDetails(selected);else if(dialogMode==="details")closeDialog();else if(dialogMode==="disclaimer" || !dialogMode)exit();
+        if(dialogMode==="restart")leaveInstaller(false);else if(dialogMode==="confirm")openDetails(selected);else if(dialogMode==="details")closeDialog();else if(dialogMode==="disclaimer" || !dialogMode)exit();
     }
     document.onkeydown=function (event) {
         event=event||window.event; var key=event.keyCode||event.which, nodes, buttons=[],i,index=-1;
@@ -373,7 +397,7 @@
         // Route rotation to focus navigation; up/down keep detail-text scrolling.
         if(key===77)key=39;else if(key===78)key=37;
         if (key===27) {
-            if (dialogMode==="confirm") openDetails(selected); else if (dialogMode==="details") closeDialog(); else if (dialogMode==="disclaimer" || !dialogMode) exit(); else return;
+            if (dialogMode==="restart") leaveInstaller(false); else if (dialogMode==="confirm") openDetails(selected); else if (dialogMode==="details") closeDialog(); else if (dialogMode==="disclaimer" || !dialogMode) exit(); else return;
         } else if (key===38 || key===40 || key===37 || key===39) {
             // Up/down scroll detail text; left/right selects its action buttons.
             if (dialogMode && (key===38 || key===40)) el("dialog-body").scrollTop += key===38 ? -70 : 70;

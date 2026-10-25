@@ -55,6 +55,11 @@ case "${1:-}" in
     case "${2:-}" in
       ready) : > "$INSTALLER_STATE/ui-ready" ;;
       close) : > "$INSTALLER_STATE/ui-close" ;;
+      restart)
+        [ ! -d "$INSTALLER_STATE/active-job" ] || fail 'A background operation is still running.'
+        command -v reboot >/dev/null 2>&1 || fail 'Restart command is unavailable.'
+        : > "$INSTALLER_STATE/ui-restart" && : > "$INSTALLER_STATE/ui-close" || fail 'Could not request restart.'
+        ;;
       note) ;;
       *) fail 'Unsupported installer event.' ;;
     esac

@@ -18,6 +18,10 @@ The header shows CPU utilization and free space percentages for mounted block
 filesystems, refreshed every five seconds while idle. CPU utilization uses two
 /proc/stat snapshots; telemetry pauses during scans and worker actions.
 
+After successful changes requiring a restart, Exit offers **Restart** or **Exit**
+without restarting. Restart uses the shell bridge after launcher cleanup; it does
+not require SSH. Critical errors disable this option.
+
 Only firmware **74.00.324** is currently supported by the included tweaks.
 
 | Path | Purpose |
