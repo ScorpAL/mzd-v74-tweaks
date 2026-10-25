@@ -42,6 +42,11 @@ HERE=$(dirname "$SELF")
 
 # Load the shared runtime from the ready-to-run USB layout.
 ROOT=$(CDPATH= cd "$HERE/../.." && pwd) || exit 1
+# Public actions go through persistent package management. The controller
+# sets MZD_WORKER_DIRECT only for its saved worker and deep inspection calls.
+if [ "${MZD_WORKER_DIRECT:-}" != 1 ]; then
+    exec sh "$ROOT/installer.sh" action "$(basename "$HERE")" "$ACTION"
+fi
 for library in manifest report system patch status; do
     file="$ROOT/lib/$library.sh"
     [ -f "$file" ] && [ ! -L "$file" ] && [ -r "$file" ] || {
@@ -306,7 +311,7 @@ fi
 # service afterwards; activation failure rolls the newly added hook back.
 USB=$MZD_USB
 REPORT=$MZD_REPORT
-mzd_report_message "$ACTION in progress. Do not remove the USB drive."
+mzd_report_start
 ssh_prepare || exit $?
 if [ "$NO_CHANGE" = 0 ]
 then
@@ -322,6 +327,6 @@ then
     MZD_SUCCESS="Requested setting is already present.
 Reports: $MZD_REPORT"
 else
-    MZD_SUCCESS="$ACTION completed. Other changes were preserved.
+    MZD_SUCCESS="$MZD_ACTION_LABEL completed. Other changes were preserved.
 Reports: $MZD_REPORT"
 fi

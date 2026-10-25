@@ -39,6 +39,18 @@ mzd_report_message() {
   printf '%s\n' "$*" >&3
 }
 
+# Call after mzd_begin: stdout is the report log. The launcher owns progress;
+# forwarding this line to fd 3 would leave stale progress in the final GUI result.
+mzd_report_start() {
+  case "$ACTION" in
+    install) MZD_ACTION_LABEL=Install ;;
+    uninstall) MZD_ACTION_LABEL=Uninstall ;;
+    run) MZD_ACTION_LABEL=Run ;;
+    *) mzd_fail 'Unsupported progress action.' ;;
+  esac
+  printf '%s in progress. Do not remove the USB drive.\n' "$MZD_ACTION_LABEL"
+}
+
 # Before begin, errors use stderr only. During an operation they also reach USB.
 mzd_fail() {
   if [ "${ACTION:-}" != status ] && [ -n "${MZD_REPORT:-}" ]
@@ -64,7 +76,7 @@ mzd_fatal() {
 # Only MZD_USB/MZD_REPORT/MZD_CLEANUP are shared session variables.
 mzd_begin() {
   MZD_CLEANUP=${3:-}
-  MZD_USB=$(dirname "$1")
+  MZD_USB=${MZD_ORIGIN_USB:-$(dirname "$1")}
   while [ "$MZD_USB" != / ] && ! grep -q " $MZD_USB " /proc/mounts
   do
     MZD_USB=$(dirname "$MZD_USB")

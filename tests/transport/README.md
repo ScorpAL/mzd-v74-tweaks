@@ -2,6 +2,8 @@
 
 Run `python tests/transport/test-in-vm.py` on the development PC, optionally with
 `--probe` to print runtime versions and check basic process execution.
+Use `--packages` for the shorter saved-package install/uninstall test with the
+original CMU BusyBox shell, without the full HTTP/process suite.
 
 This isolated Linux/QEMU appliance uses the owner's existing private CMU runtime
 from sibling `mcu_backup_20261021_203342/03_root_system.tar.gz` and existing

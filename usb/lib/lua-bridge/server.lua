@@ -108,7 +108,8 @@ local function request(client)
     end
     trace("begin")
     -- A disconnect or SIGTERM must not abort an already-running modifying worker.
-    local readonlyStatus=program=="/bin/sh" and args[1]=="./installer.sh" and args[2]=="action" and args[4]=="status" and #args==4
+    local readonlyStatus=program=="/bin/sh" and args[1]=="./installer.sh" and
+        ((args[2]=="action" and args[4]=="status" and #args==4) or (args[2]=="statuses" and #args==3))
     local ok,result=pcall(process.run,program,args,{server:getfd(),client:getfd()},trace,readonlyStatus and 30 or nil)
     if ok then
         debug("result "..label.." started="..tostring(result.started).." exit="..tostring(result.exitCode)..

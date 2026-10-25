@@ -1,0 +1,5 @@
+create	/tmp/mnt/resources/mzd-v74-tweaks/ssh
+create	/tmp/mnt/resources/mzd-v74-tweaks/ssh/service.sh
+create	/tmp/mnt/resources/mzd-v74-tweaks/ssh/sshd_config
+create	/tmp/mnt/resources/mzd-v74-tweaks/ssh/password.hash
+create	/tmp/mnt/resources/mzd-v74-tweaks/ssh/enabled

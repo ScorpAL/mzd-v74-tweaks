@@ -24,8 +24,19 @@ mzd_status_partial() (
     exit 1
 )
 
-# Metadata lists are mirrored by these worker constants. CI checks parity.
+# Dependency lists come from the validated manifest.
 # A bounded dependency trail also protects direct CLI calls from recursion.
+mzd_status_dependency() (
+    if [ -f "$ROOT/lib/packages.sh" ]; then
+        . "$ROOT/lib/packages.sh" || exit 1
+        if [ -e "$MZD_PACKAGE_STORE/$1" ] || [ -L "$MZD_PACKAGE_STORE/$1" ]; then
+            # This helper belongs to deep operation preflight, never menu status.
+            mzd_package_check "$MZD_PACKAGE_STORE/$1" || exit 1
+            mzd_package_worker "$MZD_PACKAGE_STORE/$1" status; exit $?
+        fi
+    fi
+    sh "$ROOT/tweaks/$1/run.sh" status 2>/dev/null
+)
 mzd_status_dependencies() (
     trail=${MZD_DEPENDENCY_TRAIL:-:}
     case "$trail" in *":$ID:"*) printf 'Dependency cycle involving %s.\n' "$ID" >&2; exit 1 ;; esac
@@ -36,12 +47,12 @@ mzd_status_dependencies() (
     fi
     for dependency in $REQUIRES; do
         case "$dependency" in ''|*[!a-z0-9-]*) printf 'Invalid dependency ID.\n' >&2; exit 1 ;; esac
-        result=$(sh "$ROOT/tweaks/$dependency/run.sh" status 2>/dev/null) || result=error
+        result=$(mzd_status_dependency "$dependency") || result=error
         [ "$result" = installed ] || { printf 'Requires installed tweak: %s.\n' "$dependency" >&2; exit 1; }
     done
     for conflict in $CONFLICTS; do
         case "$conflict" in ''|*[!a-z0-9-]*) printf 'Invalid conflict ID.\n' >&2; exit 1 ;; esac
-        result=$(sh "$ROOT/tweaks/$conflict/run.sh" status 2>/dev/null) || result=error
+        result=$(mzd_status_dependency "$conflict") || result=error
         case "$result" in
             uninstalled) ;;
             *) printf 'Conflicting or unresolved tweak: %s.\n' "$conflict" >&2; exit 1 ;;

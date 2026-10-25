@@ -4,9 +4,12 @@ local json=require("cjson")
 local process=require("process")
 local protocol=require("protocol")
 local checks=0
-local function check(value,message) assert(value,message);checks=checks+1 end
+local function check(value,message) assert(value,message);checks=checks+1;print("PASS",checks,message);io.stdout:flush() end
 print("CMU_RUNTIME",_VERSION,p.version,socket._VERSION)
 local function run(script) return process.run("/bin/sh",{"-c",script}) end
+local packages=process.run("/usr/bin/qemu-arm",{"-L","/cmu","/cmu/lib/ld-linux.so.3","--library-path","/cmu/lib:/cmu/usr/lib","/cmu/bin/busybox","sh","/experiment/tests/package-test.sh"})
+print("ORIGINAL_SHELL_PACKAGES",protocol.result(packages));io.stdout:flush()
+check(packages.exitCode==0 and packages.stdout:find("ORIGINAL_SHELL_PACKAGES_PASSED",1,true),"persistent install/uninstall with original CMU shell")
 local originalShell=process.run("/usr/bin/qemu-arm",{"-L","/cmu","/cmu/lib/ld-linux.so.3","--library-path","/cmu/lib:/cmu/usr/lib","/cmu/bin/busybox","sh","/experiment/package/tweaks/backup-jci/run.sh","status"})
 print("ORIGINAL_SHELL_BACKUP_STATUS",protocol.result(originalShell))
 check(originalShell.exitCode==0 and originalShell.stdout=="unavailable\n","actual CMU shell must inspect without critical exit")
@@ -112,6 +115,7 @@ check(request("POST","/exec",string.rep("x",32769))==400,"body cap")
 r=exec({"./installer.sh","list"});check(r.exitCode==0 and r.stdout:find("demo\n",1,true),"actual discovery")
 r=exec({"./installer.sh","manifest","demo"});check(r.exitCode==0 and r.stdout:find("id=demo",1,true),"actual manifest reader")
 r=exec({"./installer.sh","action","demo","status"});check(r.exitCode==0 and r.stdout=="uninstalled\n","worker status")
+r=exec({"./installer.sh","statuses","demo list-loop"});check(r.exitCode==0 and r.stdout=="demo\tuninstalled\t\nlist-loop\tuninstalled\t\n","bulk registered status")
 r=exec({"./installer.sh","action","demo","run"});check(r.exitCode==0 and r.stdout:find("Synthetic command"),"worker Run")
 r=exec({"./installer.sh","start-run","demo"});local job=r.stdout:match("^(job%.[A-Za-z0-9]+)")
 check(r.exitCode==0 and job,"actual background start")

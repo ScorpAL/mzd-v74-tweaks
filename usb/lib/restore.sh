@@ -1,23 +1,23 @@
 #!/bin/sh
 # Explicit reset of internal .org snapshots. Workers retain ownership of extras.
 mzd_restore_catalog() (
-    for manifest in "$ROOT"/tweaks/*/manifest.conf; do
+    while IFS= read -r manifest; do
         mzd_manifest_load "$manifest" || exit 1
         [ "$FIRMWARE" = "$RESTORE_FIRMWARE" ] || continue
         if [ "$TYPE" != command ]; then
             printf '%s\t%s\t%s\n' "$APP" "$ORIGINAL" "$LOCK"
         fi
-    done
+    done < "$MZD_REPORT/manifests"
 )
 mzd_restore_hooks() (
-    for manifest in "$ROOT"/tweaks/*/manifest.conf; do
+    while IFS= read -r manifest; do
         mzd_manifest_load "$manifest" || exit 1
         [ "$FIRMWARE" = "$RESTORE_FIRMWARE" ] || continue
         [ -n "$RESET_ENTRYPOINT" ] || continue
         hook="${manifest%/*}/$RESET_ENTRYPOINT"
         [ -f "$hook" ] && [ ! -L "$hook" ] || exit 1
         printf '%s\n' "$hook"
-    done
+    done < "$MZD_REPORT/manifests"
 )
 mzd_restore_mount_for() {
     awk -v path="$1" '
@@ -86,6 +86,9 @@ mzd_restore_cleanup() (
 )
 mzd_restore_run() {
     RESTORE_FIRMWARE=$FIRMWARE
+    . "$ROOT/lib/packages.sh" || exit 1
+    mzd_system_lock "$MZD_PACKAGE_LOCK" || exit 1
+    mzd_package_manifests > "$MZD_REPORT/manifests" || mzd_fail 'Saved package catalog cannot be verified.'
     mzd_restore_catalog > "$MZD_REPORT/catalog" || mzd_fail 'Cannot read the target catalog.'
     mzd_restore_hooks > "$MZD_REPORT/hooks" || mzd_fail 'Cannot read reset hooks.'
     # Acquire every known target lock, including shared targets, before scanning.
@@ -104,7 +107,7 @@ mzd_restore_run() {
     : > "$MZD_REPORT/discovered"
     while IFS= read -r path; do
         # Reject record delimiters before converting paths to newline records.
-        find "$path" -xdev -name '*.org' -exec /bin/sh -c '
+        find "$path" -xdev -path "$MZD_PACKAGE_STORE" -prune -o -name '*.org' -exec /bin/sh -c '
             case "$1" in
                 *"
 "*|*"	"*) printf "__INVALID_BACKUP_PATH__\n" ;;
@@ -125,7 +128,7 @@ mzd_restore_run() {
         fi
         mzd_system_path "$backup" || exit 1
         case "$backup" in *"$(printf '\t')"*) mzd_fail 'Tabs in backup paths are unsupported.' ;; esac
-        known=$(awk -F '\t' -v path="$target" '$1==path {print $2; exit}' "$MZD_REPORT/catalog")
+        known=$(awk -F "$(printf '\t')" -v path="$target" '$1==path {print $2; exit}' "$MZD_REPORT/catalog")
         if [ -n "$known" ]; then
             [ "$(mzd_hash "$backup")" = "$known" ] || mzd_fail "The .org backup does not match the known OEM original: $backup"
         else
@@ -157,7 +160,7 @@ mzd_restore_run() {
         else
             : > "$folder/before.absent" || exit 1
         fi
-        known=$(awk -F '\t' -v path="$target" '$1==path {print $2; exit}' "$MZD_REPORT/catalog")
+        known=$(awk -F "$(printf '\t')" -v path="$target" '$1==path {print $2; exit}' "$MZD_REPORT/catalog")
         [ -z "$known" ] || [ "$(mzd_hash "$folder/original.data")" = "$known" ] || mzd_fail 'OEM backup changed while staging the USB archive.'
         printf '%s\t%s\n' "$index" "$target" >> "$MZD_REPORT/plan.tsv" || exit 1
     done < "$MZD_REPORT/backups"
@@ -165,6 +168,7 @@ mzd_restore_run() {
     sync
     # Export session context for reset hooks using the same mount cleanup ledger.
     export MZD_REPORT MZD_SYSTEM MZD_USB ACTION
+    mzd_package_mark_restoring || mzd_fail 'Cannot record reset state; no original file restored.'
     mzd_export_progress 0 0 'Stopping managed tweak services'
     while IFS= read -r hook; do
         hook_id=$(basename "$(dirname "$hook")")
@@ -200,6 +204,7 @@ mzd_restore_run() {
         [ "$hook_code" != 2 ] || mzd_fatal 'Files restored, but service cleanup is incomplete. Do NOT reboot; backups were retained.'
         [ "$hook_code" = 0 ] || mzd_fail 'Files restored, but managed-tweak cleanup failed. Remaining .org backups were retained; rerun Restore originals.'
     done < "$MZD_REPORT/hooks"
+    mzd_package_forget_restored || mzd_fatal 'Saved installation cleanup failed. Do NOT reboot; .org backups retained.'
     mzd_export_progress 0 0 'Removing verified .org backups'
     index=0
     while IFS= read -r backup; do

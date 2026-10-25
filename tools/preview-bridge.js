@@ -30,7 +30,13 @@
                 (args[1] === "0" ? "-" : "30") + "\ndisk\t/\t42\ndisk\t/jci\t18\ndisk\t/data\t65\ndisk\t/tmp/mnt/sdb1\t80\n");
         }
         if (args[0] === "list") return ok(Object.keys(manifests).join("\n")+"\n");
+        if (args[0] === "package-info") return ok(states[id] === "installed" ? "0.7.0\tinstalled\n" : "");
         if (args[0] === "manifest") return manifests[id] ? ok(manifests[id]) : ok("",1,"Missing preview manifest.");
+        if (args[0] === "statuses") return ok(args[1].split(" ").map(function (entry) {
+            var value = states[entry] || "uninstalled";
+            var reason = value === "broken" ? "Preview: incomplete installation detected." : value === "unavailable" ? "Preview: target file does not match this patch." : "";
+            return entry + "\t" + value + "\t" + reason + "\n";
+        }).join(""));
         if (args[0] === "action") {
             if (action === "status") {
                 state = states[id] || "uninstalled";
@@ -53,9 +59,11 @@
     // Keep the real app unchanged. Replace only this preview iframe's transport.
     frame.contentWindow.postMessage = function (message) {
         if (message.type !== "shell-exec") return;
+        var args = message.args.slice(1);
+        var delay = args[0] === "action" && args[2] !== "status" ? 8000 : 120;
         window.setTimeout(function () {
-            reply({type:"shell-result", token:"preview", id:message.id, result:process(message.args.slice(1))});
-        },120);
+            reply({type:"shell-result", token:"preview", id:message.id, result:process(args)});
+        },delay);
     };
     Object.defineProperty(frame,"src",{set:function () {
         window.setTimeout(function () {reply({type:"shell-ready",token:"preview"});},0);

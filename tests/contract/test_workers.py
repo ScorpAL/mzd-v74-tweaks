@@ -94,7 +94,7 @@ for id_, runner in CASES.items():
                 text = text.replace('trap \'rm -rf "$MZD_REPORT"\' 0',
                     'trap \'cp -R "$MZD_REPORT" ' + shlex.quote(bp(base / 'probe-debug')) + '; rm -rf "$MZD_REPORT"\' 0')
             write(lib, text)
-        env = dict(os.environ, PATH=bp(bins) + ':/usr/bin:/bin')
+        env = dict(os.environ, MZD_WORKER_DIRECT="1", PATH=bp(bins) + ':/usr/bin:/bin')
         before_usb = lambda: {q.relative_to(usb).as_posix(): q.read_bytes() for q in usb.rglob('*') if q.is_file()}
         def run(action, state=None, code=0, reason=False):
             global checks
@@ -249,6 +249,7 @@ esac
                 logs = sorted((base / 'probe-debug').rglob('*.log'), key=lambda x: x.stat().st_mtime_ns)
                 for log in logs[-10:]: print(log.relative_to(base), log.read_text(errors='replace'), flush=True)
             assert r.returncode == code, (id_, action, code, r.returncode, r.stdout, r.stderr)
+            assert 'in progress' not in r.stdout, 'Stale progress leaked into final GUI output.'
             assert not lock.exists() and gpio.read_text().strip() == '0'
             if code == 2: assert 'Do NOT reboot' in r.stderr, (id_, r.stderr)
             elif code: assert 'completed.' not in r.stdout
@@ -281,4 +282,30 @@ esac
             (base / 'fail-start').unlink(); mutate('uninstall')
             mutate('install'); write(base / 'fail-stop', 'yes'); mutate('uninstall', 2)
             (base / 'fail-stop').unlink(); mutate('uninstall')
+        if id_ in ['list-beep', 'ssh']:
+            # The real worker must also work from its persistent package with
+            # its own helpers and reports still written to the originating USB.
+            persist=base/'persist';persist.mkdir()
+            mounts.write_text(mounts.read_text()+'mock '+bp(persist)+' relfs rw 0 0\n',encoding='utf-8',newline='\n')
+            package_lib=usb/'lib/packages.sh'
+            package_source=package_lib.read_text().replace('MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-v74-tweaks/installed','MZD_PACKAGE_STORE='+shlex.quote(bp(persist/'installed'))).replace('MZD_PACKAGE_MOUNT=/tmp/mnt/data_persist','MZD_PACKAGE_MOUNT='+shlex.quote(bp(persist))).replace('MZD_PACKAGE_LOCK=/tmp/mzd-packages.lock','MZD_PACKAGE_LOCK='+shlex.quote(bp(base/'packages.lock')))
+            write(package_lib,package_source)
+            if id_=='ssh':
+                paths=worker/'managed-paths.tsv'
+                write(paths,paths.read_text().replace('/tmp/mnt/resources/mzd-v74-tweaks/ssh',bp(service)))
+            adapter=usb/'installer.sh'
+            write(adapter,(ROOT/'installer.sh').read_text().replace('#!/bin/sh\n','#!/bin/sh\nPATH='+shlex.quote(bp(bins)+':/usr/bin:/bin')+'\nexport PATH\n',1))
+            def managed(action, expected=None):
+                global checks
+                r=subprocess.run([SHELL,bp(adapter),'action',id_,action],capture_output=True,text=True,timeout=45)
+                assert r.returncode==0,(id_,action,r.returncode,r.stdout,r.stderr)
+                if expected is not None:assert r.stdout==expected+'\n',(id_,r.stdout,r.stderr)
+                checks+=1
+            managed('install');managed('status','installed')
+            # A newer USB payload/patch must not be used for the saved uninstall.
+            if id_=='ssh':write(worker/'assets/service.sh','#!/bin/sh\nexit 97\n')
+            else:write(worker/'assets/change.patch','new incompatible USB payload\n')
+            managed('status','installed');managed('uninstall')
+            assert target.read_text()==original+'// unrelated sentinel\n'
+            assert not (persist/'installed'/id_).exists()
 print('WORKER_CONTRACT_PASSED:', checks, 'real-entrypoint checks.')

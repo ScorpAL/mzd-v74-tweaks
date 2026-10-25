@@ -12,8 +12,16 @@ with **OK** and **Exit**. Select OK to load the tweak menu. No Python, Node.js o
 
 Development files stay outside `usb/`; no assembly step is required.
 
-The menu discovers `usb/tweaks/*/manifest.conf`, groups buttons by `group`, asks each
-`run.sh status`, and calls its declared actions. Exit returns to the Mazda UI.
+Patch/service/files installations are first copied with their shared helpers to
+`/tmp/mnt/data_persist/mzd-v74-tweaks/installed/<id>/`. Uninstall always uses that
+saved version. Menu status checks the receipt and file presence; deep checks run
+before changes. See [persistent packages](wiki/Persistent-packages.md).
+For the first deployment, uninstall existing test tweaks using their previous
+matching USB package before copying this version. Old installations without
+receipts are deliberately not adopted.
+
+The menu discovers `usb/tweaks/*/manifest.conf`, groups buttons by `group`, reads
+registered states in one request, and calls the declared actions. Exit returns to the Mazda UI.
 The header shows CPU utilization and free space percentages for mounted block
 System and Resources partitions, refreshed every five seconds while idle. CPU utilization uses two
 /proc/stat snapshots; telemetry pauses during scans and worker actions.

@@ -15,7 +15,11 @@ Do not introduce a second legacy launcher or generated runtime tree.
 6. Register fixture cases for the new tweak in `tests/contract/test_workers.py`.
    Include installed, uninstalled, unavailable, broken, inspection failure,
    dependency/conflict handling and preservation of unrelated edits where applicable.
+   Declare additional touched/created paths in managed-paths.tsv for package
+   ownership checks. List created containers if uninstall removes them. Use the
+   shared package controller; do not bypass it with MZD_WORKER_DIRECT in normal use.
 7. Run `python tools/validate.py` and `python tests/contract/test_workers.py`.
+   Also run `python tests/contract/test_packages.py` for lifecycle/helper changes.
    Run `node tests/installer/test-ui.cjs` and the transport test for UI changes.
    CI additionally runs ShellCheck and tests on BusyBox in Linux.
 8. Record real vehicle results under `tests/runs/` using its template. Include

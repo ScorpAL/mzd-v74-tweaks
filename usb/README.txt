@@ -16,7 +16,9 @@ In details, tilt up/down scrolls text and rotation moves between buttons.
 Back returns from details to the list, or exits from the list. Action results
 must be acknowledged with OK. Vehicle confirmation of this mapping is pending.
 
-Current included tweaks support firmware 74.00.324. This migrated runtime and
-four-state contract still need a fresh vehicle test. See tests/runs/ for evidence.
+Current included tweaks support firmware 74.00.324. The native Lua launcher,
+persistent SSH lifecycle and selected patches have been tested on a vehicle.
+The latest status batching and layout changes still need vehicle confirmation.
+See tests/runs/ for the exact tested scope and remaining checks.
 Launcher logs: installer-logs/. Action reports: reports/diffpatch/.
 No temporary diagnostic SSH server or notebook public key is included.

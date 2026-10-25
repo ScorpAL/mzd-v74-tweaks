@@ -32,12 +32,14 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
   function process(job){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
     if(a[0]==='event')return ok();
+    if(a[0]==='package-info')return ok(states[a[1]]==='installed'?'0.7.0\tinstalled\n':'');
     if(a[0]==='metrics')return ok('cpu\t1000\t700\t'+(a[1]==='0'?'-':'30')+'\ndisk\t/\t42\ndisk\t/tmp/mnt/resources\t18\ndisk\t/tmp/mnt/sdb1\t80\n');
     if(a[0]==='start-run'){background=a[1];polls=0;return ok('job.test01\n');}
     if(a[0]==='job-status'){polls++;return ok(polls===1?'running\n0\n0\nCreating archive\n':polls===2?'running\n5\n10\nCopying files\n':'done\n'+(outcomes[background]||0)+'\n');}
     if(a[0]==='job-output')return ok(a[2]==='stdout'?'Saved to USB: /mnt/sdb1/exports/'+background:'');
     if(a[0]==='list')return ok('list-beep\nmain-menu-loop\nssh\nbroken\n'+(includeCommand?'hello\n':'')+(includeExports?'backup-jci\nlogs-collector\nrestore-originals\n':''));
     if(a[0]==='manifest'){if(a[1]==='broken')return ok('{broken');let m=fs.readFileSync(a[1]==='hello'?path.join(ROOT,'../examples/hello/manifest.conf'):path.join(ROOT,'tweaks',a[1],'manifest.conf'),'utf8');if(manifestVersion)m=m.replace(/^contract_version=.*$/m,'contract_version='+manifestVersion);return ok(m);}
+    if(a[0]==='statuses')return ok(a[1].split(' ').map(id=>id+'\t'+(states[id]==='error'?'error':states[id])+'\t'+(states[id]==='error'?'Patch state is ambiguous.':['unavailable','broken'].includes(states[id])?(reasons[id]||''):'' )+'\n').join(''));
     if(a[2]==='status')return states[a[1]]==='error'?ok('',1,'Patch state is ambiguous.'):ok(states[a[1]]+'\n',0,['unavailable','broken'].includes(states[a[1]])?(reasons[a[1]]||''):'');
     const code=outcomes[a[1]]||0;
     if(code===0)states[a[1]]=a[2]==='install'?'installed':'uninstalled';
@@ -51,6 +53,8 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
   return {nodes,doc,jobs,calls,states,outcomes,reasons,timers,intervals,pump,click,ok,event};
 }
 let x=boot();
+assert.equal(x.calls.filter(a=>a[0]==='statuses').length,1);
+assert.equal(x.calls.filter(a=>a[0]==='action'&&a[2]==='status').length,0);
 assert.equal(x.nodes.tabs.children.length,3); // Errors, Interface, System.
 assert.equal(x.nodes.cards.firstChild.id,'tweak-broken');
 assert.equal(x.nodes.cards.firstChild.children[0].className,'dot error');
@@ -59,13 +63,13 @@ x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
 assert.equal(x.doc.getElementById('tweak-main-menu-loop').children[0].className,'dot installed');
 assert.equal(x.doc.getElementById('tweak-list-beep').children[0].className,'dot uninstalled');
 x.click('tweak-list-beep');assert.equal(x.nodes.action.textContent,'Install');assert.match(x.nodes['dialog-description'].textContent,/beeps/);assert.match(x.nodes['dialog-meta'].textContent,/Restart required:Yes/);
-x.click('action');assert.equal(x.nodes['dialog-state'].textContent,'Install in progress. Do not remove the USB drive.');assert.equal(x.nodes.back.disabled,true);assert.equal(x.nodes.exit.disabled,true);x.pump();
-assert.equal(x.nodes['dialog-title'].textContent,'Operation completed');assert.equal(x.nodes['dialog-state'].textContent,'Install completed');assert.match(x.nodes['dialog-output'].textContent,/install completed/);
+x.click('action');assert.equal(x.nodes['dialog-state'].textContent,'Install in progress...');assert.equal(x.nodes.back.disabled,true);assert.equal(x.nodes.exit.disabled,true);x.pump();
+assert.equal(x.nodes['dialog-title'].textContent,'Operation completed');assert.equal(x.nodes['dialog-state'].textContent,'Install completed');assert.doesNotMatch(x.nodes['dialog-output'].textContent,/install in progress|install completed/i);
 x.click('result-ok');x.pump();assert.equal(x.doc.getElementById('tweak-list-beep').children[0].className,'dot installed');
 x.click('tweak-list-beep');assert.equal(x.nodes.action.textContent,'Uninstall');x.click('action');assert.match(x.nodes['dialog-state'].textContent,/^Uninstall in progress/);x.pump();assert.equal(x.nodes['dialog-state'].textContent,'Uninstall completed');x.click('result-ok');x.pump();assert.equal(x.states['list-beep'],'uninstalled');
 x.outcomes['list-beep']=1;x.click('tweak-list-beep');x.click('action');x.pump();assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');assert.equal(x.nodes['dialog-state'].textContent,'Install failed');x.click('result-ok');x.pump();assert.equal(x.nodes.refresh.disabled,false);
 x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();x.click('tweak-ssh');assert.equal(x.nodes.action.textContent,'Retry status');assert.match(x.nodes['dialog-state'].textContent,/ambiguous/);x.click('back');
-x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();x.outcomes['list-beep']=2;x.click('tweak-list-beep');x.click('action');x.pump();assert.equal(x.nodes['dialog-title'].textContent,'Manual check required');assert.match(x.nodes['dialog-state'].textContent,/Do NOT reboot/);x.click('result-ok');assert.equal(x.nodes.refresh.disabled,true);x.click('tweak-main-menu-loop');assert.equal(x.nodes.action.disabled,true);x.click('back');
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();x.outcomes['list-beep']=2;x.click('tweak-list-beep');x.click('action');x.pump();assert.equal(x.nodes['dialog-title'].textContent,'Manual check required');assert.match(x.nodes['dialog-description'].textContent,/Do NOT reboot/);x.click('result-ok');assert.equal(x.nodes.refresh.disabled,true);x.click('tweak-main-menu-loop');assert.equal(x.nodes.action.disabled,true);x.click('back');
 x.click('exit');x.pump();assert.deepEqual(x.calls.filter(a=>a[0]==='focus').at(-1),['focus','JCI_OPERA_PRIMARY']);
 // A known start failure cannot have changed the target and must not falsely
 // claim that manual rollback or a no-reboot state is required.
@@ -197,9 +201,9 @@ x.click('back');assert.equal(x.nodes.action.textContent,'Run');
 x.click('action');x.click('action');x.pump();
 while(x.timers.length){x.timers.shift()();x.pump();}
 assert.equal(x.nodes['dialog-title'].textContent,'Operation completed');
-let statusBefore=x.calls.filter(a=>a[0]==='action'&&a[1]==='list-beep'&&a[2]==='status').length;
+let statusBefore=x.calls.filter(a=>a[0]==='statuses').length;
 x.click('result-ok');x.pump();
-assert.equal(x.calls.filter(a=>a[0]==='action'&&a[1]==='list-beep'&&a[2]==='status').length,statusBefore+1);
+assert.equal(x.calls.filter(a=>a[0]==='statuses').length,statusBefore+1);
 x.click('exit');assert.equal(x.nodes['dialog-title'].textContent,'Restart recommended');x.click('back');x.pump();
 for(const blockedState of ['broken','unavailable']) {
  x=boot();x.states['list-beep']=blockedState;x.reasons['list-beep']='Target mismatch';x.click('refresh');x.pump();
@@ -243,10 +247,10 @@ x.click('back');x.pump();assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'))
 console.log('RESTART_UI_PASSED: successful install/uninstall, optional Exit, explicit restart, failed/critical/no-restart actions and request failure.');
 
 // Read-only scanning does not trap the user in the installer.
-x=boot();let beforeScan=x.calls.filter(a=>a[0]==='action'&&a[2]==='status').length;
+x=boot();let beforeScan=x.calls.filter(a=>a[0]==='statuses').length;
 x.click('refresh');assert.equal(x.nodes.exit.disabled,false);
 x.click('exit');x.pump();assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
-assert.equal(x.calls.filter(a=>a[0]==='action'&&a[2]==='status').length,beforeScan+1);
+assert.equal(x.calls.filter(a=>a[0]==='statuses').length,beforeScan+1);
 console.log('SCAN_EXIT_PASSED: Exit stays available and stops subsequent read-only status requests.');
 
 // Exiting a scan is safe, but Restart must wait for its result.
@@ -255,3 +259,10 @@ let pendingStatus=x.jobs.shift();x.event({type:'shell-result',token:'secret',id:
 assert.equal(x.nodes.action.disabled,true);x.click('back');x.pump();
 assert(!x.calls.some(a=>a[0]==='event'&&a[1]==='restart'));
 console.log('SCAN_RESTART_GUARD_PASSED: critical scan cannot be bypassed by a queued restart.');
+
+// A newer USB manifest does not replace the installed version in the details.
+x=boot();x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
+x.click('tweak-main-menu-loop');x.pump();
+assert.match(x.nodes['dialog-meta'].textContent,/0\.7\.0 installed \/ [0-9]+\.[0-9]+\.[0-9]+ on USB/);
+assert.equal(x.nodes.action.textContent,'Uninstall');
+console.log('SAVED_VERSION_UI_PASSED: installed and USB versions shown in one row, existing uninstall action retained.');

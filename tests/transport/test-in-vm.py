@@ -16,7 +16,11 @@ CACHE=HERE/'.test-cache'
 EMU=WORKSPACE/'mzd-cmu-emulator'
 
 def main():
- parser=argparse.ArgumentParser();parser.add_argument('--probe',action='store_true');args=parser.parse_args()
+ parser=argparse.ArgumentParser()
+ mode=parser.add_mutually_exclusive_group()
+ mode.add_argument('--probe',action='store_true')
+ mode.add_argument('--packages',action='store_true',help='Run only persistent packages with the original CMU shell')
+ args=parser.parse_args()
  sys.path.insert(0,str(EMU));import appliance
  CACHE.mkdir(exist_ok=True)
  run=Path(tempfile.mkdtemp(prefix="run-",dir=CACHE))
@@ -34,7 +38,7 @@ def main():
  overlay={}
  def add(name,data,mode=0o644):overlay[name]=(stat.S_IFREG|mode,data.encode() if isinstance(data,str) else data)
  for path in (REPO/'usb/lib/lua-bridge').glob('*.lua'):add('experiment/'+path.name,path.read_bytes())
- for path in [HERE/name for name in ["backend.lua", "demo.sh", "start-helper.sh"]]:
+ for path in [HERE/name for name in ["backend.lua", "demo.sh", "start-helper.sh", "package-test.sh"]]:
   if path.is_file():add('experiment/tests/'+path.name,path.read_bytes(),0o755 if path.suffix=='.sh' else 0o644)
  for name in ['installer.sh','lib/manifest.sh','lib/jobs.sh','lib/transport.sh','ui/transport.html']:
   target='experiment/transport.html' if name=='ui/transport.html' else 'experiment/package/'+name
@@ -74,7 +78,7 @@ progress=true
    active=True
   elif active and line[:1] in [' ','-']:lines.append(line[1:])
  add('jci/gui/common/controls/List2/js/List2Ctrl.js','\n'.join(lines)+'\n')
- for applet in ['patch','diff']:
+ for applet in ['patch','diff','awk']:
   add('experiment/bin/'+applet,'#!/bin/sh\nexec /usr/bin/qemu-arm -L /cmu /cmu/lib/ld-linux.so.3 --library-path /cmu/lib:/cmu/usr/lib /cmu/bin/busybox '+applet+' "$@"\n',0o755)
  add('jci/version.ini','JCI_SW_VER="MAZ_CMU-150_74.00.324"\n')
  for path in (REPO/'usb/lib/lua-bridge').glob('*.lua'):add('experiment/package/lib/lua-bridge/'+path.name,path.read_bytes())
@@ -100,8 +104,9 @@ mkdir -p /tmp/lua-session /tmp/lua-logs
 export INSTALLER_STATE=/tmp/lua-session
 export INSTALLER_LOG=/tmp/lua-logs
 lua() { /usr/bin/qemu-arm -L /cmu /cmu/lib/ld-linux.so.3 --library-path /cmu/lib:/cmu/usr/lib /cmu/usr/bin/lua "$@"; }
+cmush() { /usr/bin/qemu-arm -L /cmu /cmu/lib/ld-linux.so.3 --library-path /cmu/lib:/cmu/usr/lib /cmu/bin/busybox sh "$@"; }
 echo LUA_TEST_START
-"""+('lua /probe.lua\n' if args.probe else 'cd /experiment\nlua /experiment/tests/backend.lua\n')+"""result=$?
+"""+('lua /probe.lua\n' if args.probe else 'cmush /experiment/tests/package-test.sh\n' if args.packages else 'cd /experiment\nlua /experiment/tests/backend.lua\n')+"""result=$?
 echo "LUA_TEST_RESULT=$result"
 sync
 poweroff -f
