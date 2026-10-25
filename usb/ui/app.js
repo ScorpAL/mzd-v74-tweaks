@@ -252,7 +252,7 @@
         text("dialog-title", "Confirm: " + item.name);
         text("dialog-state", "This action changes the system.");
         text("dialog-description", item.manifest.confirmation); clear(el("dialog-meta"));
-        text("action", "Restore"); text("back", "Cancel"); el("back").focus();
+        text("action", "Continue"); text("back", "Cancel"); el("back").focus();
         el("back").onclick = function () {text("back","Back");openDetails(item);};
         el("action").onclick = function () {text("back","Back");el("back").onclick=closeDialog;perform(item,"run");};
     }

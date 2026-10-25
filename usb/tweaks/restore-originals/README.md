@@ -36,12 +36,15 @@ are never overwritten. Archive data stays on USB after internal `.org` deletion.
 
 ## Persistent extras and failures
 
-Tweaks owning extra files declare `reset_entrypoint=reset.sh`. The current SSH
-hook validates ownership, archives its payload, disables/stops the managed service
-(including its account overlay and firewall), and removes its known files and
-verified USB runtime-log marker. It does not remove native OEM SSH or unrelated
-files. Changed/foreign payload files block automatic reset; missing files can be
-cleaned up when the remaining service can be stopped safely.
+Tweaks owning extra files declare `reset_entrypoint=reset.sh`. Restore discovers
+these declarations from the manifests; there is no list of tweak IDs or
+service-specific cleanup in the installer or restore engine.
+
+Each hook validates ownership, archives its own payload, stops its own runtime
+changes, and removes its own verified extras. Unknown or modified files are not
+blindly deleted. Adding another tweak requires its manifest and hook, without
+changing the installer. See the reset-hook contract in `wiki/Worker-contract.md`
+and the individual tweak's README for its specific cleanup behavior.
 
 A filesystem rollback does not automatically restart stopped services. If a reset
 fails, read the report; `.org` backups remain until the deletion phase. If cleanup

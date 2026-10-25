@@ -41,7 +41,7 @@ Only firmware **74.00.324** is currently supported by the included tweaks.
 
 System includes an explicitly confirmed **Restore originals** command. It archives
 current files and internal `.org` backups on USB, restores and verifies the files,
-cleans up registered managed extras such as SSH, then removes internal `.org`
+cleans up registered tweak extras, then removes internal `.org`
 backups and rechecks all statuses. All patches on affected files are reset.
 Unknown old backups cannot be authenticated as factory originals; unknown extra
 files are not deleted. This is not a factory reset. See the
