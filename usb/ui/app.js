@@ -285,10 +285,10 @@
         };
         controls(); footer("Read the notice, then select OK or Exit."); el("action").focus();
     }
-    function showResult(title, message, critical, callback) {
+    function showResult(title, message, critical, callback, status) {
         dialogMode = "result"; show("overlay",true); text("dialog-title",title);
         el("dialog-dot").className = "dot " + (critical ? "error" : "uninstalled");
-        text("dialog-state",critical ? "Further actions are blocked. Do NOT reboot. Check the USB reports." : "");
+        text("dialog-state",(status || "") + (critical ? " Further actions are blocked. Do NOT reboot. Check the USB reports." : ""));
         text("dialog-description", ""); clear(el("dialog-meta")); text("dialog-output",message);
         show("back",false); show("action",false); show("result-ok",true); el("result-ok").disabled=false;
         el("dialog-body").scrollTop = 0;
@@ -325,8 +325,9 @@
         });
     }
     function perform(item, action) {
+        var actionName = action.charAt(0).toUpperCase() + action.slice(1);
         operating = true; controls(); dialogMode = "working";
-        text("dialog-state",action + " in progress. Do not remove the USB drive.");
+        text("dialog-state",actionName + " in progress. Do not remove the USB drive.");
         el("back").disabled = true; el("action").disabled = true;
         footer("Working: " + item.name);
         executeAction(item,action,function (error,result) {
@@ -339,14 +340,15 @@
             if (!message) message = problem ? String(problem) : "Operation completed successfully.";
             if (result && (result.stdoutTruncated || result.stderrTruncated)) message += "\n\nOutput was truncated. See the tweak reports on USB.";
             item.state = "error"; item.error = problem ? String(problem) : "Status will be checked after OK."; updateCard(item);
-            controls(); footer(locked ? "Critical worker failure. Do NOT reboot." : "Operation finished");
+            var status = actionName + (problem ? " failed" : " completed");
+            controls(); footer(locked ? "Critical worker failure. Do NOT reboot." : status);
             var title = critical ? "Manual check required" : problem ? "Operation failed" : "Operation completed";
             showResult(title,message,critical,function () {
                 if (locked) return;
                 if (item.manifest.refresh_all) {refreshAll();return;}
                 scanning=true; controls(); footer("Checking " + item.name + "...");
                 checkStatus(item,function () {scanning=false;controls();footer(locked ? "Critical worker failure. Do NOT reboot." : "Status updated - " + item.name);});
-            });
+            },status);
         });
     }
     function restorePrimary() {
