@@ -199,29 +199,64 @@
         });
     }
     function refreshAll() {
-        scanning = true; controls(); var index = 0;
-        function next() {
-            if (closing) {scanning=false;return;}
-            if (index >= tweaks.length || locked) {
-                scanning = false; controls();
-                footer(locked ? "Status failed: " + failedStatusName + ". Do NOT reboot." : tweaks.length + " tweaks - select a tweak");
-                if (dialogMode === "details") openDetails(selected);
-                else if (!dialogMode && el("cards").firstChild) el("cards").firstChild.focus();
-                return;
+        scanning = true; controls();
+        var ids = [], wanted = {}, items = [], i;
+        for (i = 0; i < tweaks.length; i++) {
+            var item = tweaks[i];
+            if (item.invalid) continue;
+            if (!supported(item,"status")) {
+                item.state = supported(item,"run") ? "command" : "error";
+                item.error = item.state === "error" ? "Manifest has no status action." : "";
+                updateCard(item); continue;
             }
-            var item = tweaks[index++]; footer("Checking " + item.name + "..."); checkStatus(item,next);
+            ids.push(item.id); wanted["$" + item.id] = true; items.push(item);
+            item.state = "checking"; item.error = ""; updateCard(item);
         }
-        next();
+        function finish(problem) {
+            scanning = false; controls();
+            footer(locked ? "Status failed: " + failedStatusName + ". Do NOT reboot." : problem ? "Could not read installation states" : tweaks.length + " tweaks - select a tweak");
+            if (closing) return;
+            if (dialogMode === "details") openDetails(selected);
+            else if (!dialogMode && el("cards").firstChild) el("cards").firstChild.focus();
+        }
+        if (!ids.length) { finish(null); return; }
+        footer("Reading installed tweaks...");
+        call(["statuses",ids.join(" ")],function (error,result) {
+            if (closing) {scanning=false;return;}
+            var problem = error || resultError(result), rows = {}, j;
+            if (result && (result.exitCode === 2 || result.signal)) {locked=true;failedStatusName="status scan";}
+            try {
+                if (problem) throw new Error(String(problem));
+                if (result.stdoutTruncated || result.stderrTruncated || result.stdout.charAt(result.stdout.length-1) !== "\n") throw new Error("Incomplete status response.");
+                var lines = result.stdout.slice(0,-1).split("\n");
+                if (lines.length !== ids.length) throw new Error("Missing status entries.");
+                for (j = 0; j < lines.length; j++) {
+                    var fields = lines[j].split("\t"), key = "$" + fields[0];
+                    if (fields.length !== 3 || !wanted[key] || rows[key] || !/^(installed|uninstalled|unavailable|broken|error)$/.test(fields[1])) throw new Error("Invalid status entry.");
+                    if (/^(unavailable|broken|error)$/.test(fields[1]) && !trim(fields[2])) throw new Error("Status entry without a reason.");
+                    rows[key] = {state:fields[1],reason:fields[2]};
+                }
+            } catch (e) {problem=String(e);}
+            for (j = 0; j < items.length; j++) {
+                var row = rows["$" + items[j].id];
+                items[j].state = problem ? "error" : row.state;
+                items[j].error = problem ? String(problem) : trim(row.reason);
+                updateCard(items[j]);
+            }
+            finish(problem);
+        });
     }
     function addMeta(key, value) {
         var row = document.createElement("div"), title = document.createElement("span"), content = document.createElement("span");
         row.className = "meta-row"; title.className = "meta-key"; title.textContent = key + ":";
         content.textContent = typeof value === "object" ? JSON.stringify(value) : String(value);
         row.appendChild(title); row.appendChild(content); el("dialog-meta").appendChild(row);
+        return content;
     }
     function openDetails(item) {
         if (operating || closing || !item) return;
         text("back","Back"); el("back").onclick=closeDialog;
+        el("dialog-body").className = "bottom-info";
         selected = item; returnFocusId = "tweak-" + item.id; dialogMode = "details";
         text("dialog-title", item.name); el("dialog-dot").className = "dot " + item.state;
         text("dialog-state", itemLabel(item) + (item.error ? "\n" + item.error : ""));
@@ -233,7 +268,15 @@
         clear(el("dialog-meta")); text("dialog-output", "");
         // Present the manifest information needed to choose an action. Patch
         // hashes, lock names and internal file paths remain worker concerns.
-        if (item.manifest.version !== undefined) addMeta("Version",item.manifest.version);
+        var versionMeta = item.manifest.version !== undefined ? addMeta("Version",item.manifest.version) : null;
+        if (versionMeta && item.state === "installed" && item.manifest.type !== "command") {
+            call(["package-info",item.id],function (error,result) {
+                if (error || resultError(result) || dialogMode !== "details" || selected !== item) return;
+                var info = trim(result.stdout).split("\t");
+                if (info.length !== 2 || !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(info[0])) return;
+                if (info[0] !== item.manifest.version) versionMeta.textContent = info[0] + " installed / " + item.manifest.version + " on USB";
+            });
+        }
         if (item.manifest.firmware !== undefined) addMeta("Firmware",Array.isArray(item.manifest.firmware) ? item.manifest.firmware.join(", ") : item.manifest.firmware);
         if (item.manifest.type !== undefined) addMeta("Type",item.manifest.type);
         if (!item.invalid) addMeta("Category",groupName(item.group));
@@ -255,6 +298,7 @@
     }
     function confirmRun(item) {
         dialogMode = "confirm";
+        el("dialog-body").className = "";
         text("dialog-title", "Confirm: " + item.name);
         text("dialog-state", "This action changes the system.");
         text("dialog-description", item.manifest.confirmation); clear(el("dialog-meta"));
@@ -263,11 +307,12 @@
         el("action").onclick = function () {text("back","Back");el("back").onclick=closeDialog;perform(item,"run");};
     }
     function closeDialog() {
-        show("overlay",false); dialogMode = ""; el("dialog-state").className="";
+        show("overlay",false); dialogMode = ""; el("dialog-state").className=""; el("dialog-body").className="";
         var button = document.getElementById(returnFocusId); if (button) button.focus();
     }
     function showDisclaimer() {
         dialogMode="disclaimer";
+        el("dialog-body").className="";
         text("dialog-title","Before you begin"); el("dialog-dot").className="dot";
         el("dialog-state").className="startup-warning";
         text("dialog-state","Use only while parked.");
@@ -286,10 +331,12 @@
         controls(); footer("Read the notice, then select OK or Exit."); el("action").focus();
     }
     function showResult(title, message, critical, callback, status) {
+        el("dialog-body").className = status ? "bottom-info" : "";
         dialogMode = "result"; show("overlay",true); text("dialog-title",title);
         el("dialog-dot").className = "dot " + (critical ? "error" : "uninstalled");
-        text("dialog-state",(status || "") + (critical ? " Further actions are blocked. Do NOT reboot. Check the USB reports." : ""));
-        text("dialog-description", ""); clear(el("dialog-meta")); text("dialog-output",message);
+        el("dialog-state").className = status ? "operation-status" : "";
+        text("dialog-state",status || "");
+        text("dialog-description", critical ? "Further actions are blocked. Do NOT reboot. Check the USB reports." : ""); clear(el("dialog-meta")); text("dialog-output",message);
         show("back",false); show("action",false); show("result-ok",true); el("result-ok").disabled=false;
         el("dialog-body").scrollTop = 0;
         el("result-ok").onclick = function () {closeDialog();callback();}; el("result-ok").focus();
@@ -327,7 +374,11 @@
     function perform(item, action) {
         var actionName = action.charAt(0).toUpperCase() + action.slice(1);
         operating = true; controls(); dialogMode = "working";
-        text("dialog-state",actionName + " in progress. Do not remove the USB drive.");
+        el("dialog-body").className = "bottom-info";
+        el("dialog-state").className = "operation-status";
+        text("dialog-state",actionName + " in progress...");
+        text("dialog-description","Keep the system on and do not remove the USB drive.");
+        clear(el("dialog-meta"));
         el("back").disabled = true; el("action").disabled = true;
         footer("Working: " + item.name);
         executeAction(item,action,function (error,result) {
@@ -337,7 +388,11 @@
             if (critical) locked=true;
             if (!problem && item.manifest.reboot_required && (action === "install" || action === "uninstall" || action === "run")) restartRequired=true;
             var message = result ? trim(result.stdout + (result.stderr ? "\n" + result.stderr : "")) : "";
-            if (!message) message = problem ? String(problem) : "Operation completed successfully.";
+            // Old saved workers may still return their original progress preamble.
+            // Keep the single live status row authoritative; retain useful details.
+            message = trim(message.replace(/^(?:install|uninstall|run) in progress\. Do not remove the USB drive\.[ \t]*$/gim, "")
+                .replace(/^(?:install|uninstall|run) completed\.[ \t]*(?:Other changes were preserved\.)?[ \t]*$/gim, "Other changes were preserved."));
+            if (!message) message = problem ? String(problem) : "No additional details.";
             if (result && (result.stdoutTruncated || result.stderrTruncated)) message += "\n\nOutput was truncated. See the tweak reports on USB.";
             item.state = "error"; item.error = problem ? String(problem) : "Status will be checked after OK."; updateCard(item);
             var status = actionName + (problem ? " failed" : " completed");
@@ -375,6 +430,7 @@
         if (operating || closing) return;
         if (!restartRequired || locked) {leaveInstaller(false);return;}
         dialogMode="restart";returnFocusId="exit";
+        el("dialog-body").className="";
         text("dialog-title","Restart recommended");el("dialog-dot").className="dot installed";
         text("dialog-state","Changes were made during this session.");
         text("dialog-description","Restart the CMU to activate all changes.\nSelect Restart now, or Exit to restart later.");

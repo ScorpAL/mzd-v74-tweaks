@@ -8,10 +8,10 @@
 -        autoscrollTier2Timeout :                5000,
 -        autoscrollTier1Interval :               500,
 -        autoscrollTier2Interval :               1000,
-+        autoscrollTier1Timeout :                150,
-+        autoscrollTier2Timeout :                300,
-+        autoscrollTier1Interval :               200,
-+        autoscrollTier2Interval :               300,
++        autoscrollTier1Timeout :                500,
++        autoscrollTier2Timeout :                1500,
++        autoscrollTier1Interval :               300,
++        autoscrollTier2Interval :               500,
  
          hvThreshold :                           45 * (Math.PI/180),
  

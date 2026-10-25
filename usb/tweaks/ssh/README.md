@@ -44,3 +44,11 @@ supervisor, then deletes only its verified payload after the startup file has
 been restored. Native SSH and unknown files are left alone. A missing or altered
 payload with active runtime can require manual review. File rollback does not
 automatically restart SSH. Never invoke finish alone; use the System reset tool.
+
+## Saved installation package
+
+The matching worker, assets and shared helpers are saved under
+`/tmp/mnt/data_persist/mzd-v74-tweaks/installed/ssh/` before installation.
+The live SSH listener payload remains under
+`/tmp/mnt/resources/mzd-v74-tweaks/ssh/`. `managed-paths.tsv` describes those
+live paths for cross-tweak ownership checks; it does not choose the package store.

@@ -1,25 +1,69 @@
 #!/bin/sh
-# Small shell-side adapter. The tweak owns all patch and status logic.
+# Shell-side adapter for discovery, saved packages and tweak actions.
 set -u
 SELF=$(readlink -f "$0") || exit 1
 HERE=$(dirname "$SELF")
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 valid_id() { case "$1" in ''|*[!a-zA-Z0-9_-]*) return 1 ;; esac; }
 case "${1:-}" in
+  statuses)
+    shift
+    . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1
+    if [ "$#" = 1 ]; then
+      ids=$1
+      set -f
+      # A single plain ID list avoids the transport argument-count limit.
+      # shellcheck disable=SC2086
+      set -- $ids
+    fi
+    mzd_package_statuses "$HERE" "$@" ;;
+  package-info)
+    [ "$#" = 2 ] && valid_id "$2" || fail 'Expected a tweak ID.'
+    . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1
+    entry="$MZD_PACKAGE_STORE/$2"
+    if [ -d "$entry" ] && [ ! -L "$entry" ]; then
+      mzd_manifest_load "$entry/package/tweaks/$2/manifest.conf" || exit 1
+      [ "$ID" = "$2" ] || exit 1
+      state=$(mzd_package_state "$entry") || exit 1
+      printf '%s\t%s\n' "$VERSION" "$state"
+    fi ;;
   metrics)
     shift
     . "$HERE/lib/metrics.sh" || exit 1
     mzd_metrics "$@" ;;
   list)
+    (
     for path in "$HERE/tweaks/"*; do
       [ -d "$path" ] && [ ! -L "$path" ] && [ -f "$path/manifest.conf" ] || continue
       id=${path##*/}
       valid_id "$id" || continue
       printf '%s\n' "$id"
-    done ;;
+    done
+    if [ -f "$HERE/lib/packages.sh" ]; then
+      . "$HERE/lib/packages.sh" || exit 1
+      for path in "$MZD_PACKAGE_STORE"/*; do
+        [ -d "$path" ] || continue
+        id=${path##*/}; valid_id "$id" || continue
+        printf '%s\n' "$id"
+      done
+    fi
+    ) | sort -u ;;
   manifest|action)
     [ "$#" -ge 2 ] && valid_id "$2" || fail 'Invalid tweak folder.'
     TWEAK="$HERE/tweaks/$2"
+    if [ "$1" = action ] && [ "$#" = 3 ]; then
+      case "$3" in uninstall|status)
+        . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1
+        if [ -e "$MZD_PACKAGE_STORE/$2" ] || [ -L "$MZD_PACKAGE_STORE/$2" ]; then
+          mzd_package_action "$HERE" "$2" "$3"
+          exit $?
+        fi ;;
+      esac
+    fi
+    if [ ! -d "$TWEAK" ] && [ -f "$HERE/lib/packages.sh" ]; then
+      . "$HERE/lib/packages.sh" || exit 1
+      TWEAK="$MZD_PACKAGE_STORE/$2/package/tweaks/$2"
+    fi
     [ -d "$TWEAK" ] && [ ! -L "$TWEAK" ] || fail 'Tweak folder is missing or is a symbolic link.'
     if [ "$1" = manifest ]; then
       [ -f "$TWEAK/manifest.conf" ] && [ ! -L "$TWEAK/manifest.conf" ] || fail 'Manifest is missing or is a symbolic link.'
@@ -35,6 +79,18 @@ case "${1:-}" in
       [ -f "$TWEAK/run.sh" ] && [ ! -L "$TWEAK/run.sh" ] || fail 'Tweak run.sh is missing or is a symbolic link.'
       # No string evaluation or shell command concatenation. Preserve the
       # worker's stdout, stderr and exit code, including critical exit code 2.
+      if [ "$3" != run ]; then
+        . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1
+        mzd_manifest_load "$TWEAK/manifest.conf" || exit 1
+        if [ "$TYPE" != command ]; then
+          mzd_package_action "$HERE" "$2" "$3"
+          exit $?
+        elif [ "$3" = status ]; then
+          # Command readiness is checked by Run, not by the menu refresh.
+          printf 'uninstalled\n'
+          exit 0
+        fi
+      fi
       cd "$TWEAK" || exit 1
       exec /bin/sh "$TWEAK/run.sh" "$3"
     fi ;;

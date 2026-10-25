@@ -12,6 +12,21 @@ Patch/service actions: install, uninstall, status. Command actions: run, status.
 No arguments, --help or -h prints usage and exits 0 without side effects.
 Extra arguments or unsupported actions return 1 with stderr and empty stdout.
 
+Persistent patch/service/files actions now go through the shared package
+controller, including direct public run.sh calls. It saves a self-contained
+worker/helper snapshot before installation and selects the saved version for
+removal. Normal menu status checks recorded state and file presence; it is not
+a fresh full patch/service audit. The deep worker contract below applies inside
+the controller before mutations and after completion. See
+[Persistent packages](Persistent-packages.md) for states, reset and first-use
+requirements. Command tweaks continue to execute from USB without installation.
+
+The launcher batches menu status through `installer.sh statuses "id1 id2"`.
+Without a saved installation, public status returns `uninstalled` without
+executing the worker. This means no registered installation, not a guarantee of
+installability. Command readiness and all detailed prerequisites are checked
+when the action runs. The status table below describes the deep worker result.
+
 ## Status
 
 | Exact stdout, followed by newline | Meaning |

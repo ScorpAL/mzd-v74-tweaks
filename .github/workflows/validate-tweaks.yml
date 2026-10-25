@@ -23,6 +23,8 @@ jobs:
         run: python tools/validate.py
       - name: Check manifest readers and data-only parsing
         run: python tests/contract/test_manifest.py
+      - name: Test persistent packages, versions and owned paths
+        run: python tests/contract/test_packages.py
       - name: Check shell errors
         run: shellcheck --severity=error --shell=sh usb/autorun.sh usb/installer.sh usb/lib/*.sh usb/tweaks/*/run.sh usb/tweaks/*/reset.sh examples/hello/run.sh
       - name: Install full static BusyBox test applets
@@ -54,6 +56,8 @@ jobs:
         run: python tests/contract/test_metrics.py
       - name: Test diagnostics configuration and USB snapshots
         run: python tests/contract/test_logging.py
+      - name: Test final result messages and current patch example
+        run: python tests/contract/test_report_messages.py
       - name: Validate factory Lua syntax
         run: |
           sudo apt-get install -y lua5.1

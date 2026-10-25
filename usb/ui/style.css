@@ -46,3 +46,15 @@ button:focus{outline:3px solid #fff;outline-offset:-4px}button:active{background
 #system-info span{display:inline-block;margin:0 6px;white-space:nowrap}
 
 #dialog-state.startup-warning{font-size:26px;line-height:32px;font-weight:bold;color:#fff;margin-bottom:18px}
+
+/* One prominent action state; details remain below it. */
+#dialog-state.operation-status{font-size:28px;line-height:36px;font-weight:bold;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:22px}
+
+/* CSS table layout also works in CMU Presto; long content can still scroll. */
+#dialog-body.bottom-info #dialog-layout{display:table;table-layout:fixed;width:100%;height:100%}
+#dialog-body.bottom-info #dialog-status-row{display:table-row;height:1px}
+#dialog-body.bottom-info #dialog-state{display:table-cell;vertical-align:top;padding-bottom:20px;font-size:24px;line-height:30px;font-weight:bold;color:#fff}
+#dialog-body.bottom-info #dialog-state.operation-status{font-size:28px;line-height:36px}
+#dialog-body.bottom-info #dialog-info-row{display:table-row}
+#dialog-body.bottom-info #dialog-info{display:table-cell;vertical-align:bottom;padding-bottom:4px}
+#dialog-body.bottom-info #dialog-output:empty{display:none}

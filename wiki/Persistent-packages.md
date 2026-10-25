@@ -1,0 +1,100 @@
+# Persistent installed packages â€” format 1
+
+The installer snapshots every patch/service/files tweak before installation.
+Command tweaks such as backup, log export and Restore remain USB operations.
+The permanent root is `/tmp/mnt/data_persist/mzd-v74-tweaks/installed/` on the
+existing persistent read-write partition, not the `/tmp` RAM filesystem.
+
+```text
+installed/<id>/
+    state.conf
+    package.files
+    paths.tsv
+    package/
+        tweaks/<id>/       # Manifest, worker, assets and reset hook
+        lib/               # This version's complete shared runtime snapshot
+```
+
+`id` is the stable technical manifest/folder ID, not the display name. The layout
+inside package/ preserves worker-relative paths. Shared helpers are deliberately
+copied per installed package: an old uninstaller never sources new USB helpers.
+Helper fixes do not silently alter existing snapshots; update their packages to
+adopt them. Package format, state meanings, lock paths and reset session ledger
+are a stable interface. Future incompatible changes need a new supported format.
+
+## Operations
+
+Use `sh installer.sh action <id> install|uninstall|status`. Public patch-worker
+entrypoints forward to this same controller. `MZD_WORKER_DIRECT=1` is internal
+for a controller-selected saved worker or read-only deep probe; ordinary callers
+must not set it. No worker opens dialogs or reboots.
+
+Install validates firmware, dependencies, writable persistent storage and free
+space. It leaves at least the greater of 64 MiB or 10% partition capacity free,
+including a staging margin. It copies and compares the package before changing
+targets, inventories the saved files, publishes it and records `installing`.
+Only successful worker execution and a deep installed-state check produce
+`installed`. A different version is staged before the saved old uninstaller runs;
+failed old removal prevents execution of the replacement. The menu initially
+uses explicit Uninstall then Install; installed/USB versions are shown together
+when different. Reusing a version number does not force replacement.
+
+Uninstall verifies the saved package and ownership/dependency records, marks
+`uninstalling`, executes the saved worker and verifies its uninstalled state.
+Only then is the saved package removed. Failures retain it as `failed`.
+`prepared`, `installing`, `uninstalling`, `restoring` and invalid/incomplete
+records are not reported as installed. Interrupted published operations retain
+their matching code. A hard power loss during pre-publication copying may leave
+an unused hidden staging directory; it is never executed or automatically adopted.
+
+Menu status reads the receipt and checks saved-file/registered-path presence.
+Without a receipt it returns `uninstalled` without starting the USB worker or
+examining the target. Commands are listed as ready; their prerequisites are
+checked when Run is selected. `sh installer.sh statuses "id1 id2"` returns the
+whole menu in one request, with ID, state and reason separated by literal tabs.
+It does not rehash target files or probe every patch. It describes a registered
+installation, not current service health or a complete integrity audit. All
+mutations perform deep worker checks. `package.files` is an integrity inventory
+of the saved code, not project-asset checksum sidecars or proof against a malicious
+root user. Reports still go to the originating USB via `MZD_ORIGIN_USB`.
+
+Installed IDs missing from a later USB package remain discoverable and removable.
+Unknown saved files, altered code or unverifiable records block execution and
+deletion rather than falling back to new USB uninstall code.
+
+## Shared targets and ownership
+
+The manifest target is registered as a patch target by default. An optional
+`managed-paths.tsv` declares additional paths with one literal tab-separated
+`patch`, `create` or `shim` and absolute path per line. Declaring the manifest
+target there overrides its default mode. Use canonical system paths consistently.
+Declare created directories too when uninstall removes their containers.
+
+Independent patches can share a file; their workers must reverse only their own
+changes. Creating/replacing a path already used by another installed package is
+refused. A creator/shim cannot be removed while another package uses that path
+or its descendants. Explicit `requires` also blocks provider removal. These
+checks depend on declared effects; arbitrary unregistered shell changes cannot
+be inferred. New tweak implementations must register all affected paths and
+provide their own validated, selective rollback.
+
+Package mutations and Restore share `/tmp/mzd-packages.lock`; workers retain their
+existing global target locks. Do not replace or delete somebody else's lock.
+
+## Restore originals
+
+Restore selects reset hooks/manifests from saved packages, even when the USB has
+different code. Consumers are stopped before providers using registered
+requirements and path ownership; cycles refuse reset. Snapshots are excluded
+from `.org` discovery. Receipts become `restoring` before modifications and are
+archived on USB and removed only after target/reset-hook and uninstalled-state
+verification. Unavailable post-reset prerequisites do not prevent forgetting a
+tweak when its target is proven byte-identical to its recorded OEM original.
+Corrupt packages and unknown extras remain protected for manual investigation.
+
+## First deployment
+
+There is intentionally no adoption or recovery table for pre-receipt versions.
+Uninstall the existing test tweaks (especially SSH) with their matching previous
+USB package before switching to this layout. Do not overwrite the USB package
+first. The physical CMU has not been modified by this development work.

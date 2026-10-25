@@ -17,7 +17,9 @@ def write(p,s):
     p.parent.mkdir(parents=True,exist_ok=True);p.write_text(s,encoding='utf-8',newline='\n');p.chmod(0o755)
 def md5(s):return hashlib.md5(s.encode()).hexdigest()
 checks=0
-for scenario in ['success','invalid-path','hook-stop-failure','bad-oem','unknown-extra','changed-payload','missing-payload-file','missing-target','write-failure','rollback-failure','delete-failure','archive-failure','no-backups','unsupported']:
+for scenario in ['success','invalid-path','hook-stop-failure','bad-oem','unknown-extra','changed-payload','missing-payload-file','missing-target','write-failure','rollback-failure','delete-failure','archive-failure','no-backups','unsupported','success-managed']:
+  managed=scenario=='success-managed'
+  if managed:scenario='success'
   with tempfile.TemporaryDirectory(prefix='cmu-restore-') as directory:
     base=Path(directory);usb=base/'usb';internal=base/'internal';resources=base/'resources';nav=base/'nav';bins=base/'bin';locks=base/'locks'
     for p in [internal,resources,nav,bins,locks]:p.mkdir()
@@ -93,6 +95,21 @@ esac
       for path in values:Path(str(path)+'.org').unlink()
       shutil.rmtree(service);shutil.rmtree(runtime);write(second,'#!/bin/sh\n# no managed hook\n')
     if scenario=='unsupported':write(version,'JCI_SW_VER="MAZ_CMU-150_70.00.100"\n')
+    if managed:
+      store=internal/'package-records'
+      package_lib=usb/'lib/packages.sh'
+      write(package_lib,package_lib.read_text().replace('MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-v74-tweaks/installed','MZD_PACKAGE_STORE='+shlex.quote(bp(store))))
+      # Represent a completed saved version. The actual SSH worker itself is
+      # covered separately; here its reset hook and the real Restore execute.
+      write(usb/'tweaks/ssh/run.sh','#!/bin/sh\n[ "$1" = status ] || exit 1\nif grep -qF "# MZD v74 SSH" '+shlex.quote(bp(second))+'; then echo installed; else echo uninstalled; fi\n')
+      write(usb/'tweaks/ssh/assets/must-not-restore.org','package asset, not a system backup\n')
+      entry=store/'ssh';store.mkdir()
+      driver=base/'register.sh'
+      write(driver,'#!/bin/sh\nPATH='+shlex.quote(bp(bins)+':/usr/bin:/bin')+'\nexport PATH\n. '+shlex.quote(bp(usb/'lib/manifest.sh'))+'\n. '+shlex.quote(bp(package_lib))+'\nmzd_package_stage '+shlex.quote(bp(usb))+' '+shlex.quote(bp(entry))+' ssh || exit 1\nmzd_package_inventory '+shlex.quote(bp(entry))+' > '+shlex.quote(bp(entry/'package.files'))+' || exit 1\nmzd_package_set_state '+shlex.quote(bp(entry))+' installed\n')
+      setup=subprocess.run([SHELL,bp(driver)],capture_output=True,text=True,timeout=25)
+      assert setup.returncode==0,(setup.stdout,setup.stderr)
+      # The new USB reset payload deliberately no longer matches the installation.
+      write(usb/'tweaks/ssh/assets/service.sh','#!/bin/sh\nexit 97\n')
     def run(*args):return subprocess.run([SHELL,bp(worker),*args],capture_output=True,text=True,timeout=25)
     assert run('--help').returncode==0
     assert run('invalid').returncode==1
@@ -120,6 +137,11 @@ esac
       if scenario!='delete-failure':assert all(not Path(str(p)+'.org').exists() for p in values)
       archives=list(usb.glob('reports/diffpatch/restore-originals-*/files'))
       assert len(archives)==1
+      if managed:
+        assert not entry.exists()
+        assert not list(archives[0].parent.glob('files/*/target.path'))==[]
+        saved=archives[0].parent/'reset-hooks/package-ssh'
+        assert (saved/'package/tweaks/ssh/assets/must-not-restore.org').read_text()=='package asset, not a system backup\n'
       for folder in archives[0].iterdir():
         target=next(p for p in values if bp(p)==(folder/'target.path').read_text().strip())
         if scenario=='missing-target' and target==first:assert (folder/'before.absent').exists()

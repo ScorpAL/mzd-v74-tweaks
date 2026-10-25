@@ -7,3 +7,13 @@ Add relevant tests.
 Do not install this unchanged example under a second ID: it changes List Beep.
 The folder must live under usb/tweaks/ to resolve ../../lib/ at runtime. This example
 is not automatically discovered. See CONTRIBUTING.md and wiki/Worker-contract.md.
+
+This template uses the current persistent package controller. The controller
+saves the worker and its shared helpers before installation, then uses that
+saved version for uninstall. Do not set MZD_WORKER_DIRECT in ordinary calls.
+
+Call mzd_report_start after opening the report session. It writes the initial
+progress message only to run.log; the GUI already displays live progress.
+Set MZD_SUCCESS for the final result, using MZD_ACTION_LABEL for a capitalized
+Install/Uninstall label. mzd_finish forwards success only after cleanup succeeds.
+Never forward an old "in progress" message into the final result.

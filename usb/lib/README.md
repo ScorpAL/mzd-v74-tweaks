@@ -22,3 +22,8 @@ restart.sh: explicitly requested launcher reboot after successful cleanup; never
 transport.sh: factory Lua transport startup and liveness.
 logging.sh: literal installer.conf parsing for normal/debug/off diagnostics.
 lua-bridge/: loopback HTTP, direct process execution and wire encoding.
+
+packages.sh: persistent per-tweak code/runtime snapshots, versioned receipts,
+fast registered status, selective removal dispatch and cross-tweak path guards.
+Each installed package owns its helper snapshot; new USB helpers are never
+sourced by an old worker. See ../../wiki/Persistent-packages.md.

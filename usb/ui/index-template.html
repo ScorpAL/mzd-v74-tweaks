@@ -11,7 +11,10 @@
 <div id="overlay" class="hidden">
   <div id="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
     <div id="dialog-heading"><i id="dialog-dot" class="dot"></i><span id="dialog-title"></span></div>
-    <div id="dialog-body"><div id="dialog-state"></div><div id="dialog-description"></div><div id="dialog-meta"></div><pre id="dialog-output"></pre></div>
+    <div id="dialog-body"><div id="dialog-layout">
+      <div id="dialog-status-row"><div id="dialog-state"></div></div>
+      <div id="dialog-info-row"><div id="dialog-info"><div id="dialog-description"></div><div id="dialog-meta"></div><pre id="dialog-output"></pre></div></div>
+    </div></div>
     <div id="dialog-actions"><button id="back">Back</button><button id="action" class="primary">Install</button><button id="result-ok" class="primary hidden">OK</button></div>
   </div>
 </div>
