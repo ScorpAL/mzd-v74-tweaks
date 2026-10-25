@@ -16,11 +16,11 @@ mzd_metrics() {
         }
         END {if (!found) exit 1}
     ' /proc/stat || return 1
-    # Only real block-backed filesystems (plus root), not tmpfs/proc/sysfs.
+    # The header only needs system and resources space.
     # df -P avoids wrapped device names; escaped spaces stay inside one field.
     filesystems=$(df -Pk) || return 1
     printf '%s\n' "$filesystems" | awk '
-        NR>1 && ($1 ~ /^\/dev\// || $6=="/") && $2>0 && !seen[$1]++ {
+        NR>1 && ($6=="/" || $6=="/tmp/mnt/resources" || $6=="/mnt/resources") && $2>0 && !seen[$6]++ {
             free=100*$4/$2; if(free<0)free=0; if(free>100)free=100
             printf "disk\t%s\t%.0f\n",$6,free
         }

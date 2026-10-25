@@ -52,6 +52,12 @@ jobs:
         run: python tests/contract/test_restart.py
       - name: Test read-only system metrics
         run: python tests/contract/test_metrics.py
+      - name: Test diagnostics configuration and USB snapshots
+        run: python tests/contract/test_logging.py
+      - name: Validate factory Lua syntax
+        run: |
+          sudo apt-get install -y lua5.1
+          for file in usb/lib/lua-bridge/*.lua tests/transport/*.lua; do luac5.1 -p "$file"; done
       - name: Test Hello entrypoint
         run: python tests/contract/test_hello.py
   launcher:

@@ -18,3 +18,7 @@ metrics.sh: read-only CPU tick deltas and free space for mounted block filesyste
 restore.sh: internal backup discovery, USB archives, owned reset hooks, verified publication and rollback.
 
 restart.sh: explicitly requested launcher reboot after successful cleanup; never called by workers.
+
+transport.sh: factory Lua transport startup and liveness.
+logging.sh: literal installer.conf parsing for normal/debug/off diagnostics.
+lua-bridge/: loopback HTTP, direct process execution and wire encoding.

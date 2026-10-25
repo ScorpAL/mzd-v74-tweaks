@@ -71,24 +71,42 @@ mzd_read_status() (
     trap 'rm -rf "$MZD_REPORT"' 0
     trap 'exit 130' INT
     trap 'exit 143' TERM
-    STATUS_PATCH=$PATCH_FILE
-    mode=${PATCH_MODE:-normal}
-    if mzd_patch_prepare "$APP" "$STATUS_PATCH" "$ORIGINAL" "$MZD_REPORT/target" "$mode" > "$MZD_REPORT/probe.log" 2>&1; then
-        state=$(mzd_patch_state "$MZD_REPORT/target") || exit 1
+    mzd_require_tools awk md5sum cp cmp || exit 1
+    awk '/^--- / {old++; if ($0!="--- target.data") bad=1} /^\+\+\+ / {new++; if ($0!="+++ target.data") bad=1} END {exit (bad || old!=1 || new!=1)}' "$PATCH_FILE" || mzd_fail 'Invalid patch target.'
+    observed=$(mzd_hash "$APP")
+    if [ "$observed" = "$ORIGINAL" ]; then
+        # The complete file is byte-identical to OEM: no patch probe is needed.
+        fast_original=1;state=uninstalled
+        mkdir "$MZD_REPORT/target" || exit 1
+        printf '%s\n' "$APP" > "$MZD_REPORT/target/target.path"
+        printf '%s\n' "$ORIGINAL" > "$MZD_REPORT/target/original.md5"
+        printf '%s\n' "$observed" > "$MZD_REPORT/target/before.md5"
     else
-        # Only a completed forward/reverse inspection proves incompatibility.
-        # I/O/tool failures are inspection errors, never successful states.
-        if ! grep -q 'Patch state is unknown, partial or ambiguous' "$MZD_REPORT/probe.log"; then
-            cat "$MZD_REPORT/probe.log" >&2; exit 1
-        fi
-        if mzd_status_partial "$STATUS_PATCH"; then
-            state=broken; reason='Only part of this tweak is present; automatic changes are disabled.'
+        fast_original=0
+        if command -v mzd_worker_patch >/dev/null 2>&1; then mzd_worker_patch || exit 1; fi
+        STATUS_PATCH=$PATCH_FILE
+        mode=${PATCH_MODE:-normal}
+        if mzd_patch_prepare "$APP" "$STATUS_PATCH" "$ORIGINAL" "$MZD_REPORT/target" "$mode" > "$MZD_REPORT/probe.log" 2>&1; then
+            state=$(mzd_patch_state "$MZD_REPORT/target") || exit 1
         else
-            state=unavailable; reason='The target file does not match a supported patch state.'
+            # Only a completed forward/reverse inspection proves incompatibility.
+            # I/O/tool failures are inspection errors, never successful states.
+            if ! grep -q 'Patch state is unknown, partial or ambiguous' "$MZD_REPORT/probe.log"; then
+                cat "$MZD_REPORT/probe.log" >&2; exit 1
+            fi
+            if mzd_status_partial "$STATUS_PATCH"; then
+                state=broken; reason='Only part of this tweak is present; automatic changes are disabled.'
+            else
+                state=unavailable; reason='The target file does not match a supported patch state.'
+            fi
         fi
     fi
-    [ ! -e "$LOCK" ] && cmp -s "$APP" "$MZD_REPORT/target/before.data" ||
-        mzd_fail 'Target changed during status inspection; retry status.'
+    [ ! -e "$LOCK" ] || mzd_fail 'Target is busy; retry status.'
+    if [ "$fast_original" = 1 ]; then
+        [ "$(mzd_hash "$APP")" = "$observed" ] || mzd_fail 'Target changed during status inspection.'
+    else
+        cmp -s "$APP" "$MZD_REPORT/target/before.data" || mzd_fail 'Target changed during status inspection; retry status.'
+    fi
     if command -v mzd_check_status >/dev/null 2>&1; then
         state=$(mzd_check_status "$state" 2> "$MZD_REPORT/worker-reason") || {
             cat "$MZD_REPORT/worker-reason" >&2; exit 1;

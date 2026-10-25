@@ -193,6 +193,9 @@ for id_, runner in CASES.items():
         # An unavailable/crashed probe tool is an inspection failure, not an
         # assertion that this target is incompatible.
         write(bins / 'patch', '#!/bin/sh\nprintf "patch: applet not found\\n" >&2\nexit 127\n')
+        # OEM identity establishes absence without running the patch applet.
+        run(['status'], 'uninstalled')
+        write(target, 'unsupported target content\n')
         run(['status'], code=1)
         (bins / 'patch').unlink()
         if os.environ.get('CMU_TEST_BUSYBOX'): os.symlink(busybox, bins / 'patch')

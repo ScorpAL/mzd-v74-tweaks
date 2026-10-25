@@ -77,6 +77,26 @@ ssh_hook_ok() {
     ' "$APP"
 }
 
+# Build the same two-line hook diff at its actual position. Blank lines are not
+# ownership markers; status and uninstall must recognize the identical hook.
+mzd_worker_patch() {
+    awk '/^--- / {old++; if ($0!="--- target.data") bad=1} /^\+\+\+ / {new++; if ($0!="+++ target.data") bad=1} END {exit (bad || old!=1 || new!=1)}' "$HERE/assets/change.patch" || mzd_fail 'Invalid SSH patch target.'
+    hook_dir="$MZD_REPORT/ssh-hook"
+    mkdir "$hook_dir" || mzd_fail 'Cannot prepare SSH hook inspection.'
+    if ssh_hook_ok; then
+        cp "$APP" "$hook_dir/on" || exit 1
+        awk '$0=="# MZD v74 SSH" {getline; next} {print}' "$APP" > "$hook_dir/off" || exit 1
+    else
+        cp "$APP" "$hook_dir/off" || exit 1
+        awk 'NR==1 {print; print "# MZD v74 SSH"; print "sh /tmp/mnt/resources/mzd-v74-tweaks/ssh/service.sh boot >/dev/null 2>&1 &"; next} {print}' "$APP" > "$hook_dir/on" || exit 1
+    fi
+    diff -u "$hook_dir/off" "$hook_dir/on" > "$hook_dir/raw.patch"
+    diff_code=$?
+    [ "$diff_code" = 1 ] || mzd_fail 'Cannot create the scoped SSH hook diff.'
+    awk 'NR==1 {$0="--- target.data"} NR==2 {$0="+++ target.data"} {print}' "$hook_dir/raw.patch" > "$hook_dir/change.patch" || exit 1
+    PATCH_FILE="$hook_dir/change.patch"
+}
+
 # Never replace an unknown service payload, even if the boot hook looks known.
 ssh_payload_ok() {
     if [ ! -d "$SERVICE" ] || [ -L "$SERVICE" ]
@@ -115,7 +135,9 @@ mzd_status_target_missing() {
 }
 
 mzd_check_status() {
-    if [ "$1" = uninstalled ] && ! awk 'NR==1 {valid=($0=="#!/bin/sh")} END {exit !valid}' "$APP"; then
+    if [ "$1" = uninstalled ] && { grep -qF '# MZD v74 SSH' "$APP" || grep -qF '/mzd-v74-tweaks/ssh/service.sh' "$APP"; }; then
+        mzd_status_emit broken 'The SSH startup hook is duplicated or incomplete.'
+    elif [ "$1" = uninstalled ] && ! awk 'NR==1 {valid=($0=="#!/bin/sh")} END {exit !valid}' "$APP"; then
         # The insertion-only patch has little context. Some host patch tools
         # otherwise accept unrelated text after dropping all context as fuzz.
         mzd_status_emit unavailable 'The startup target is not a supported shell script.'
@@ -264,6 +286,7 @@ mzd_system_lock "$LOCK" || exit 1
 
 # Probe both patch directions on USB copies before making the target writable.
 # Keep a complete pre-change copy so rollback preserves other installed tweaks.
+mzd_worker_patch || exit 1
 CONTEXT="$MZD_REPORT/target"
 mzd_patch_prepare "$APP" "$PATCH_FILE" "$ORIGINAL" "$CONTEXT" additive || exit 1
 STATE=$(mzd_patch_state "$CONTEXT") || exit 1

@@ -24,7 +24,8 @@ button:focus{outline:3px solid #fff;outline-offset:-4px}button:active{background
 .dot.installed{background:#56bc6c;border-color:#86da98}.dot.uninstalled{background:#777b84;border-color:#a5a7ae}.dot.error{background:#e33b52;border-color:#ff8090}.dot.checking{background:#24262c;border-color:#9b9da4}
 #empty{padding:30px 10px;color:#b8bac2;font-size:22px}
 #footer{position:absolute;left:0;right:0;bottom:0;height:39px;border-top:1px solid #393b42;background:#131418;font-size:12px}
-#footer-status{position:absolute;left:24px;top:12px;max-width:350px;white-space:nowrap;overflow:hidden}#legend{position:absolute;right:20px;top:11px;color:#bcbec5}#legend .dot{width:9px;height:9px;margin:0 3px 0 10px}
+#footer-status{position:absolute;left:24px;right:24px;top:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 #overlay{position:absolute;left:0;top:0;width:800px;height:480px;background:rgba(0,0,0,.82);z-index:100}
 #dialog{position:absolute;left:38px;top:27px;width:720px;height:424px;background:#1b1c21;border:1px solid #6c6e75;border-top:4px solid #c7213d}
 #dialog-heading{position:absolute;left:24px;right:20px;top:16px;font-size:25px;line-height:30px;white-space:nowrap;overflow:hidden}#dialog-heading .dot{margin-right:12px}

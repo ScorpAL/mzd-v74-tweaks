@@ -32,7 +32,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
   function process(job){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
     if(a[0]==='event')return ok();
-    if(a[0]==='metrics')return ok('cpu\t1000\t700\t'+(a[1]==='0'?'-':'30')+'\ndisk\t/\t42\ndisk\t/jci\t18\n');
+    if(a[0]==='metrics')return ok('cpu\t1000\t700\t'+(a[1]==='0'?'-':'30')+'\ndisk\t/\t42\ndisk\t/tmp/mnt/resources\t18\ndisk\t/tmp/mnt/sdb1\t80\n');
     if(a[0]==='start-run'){background=a[1];polls=0;return ok('job.test01\n');}
     if(a[0]==='job-status'){polls++;return ok(polls===1?'running\n0\n0\nCreating archive\n':polls===2?'running\n5\n10\nCopying files\n':'done\n'+(outcomes[background]||0)+'\n');}
     if(a[0]==='job-output')return ok(a[2]==='stdout'?'Saved to USB: /mnt/sdb1/exports/'+background:'');
@@ -175,7 +175,7 @@ console.log('EXPORT_PROGRESS_UI_PASSED: background start, phase/file progress, f
 
 // Read-only header telemetry, periodic refresh and no polling during a worker.
 x=boot();assert.match(x.nodes['system-info'].textContent,/CPU: --/);
-assert.match(x.nodes['system-info'].textContent,/\/jci: 18% free/);
+assert.match(x.nodes['system-info'].textContent,/Resources: 18% free/);
 x.intervals[0]();x.pump();assert.match(x.nodes['system-info'].textContent,/CPU: 30%/);
 x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
 x.click('tweak-list-beep');x.click('action');
@@ -241,3 +241,17 @@ x.event({type:'shell-result',token:'secret',id:restartRequest.id,result:x.ok('',
 assert.equal(x.nodes.back.disabled,false);assert.equal(x.nodes.action.disabled,false);
 x.click('back');x.pump();assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
 console.log('RESTART_UI_PASSED: successful install/uninstall, optional Exit, explicit restart, failed/critical/no-restart actions and request failure.');
+
+// Read-only scanning does not trap the user in the installer.
+x=boot();let beforeScan=x.calls.filter(a=>a[0]==='action'&&a[2]==='status').length;
+x.click('refresh');assert.equal(x.nodes.exit.disabled,false);
+x.click('exit');x.pump();assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
+assert.equal(x.calls.filter(a=>a[0]==='action'&&a[2]==='status').length,beforeScan+1);
+console.log('SCAN_EXIT_PASSED: Exit stays available and stops subsequent read-only status requests.');
+
+// Exiting a scan is safe, but Restart must wait for its result.
+x=finishPatch();x.click('refresh');x.click('exit');assert.equal(x.nodes.action.disabled,true);
+let pendingStatus=x.jobs.shift();x.event({type:'shell-result',token:'secret',id:pendingStatus.id,result:x.ok('',2,'Critical status result')});
+assert.equal(x.nodes.action.disabled,true);x.click('back');x.pump();
+assert(!x.calls.some(a=>a[0]==='event'&&a[1]==='restart'));
+console.log('SCAN_RESTART_GUARD_PASSED: critical scan cannot be bypassed by a queued restart.');

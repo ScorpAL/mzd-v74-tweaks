@@ -9,3 +9,6 @@ __pycache__/
 /tests/runs/local/
 
 /usb/exports/
+
+
+/tests/transport/.test-cache/

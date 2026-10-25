@@ -1,6 +1,20 @@
 # SSH Access
 
-Enable native SSH on port 22. Login: cmu / jci.
+Enable native SSH on port 22. Wi-Fi is automatically turned on at every startup,
+even if it was previously switched off. Login: cmu / jci.
+
+The service also requests Wi-Fi client mode at each startup, allowing Mazda's
+existing automatic connection to use a saved network. This includes startup
+after a direct reboot that has lost the Wi-Fi checkbox state. Configure the
+network and automatic connection in the Mazda menu beforehand.
+
+Wi-Fi activation runs separately in the background after SSH has started. It
+discovers wlan0 through Mazda's D-Bus service, retries at most twelve times,
+and uses a two-second timeout for each request (at most eight interface IDs).
+Failure leaves SSH running. It does not toggle Wi-Fi, change credentials or
+keep enforcing the setting: manual switch-off lasts until the next startup.
+Uninstall and Restore originals remove this behavior with the SSH payload;
+they do not switch off an existing Wi-Fi connection.
 
 - Firmware: 74.00.324
 - Target: `/jci/scripts/stage_wifi.sh`

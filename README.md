@@ -1,6 +1,6 @@
 # CMU Tweaks - development
 
-Ready-to-run USB layout for the native shell bridge and styled Secondary Opera
+Ready-to-run USB layout for the Lua shell bridge and styled Secondary Opera
 launcher. This branch targets the new launcher directly. No MP3 entry,
 compatibility layer or assembly step is included.
 
@@ -15,7 +15,7 @@ Development files stay outside `usb/`; no assembly step is required.
 The menu discovers `usb/tweaks/*/manifest.conf`, groups buttons by `group`, asks each
 `run.sh status`, and calls its declared actions. Exit returns to the Mazda UI.
 The header shows CPU utilization and free space percentages for mounted block
-filesystems, refreshed every five seconds while idle. CPU utilization uses two
+System and Resources partitions, refreshed every five seconds while idle. CPU utilization uses two
 /proc/stat snapshots; telemetry pauses during scans and worker actions.
 
 After successful changes requiring a restart, Exit offers **Restart** or **Exit**
@@ -28,18 +28,17 @@ Only firmware **74.00.324** is currently supported by the included tweaks.
 | --- | --- |
 | `usb/autorun.sh`, `.up`, `usb/jci-autoupdate` | Automatic USB entry and process lifecycle |
 | `usb/installer.sh` | Discovery and direct argument-based worker invocation |
-| `usb/bin/` | Ready-to-run ARM shell bridge and HTTP adapter |
+| `usb/lib/lua-bridge/` | Shell execution and loopback HTTP using the factory Lua runtime |
 | `usb/ui/` | Styled launcher, compatible with the vehicle's Opera engine |
 | `usb/tweaks/` | Nine maintained tweaks and System tools, assets, manifests and technical READMEs |
 | `usb/lib/` | Shared worker helpers, USB exports and progress jobs |
 | `docs/` | Website sources |
 | `wiki/` | Sources published by the Wiki sync workflow |
 | `examples/` | Hello command and patch-worker template |
-| `src/` | Native ARM helper source; rebuilding is optional |
 | `tests/contract/` | Manifest, worker interface and isolated behavior checks |
 | `tests/installer/` | Functional UI and transport tests |
 | `tests/runs/` | Reviewed evidence and manual vehicle test records |
-| `tools/` | Development validation and optional native compilation |
+| `tools/` | Development validation and styling preview |
 
 ## Restore originals
 
@@ -78,8 +77,32 @@ agreement or a released 2.0 version.
 
 The preceding launcher displayed and operated in the vehicle. SSH installation,
 password login on port 22 and uninstallation were also checked on the vehicle.
-This shared-library layout and contract v1 are new and require their own vehicle
-run; isolated CI checks are not a vehicle test. See `tests/runs/`.
+The Lua launcher, all nine status queries and the integrated SSH Wi-Fi startup
+have now also been checked on the vehicle. This does not establish every tweak
+on every firmware; isolated CI checks are not vehicle tests. See `tests/runs/`.
 
 Original repository: https://github.com/piotrmocko/mzd-v74-tweaks.
 Existing authorship remains in Git history; migration is not a claim of ownership.
+
+## Lua transport and logging
+
+The installer uses the CMU's existing Lua 5.1, LuaPOSIX 5.1.19 and LuaSocket
+2.0.2. No custom ARM executables or backend selector are included. The Lua server
+binds to loopback and executes workers with separate arguments, capturing stdout,
+stderr, exit codes and signals. See [transport details](usb/lib/lua-bridge/README.md).
+
+Set `logging=normal`, `logging=debug` or `logging=off` in `usb/installer.conf`:
+
+- `normal` (default): concise launcher/error logs, saved to USB on Exit or failure.
+  No repeated request/status/metrics traces or five-second log copies.
+- `debug`: detailed process/HTTP diagnostics; USB snapshots every 30 seconds and
+  at Exit.
+- `off`: no installer diagnostics saved to USB. Worker action reports and explicit
+  backup/log exports remain available in all modes. The separate SSH service
+  retains its existing brief boot/error log when its matching USB marker is present.
+
+UI events accumulate in RAM and are copied with the other session logs. Debug
+logging never includes the session token or arbitrary command arguments. Failed
+worker output is included only in debug mode. Vehicle evidence and limitations
+are recorded under `tests/runs/`. The optional original-runtime VM checks are in
+[tests/transport](tests/transport/README.md).

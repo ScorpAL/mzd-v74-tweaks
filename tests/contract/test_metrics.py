@@ -23,7 +23,8 @@ with tempfile.TemporaryDirectory(prefix='cmu-metrics-') as folder:
     write(dfdata, 'Filesystem 1024-blocks Used Available Capacity Mounted on\n'
           '/dev/root 1000 500 400 56% /\n'
           '/dev/mmcblk0p2 2000 1000 900 53% /jci\n'
-          '/dev/mmcblk0p2 2000 1000 900 53% /duplicate\n'
+          '/dev/mmcblk0p3 2000 1000 600 70% /tmp/mnt/resources\n'
+          '/dev/mmcblk0p3 2000 1000 600 70% /tmp/mnt/resources\n'
           'tmpfs 1000 100 900 10% /tmp\n'
           '/dev/sdb1 1000 200 800 20% /tmp/mnt/sdb1\n'
           '/dev/empty 0 0 0 0% /empty\n')
@@ -34,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='cmu-metrics-') as folder:
     def run(*args):
         return subprocess.run([SHELL,bp(usb/'installer.sh'),'metrics',*args],capture_output=True,text=True,timeout=10)
     first=run('0','0'); assert first.returncode==0, first.stderr
-    assert first.stdout=='cpu\t1000\t750\t-\ndisk\t/\t40\ndisk\t/jci\t45\ndisk\t/tmp/mnt/sdb1\t80\n', first.stdout
+    assert first.stdout=='cpu\t1000\t750\t-\ndisk\t/\t40\ndisk\t/tmp/mnt/resources\t30\n', first.stdout
     # Excludes guest counters, combines idle+iowait; 150/200 ticks busy = 75%.
     write(proc, 'cpu 200 10 90 740 60 20 30 50 999 999\n')
     assert run('1000','750').stdout.startswith('cpu\t1200\t800\t75\n')

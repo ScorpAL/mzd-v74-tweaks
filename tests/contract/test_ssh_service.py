@@ -106,6 +106,17 @@ trap 'exit 0' TERM INT
 N=0
 while [ "$N" -lt 60 ]; do sleep 1; N=$((N+1)); done
 ''')
+    wifi_calls = temp / 'wifi-calls'
+    write(bins / 'dbus-send', f'''#!/bin/sh
+printf '%s\\n' "$*" >> {shlex.quote(bp(wifi_calls))}
+case "$*" in
+*GetInterfaceList*) printf '   int32 0\\n   struct {{\\n      array [\\n         int32 101\\n         int32 117\\n      ]\\n   }}\\n' ;;
+*GetInterfaceParams*int32:117*) printf '   int32 0\\n      string "wlan0"\\n' ;;
+*GetInterfaceParams*) printf '   int32 0\\n      string "usb0"\\n' ;;
+*WIFI_SetMode*int32:117*int32:1) printf '   int32 0\\n' ;;
+*) exit 91 ;;
+esac
+''')
     for file in bins.iterdir(): file.chmod(0o700)
     def run(command, expected, text):
         r = subprocess.run([args.bash, str(service / 'service.sh'), command, str(usb)], capture_output=True, text=True, timeout=20)
@@ -136,6 +147,11 @@ while [ "$N" -lt 60 ]; do sleep 1; N=$((N+1)); done
         run('check', 0, 'prerequisites checked')
         run('boot', 0, 'is already running')
         assert starts.read_text().splitlines() == ['start']
+        for _ in range(20):
+            calls = wifi_calls.read_text() if wifi_calls.exists() else ''
+            if 'WIFI_SetMode int32:117 int32:1' in calls: break
+            time.sleep(.25)
+        else: raise AssertionError('Wi-Fi interface was not discovered/enabled')
         for state in ('absent', 'disabled', 'disconnected', 'connected', 'absent'):
             write(network, state)
             run('status', 0, 'SSH is running')
@@ -146,6 +162,7 @@ while [ "$N" -lt 60 ]; do sleep 1; N=$((N+1)); done
             if chain.exists() and jump.exists(): break
             time.sleep(.5)
         assert chain.exists() and jump.exists()
+        assert wifi_calls.read_text().count('WIFI_SetMode') == 1, 'Wi-Fi must not be continuously forced'
         stop = subprocess.Popen([args.bash, str(service / 'service.sh'), 'stop'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         for _ in range(40):
             background.poll()  # reap the terminated supervisor for kill -0 checks

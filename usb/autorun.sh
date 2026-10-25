@@ -7,12 +7,14 @@ HERE=$(dirname "$SELF")
 STATE=$(mktemp -d /tmp/cmu-installer.XXXXXX) || exit 1
 INSTALLER_STATE=$STATE; export INSTALLER_STATE
 LOG_DIR="$HERE/installer-logs/$(date +%Y%m%d-%H%M%S)-$$"
-INSTALLER_LOG=$LOG_DIR; export INSTALLER_LOG
-BRIDGE_PID=''; HTTP_PID=''; OPERA_PID=''; ACTIVE=0; USB_CHANGED=0; USB_MOUNT=''
+INSTALLER_LOG=$STATE; export INSTALLER_LOG
+MZD_LOG_LEVEL=normal
+HTTP_PID=''; OPERA_PID=''; ACTIVE=0; USB_CHANGED=0; USB_MOUNT=''
 checkpoint() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" >> "$STATE/launcher.log"; }
 save_logs() {
+  [ "$MZD_LOG_LEVEL" != off ] || return 0
   [ -d "$LOG_DIR" ] || return 0
-  for name in launcher.log bridge.log http.log opera.log native.log; do
+  for name in launcher.log http.log opera.log native.log ui.log; do
     [ ! -f "$STATE/$name" ] || cp "$STATE/$name" "$LOG_DIR/$name" 2>/dev/null || :
   done
   sync
@@ -42,7 +44,7 @@ finish() {
   done
   # The bridge completes an already-running worker before it exits. Do not
   # terminate an install worker just because the browser has disappeared.
-  for pid in "$HTTP_PID" "$BRIDGE_PID"; do
+  for pid in "$HTTP_PID"; do
     if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || :; wait "$pid" 2>/dev/null || :; fi
   done
   checkpoint "Installer closed; exit=$code"; save_logs
@@ -67,6 +69,7 @@ fail() {
 trap finish 0
 trap 'exit 130' INT
 trap 'exit 143' TERM
+. "$HERE/lib/logging.sh" && mzd_logging_config || fail 'Invalid installer.conf; expected logging=normal, debug or off.'
 MP=$HERE
 while [ "$MP" != / ]; do
   MODE=$(awk -v p="$MP" '$2==p {print $4; exit}' /proc/mounts)
@@ -76,9 +79,10 @@ done
 [ "$MP" != / ] || fail 'Cannot identify USB mount.'
 USB_MOUNT=$MP
 case ",$MODE," in *,ro,*) mount -o rw,remount "$MP" || fail 'Cannot write USB logs.'; USB_CHANGED=1 ;; esac
-mkdir -p "$LOG_DIR" || fail 'Cannot create USB logs.'
-printf 'USB logging ready\n' > "$LOG_DIR/write-check.txt" || fail 'USB logs are not writable.'
-checkpoint 'USB logging ready'
+if [ "$MZD_LOG_LEVEL" != off ]; then
+  mkdir -p "$LOG_DIR" || fail 'Cannot create USB logs.'
+fi
+checkpoint "USB logging: $MZD_LOG_LEVEL"
 # The styled UI owns the startup notice and Exit. Never block on jci-dialog.
 export XDG_RUNTIME_DIR=/tmp
 export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
@@ -97,18 +101,10 @@ export LD_LIBRARY_PATH="/jci/lib:/jci/opera/3rdpartylibs/freetype:/usr/lib/imx-m
 [ -d /jci/opera/opera_home ] || fail 'Original Opera profile is missing.'
 cp -R /jci/opera/opera_home "$STATE/opera-home" || fail 'Cannot create private RAM profile.'
 export OPERA_HOME="$STATE/opera-home/"
-cp "$HERE/bin/shell-bridge-arm" "$STATE/bridge" || fail 'Cannot copy ARM bridge.'
-cp "$HERE/bin/browser-adapter-arm" "$STATE/http" || fail 'Cannot copy HTTP adapter.'
-chmod 700 "$STATE/bridge" "$STATE/http" || exit 1
 cd "$HERE" || exit 1
-"$STATE/bridge" "$STATE/exec.sock" > "$STATE/bridge.log" 2>&1 &
-BRIDGE_PID=$!
-for n in 1 2 3 4 5; do [ -S "$STATE/exec.sock" ] && break; sleep 1; done
-[ -S "$STATE/exec.sock" ] || fail 'ARM bridge did not start.'
-"$STATE/http" "$STATE/exec.sock" "$HERE/ui/transport.html" "$STATE/ready" > "$STATE/http.log" 2>&1 &
-HTTP_PID=$!
-for n in 1 2 3 4 5; do [ -s "$STATE/ready" ] && break; sleep 1; done
-[ -s "$STATE/ready" ] || fail 'HTTP adapter did not start.'
+. "$HERE/lib/transport.sh" || fail 'Transport startup helper is missing.'
+mzd_transport_start || fail 'Shell transport did not start. See http.log in installer-logs.'
+checkpoint "Transport backend: $TRANSPORT_BACKEND"
 PORT=$(sed -n '1p' "$STATE/ready"); TOKEN=$(sed -n '2p' "$STATE/ready")
 case "$PORT" in ''|*[!0-9]*) fail 'Invalid adapter port.' ;; esac
 case "$TOKEN" in ''|*[!0-9a-f]*) fail 'Invalid adapter token.' ;; esac
@@ -123,7 +119,7 @@ checkpoint 'Launching Secondary Opera'
 OPERA_PID=$!; ACTIVE=1; ACTIVATED=0; SECONDS_WAITED=0
 while [ ! -f "$STATE/ui-close" ]; do
   kill -0 "$OPERA_PID" 2>/dev/null || fail 'Secondary Opera exited. Any active worker will be allowed to finish.'
-  kill -0 "$HTTP_PID" 2>/dev/null && kill -0 "$BRIDGE_PID" 2>/dev/null || fail 'Shell transport stopped.'
+  mzd_transport_alive || fail 'Shell transport stopped.'
   if [ "$ACTIVATED" = 0 ]; then
     if [ -f "$STATE/ui-ready" ]; then
       # Numeric 10 is SECONDARY in the original native controller. This exact
@@ -132,7 +128,7 @@ while [ ! -f "$STATE/ui-close" ]; do
       ACTIVATED=1; checkpoint 'Secondary visibility requested through direct D-Bus'
     elif [ "$SECONDS_WAITED" -ge 30 ]; then fail 'Menu did not report ready within 30 seconds.'; fi
   fi
-  case "$SECONDS_WAITED" in *0|*5) save_logs ;; esac
+  if [ "$MZD_LOG_LEVEL" = debug ] && [ "$((SECONDS_WAITED % 30))" = 0 ]; then save_logs; fi
   sleep 1; SECONDS_WAITED=$((SECONDS_WAITED + 1))
 done
 checkpoint 'Menu requested Exit'

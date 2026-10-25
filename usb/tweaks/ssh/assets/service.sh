@@ -15,7 +15,36 @@ PROC=/proc
 CHAIN=MZD_AIO_SSH
 CONFIG="$SELF_DIR/sshd_config"
 LOG=''
+WIFI_PID=''
 write_log() { if [ -n "$LOG" ]; then printf '%s\n' "$*" >> "$LOG" 2>/dev/null || :; fi; }
+wifi_bus() {
+    dbus-send --address=unix:path=/tmp/dbus_hmi_socket \
+        --type=method_call --print-reply --reply-timeout=2000 \
+        --dest=com.jci.blm_nms /com/jci/blm_nms "com.jci.blm_nms.$@"
+}
+wifi_enable_once() {
+    # A bounded background request, never a toggle or a permanent Wi-Fi monitor.
+    command -v dbus-send >/dev/null || return 0
+    attempt=0
+    while [ "$attempt" -lt 12 ]; do
+        [ -f "$SELF_DIR/enabled" ] || return 0
+        attempt=$((attempt+1))
+        list=$(wifi_bus GetInterfaceList 2>/dev/null) || list=''
+        ids=$(printf '%s\n' "$list" | awk '/^         int32 [0-9]+$/ && ++n<=8 {print $2}')
+        for id in $ids; do
+            params=$(wifi_bus GetInterfaceParams "int32:$id" 2>/dev/null) || continue
+            printf '%s\n' "$params" | grep -q 'string "wlan0"' || continue
+            result=$(wifi_bus WIFI_SetMode "int32:$id" int32:1 2>/dev/null) || continue
+            if printf '%s\n' "$result" | awk '/^   int32 / && !seen {seen=1; code=$2} END {exit !(seen && code==0)}'; then
+                write_log "Wi-Fi client mode accepted: interface=$id attempt=$attempt"
+                return 0
+            fi
+        done
+        sleep 2
+    done
+    write_log 'Wi-Fi startup request timed out; SSH remains running.'
+    return 0
+}
 fail() { echo "SSH: $*" >&2; write_log "SSH: $*"; exit 1; }
 owned_alive() {
     [ -f "$1" ] || return 1
@@ -59,6 +88,15 @@ remove_firewall() {
 }
 teardown() {
     RESULT=0
+    if [ -n "$WIFI_PID" ]; then
+        # Never signal a recycled PID belonging to another process.
+        if [ -r "$PROC/$WIFI_PID/stat" ] &&
+            awk -v parent="$$" '$4==parent {ok=1} END {exit !ok}' "$PROC/$WIFI_PID/stat"; then
+            kill "$WIFI_PID" 2>/dev/null || :
+        fi
+        wait "$WIFI_PID" 2>/dev/null || :
+        WIFI_PID=''
+    fi
     if owned_alive "$RAM/daemon.pid" "$CONFIG"; then kill "$PID" || RESULT=1; fi
     if account_mounted; then
         if [ -f "$RAM/owner" ] && [ "$(cat "$RAM/owner")" = "$SELF" ] && cmp -s "$ACCOUNT" "$RAM/passwd"; then
@@ -151,6 +189,8 @@ printf '%s\n' "$DAEMON" > "$RAM/daemon.pid"
 owned_alive "$RAM/daemon.pid" "$CONFIG" || fail 'SSH could not open port 22.'
 firewall || fail 'Could not allow port 22 through the firewall.'
 write_log 'SSH started: port 22, user cmu. Log in with the agreed default password.'
+wifi_enable_once >/dev/null 2>&1 &
+WIFI_PID=$!
 while kill -0 "$DAEMON" 2>/dev/null; do
     firewall || write_log 'Firewall will be checked again on the next iteration.'
     sleep 5 &

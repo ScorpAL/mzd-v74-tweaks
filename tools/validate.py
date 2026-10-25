@@ -53,9 +53,11 @@ for id_ in manifests:
     visit(id_, [])
 for path in ROOT.rglob('*.sh'):
     subprocess.run([SHELL, '-n', str(path)], check=True)
-for name in ['shell-bridge-arm', 'browser-adapter-arm']:
-    data = (USB / 'bin' / name).read_bytes()
-    require(data[:4] == b'\x7fELF' and data[18:20] == b'\x28\x00', 'Not an ARM ELF binary: ' + name)
+for name in ['server.lua', 'process.lua', 'protocol.lua']:
+    require((USB / 'lib/lua-bridge' / name).is_file(), 'Lua transport file missing: ' + name)
+require(not (USB / 'bin').exists(), 'Obsolete compiled helpers must not ship.')
+require(not (USB / 'transport-backend').exists(), 'The installer uses Lua directly, without a selector.')
+require((USB / 'installer.conf').is_file(), 'Installer logging configuration missing.')
 require((USB / 'jci-autoupdate').is_file(), 'USB autoupdate marker missing.')
 require(len(list(USB.glob('*.up'))) == 1, 'Expected exactly one automatic USB entry file.')
 require(not (USB / 'start-ssh.sh').exists() and not (USB / 'mazda.pub').exists(), 'Temporary SSH must not ship.')

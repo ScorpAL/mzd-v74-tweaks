@@ -4,7 +4,7 @@
     var config = window.installerConfig, frame = document.getElementById("transport");
     var pending = {}, requestId = 0, connected = false, manager = null;
     var tweaks = [], selectedGroup = "", selected = null, scanning = false;
-    var restartRequired = false;
+    var restartRequired = false, failedStatusName = "";
     var operating = false, closing = false, locked = false, dialogMode = "", returnFocusId = "", accepted = false;
     function el(id) { return document.getElementById(id); }
     function text(id, value) { el(id).textContent = value; }
@@ -45,7 +45,8 @@
                     cpuTotal = parts[1]; cpuIdle = parts[2];
                     value = "CPU: " + (/^\d+$/.test(parts[3]) ? parts[3] + "%" : "--");
                 } else if (parts[0] === "disk" && /^\d+$/.test(parts[2])) {
-                    value = parts[1].replace(/\\040/g, " ") + ": " + parts[2] + "% free";
+                    if (parts[1] === "/") value = "System: " + parts[2] + "% free";
+                    else if (parts[1] === "/tmp/mnt/resources" || parts[1] === "/mnt/resources") value = "Resources: " + parts[2] + "% free";
                 }
                 if (value) { var span = document.createElement("span"); span.textContent = value; node.appendChild(span); }
             }
@@ -65,7 +66,8 @@
     function itemLabel(item) {return item.manifest.type==="command" && item.state==="uninstalled" ? "Ready" : label(item.state);}
     function controls() {
         el("refresh").disabled = !accepted || scanning || operating || closing || locked;
-        el("exit").disabled = scanning || operating || closing;
+        el("exit").disabled = operating || closing;
+        if (dialogMode === "restart") el("action").disabled = scanning || locked || operating || closing;
         var nodes = el("tabs").getElementsByTagName("button"), i;
         for (i = 0; i < nodes.length; i++) nodes[i].disabled = operating || closing;
         nodes = el("cards").getElementsByTagName("button");
@@ -151,8 +153,10 @@
             if (problem) { scanning = false; footer("Could not read tweaks"); showResult("Cannot read tweaks", String(problem), false, function () {}); controls(); return; }
             var ids = trim(result.stdout) ? trim(result.stdout).split(/\r?\n/) : [], index = 0;
             function nextManifest() {
+                if (closing) return;
                 if (index === ids.length) {
                     tweaks.sort(function (a,b) {return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0;});
+                    if (closing) return;
                     renderTabs(); renderCards(); refreshAll(); return;
                 }
                 var id = ids[index++];
@@ -190,16 +194,17 @@
                 } else { item.state = state; item.error = trim(result.stderr); }
             }
             else { item.state = "error"; item.error = String(problem || "Unexpected status response: " + state); }
-            if (result && (result.exitCode === 2 || result.signal)) locked = true;
+            if (result && (result.exitCode === 2 || result.signal)) {locked = true;failedStatusName = item.name;}
             updateCard(item); callback();
         });
     }
     function refreshAll() {
         scanning = true; controls(); var index = 0;
         function next() {
+            if (closing) {scanning=false;return;}
             if (index >= tweaks.length || locked) {
                 scanning = false; controls();
-                footer(locked ? "Critical worker failure. Do NOT reboot." : tweaks.length + " tweaks - select a tweak");
+                footer(locked ? "Status failed: " + failedStatusName + ". Do NOT reboot." : tweaks.length + " tweaks - select a tweak");
                 if (dialogMode === "details") openDetails(selected);
                 else if (!dialogMode && el("cards").firstChild) el("cards").firstChild.focus();
                 return;
@@ -350,7 +355,7 @@
         catch (e) {return String(e);}
     }
     function leaveInstaller(restart) {
-        if (scanning || operating || closing || (restart && locked)) return;
+        if (operating || closing || (restart && (locked || scanning))) return;
         closing=true;controls();
         el("back").disabled=true;el("action").disabled=true;
         footer(restart ? "Preparing restart..." : "Returning to Mazda...");
@@ -365,7 +370,7 @@
         });
     }
     function exit() {
-        if (scanning || operating || closing) return;
+        if (operating || closing) return;
         if (!restartRequired || locked) {leaveInstaller(false);return;}
         dialogMode="restart";returnFocusId="exit";
         text("dialog-title","Restart recommended");el("dialog-dot").className="dot installed";
@@ -374,7 +379,7 @@
         clear(el("dialog-meta"));text("dialog-output","");
         text("back","Exit");text("action","Restart");
         show("back",true);show("action",true);show("result-ok",false);show("overlay",true);
-        el("back").disabled=false;el("action").disabled=false;el("dialog-body").scrollTop=0;
+        el("back").disabled=false;el("action").disabled=scanning || locked;el("dialog-body").scrollTop=0;
         el("back").onclick=function(){leaveInstaller(false);};
         el("action").onclick=function(){leaveInstaller(true);};
         el("back").focus();
