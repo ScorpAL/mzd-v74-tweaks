@@ -115,3 +115,25 @@ one bulk call and no individual status calls on discovery, ShellCheck error
 checks and git diff --check. Tests blocked md5sum and poisoned command workers
 to verify menu status does not execute them or alter saved packages. Offline
 preview rebuilt. No CMU/USB deployment or push; vehicle timing remains unmeasured.
+
+## Publication checks
+
+Before publishing the development changes, all 215 real worker checks passed
+again, together with manifest parsing, 36 patch-order combinations, SSH supervisor,
+exports, 15 Restore scenarios, restart, metrics, logging, report messages, Hello,
+UI, browser transport, disclaimer behavior, validation and ShellCheck error checks.
+The latest package adapter run passed all 50 checks as recorded above.
+
+The combined emulated suite exceeded its 300-second host budget while still in
+the package roundtrip. The separated transport run exposed a test client timeout
+of 15 seconds, shorter than the production read-only deadline of 30 seconds.
+The test client now allows 45 seconds and the overall nested-emulation host
+budget is 600 seconds. Production deadlines are unchanged. Transport and package
+checks can now run separately; neither timeout is counted as a passed test.
+
+The helper-start test also needed to allow the runtime precheck before its own
+startup wait. Its outer wait now allows 30 seconds; production startup behavior
+is unchanged. The final separated transport run passed all 54 checks using the
+original ARM Lua/POSIX/LuaSocket runtime: bulk status, Run, background jobs,
+process and HTTP handling, and startup/cleanup in normal/debug/off logging modes.
+No physical CMU or USB changes were made during these publication checks.

@@ -20,6 +20,7 @@ def main():
  mode=parser.add_mutually_exclusive_group()
  mode.add_argument('--probe',action='store_true')
  mode.add_argument('--packages',action='store_true',help='Run only persistent packages with the original CMU shell')
+ mode.add_argument('--transport',action='store_true',help='Run HTTP/process checks without repeating the saved-package roundtrip')
  args=parser.parse_args()
  sys.path.insert(0,str(EMU));import appliance
  CACHE.mkdir(exist_ok=True)
@@ -94,6 +95,7 @@ if pid==0 then p.exec('/bin/sh','-c','echo child-started; exit 7');p._exit(99) e
 print('wait',p.wait(pid))
 """)
  add('init',"""#!/bin/sh
+export CMU_TRANSPORT_ONLY="""+('1' if args.transport else '0')+"""
 export PATH=/experiment/bin:/bin:/usr/bin:/sbin:/usr/sbin
 mount -t proc proc /proc
 mount -t devtmpfs devtmpfs /dev
@@ -114,7 +116,9 @@ poweroff -f
  appliance.write_cpio(overlay,run/'overlay.cpio.gz')
  (run/'test.cpio.gz').write_bytes(basefile.read_bytes()+(run/'overlay.cpio.gz').read_bytes())
  command=[str(EMU/'runtime/qemu/qemu-system-x86_64.exe'),'-machine','q35','-accel','tcg,thread=multi','-m','512','-smp','1','-display','none','-monitor','none','-no-reboot','-kernel',str(EMU/'cache/vmlinuz-virt'),'-initrd',str(run/'test.cpio.gz'),'-append','console=ttyS0 quiet noapic pci=nomsi panic=-1 rdinit=/init','-serial','file:'+str(run/'test.log'),'-nic','none']
- result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=300,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+ # The host emulates an x86 VM which itself emulates ARM. This overall budget
+ # is independent of the production worker deadlines asserted by backend.lua.
+ result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=600,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
  log=(run/'test.log').read_text(errors='replace');shutil.copyfile(run/'test.log',CACHE/'test.log');print(log[-12000:])
  assert result.returncode==0 and 'LUA_TEST_RESULT=0' in log,(result.returncode,result.stdout)
 if __name__=='__main__':main()
