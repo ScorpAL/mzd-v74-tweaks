@@ -247,8 +247,21 @@
     el("back").onclick=closeDialog;
     el("refresh").onclick=function () {if (!scanning && !operating && !locked) refreshAll();};
     el("exit").onclick=exit;
+    function controllerBack(event) {
+        // Backspace is the CMU Back button. Always suppress browser history.
+        if(event.preventDefault)event.preventDefault();event.returnValue=false;
+        if(operating || closing)return;
+        if(dialogMode==="details")closeDialog();else if(!dialogMode)exit();
+    }
     document.onkeydown=function (event) {
-        event=event||window.event; var key=event.keyCode, nodes, buttons=[],i,index=-1;
+        event=event||window.event; var key=event.keyCode||event.which, nodes, buttons=[],i,index=-1;
+        if(key===8) {
+            // Mazda emits goBack on keyup, not keydown or auto-repeat.
+            if(event.preventDefault)event.preventDefault();event.returnValue=false;return;
+        }
+        // Original CMU Multicontroller.js: M = clockwise, N = counterclockwise.
+        // Route rotation to focus navigation; up/down keep detail-text scrolling.
+        if(key===77)key=39;else if(key===78)key=37;
         if (key===27) {
             if (dialogMode==="details") closeDialog(); else if (!dialogMode) exit(); else return;
         } else if (key===38 || key===40 || key===37 || key===39) {
@@ -273,6 +286,10 @@
             if(current && !current.disabled && typeof current.onclick==="function") current.onclick(); else return;
         } else return;
         if(event.preventDefault)event.preventDefault();event.returnValue=false;
+    };
+    document.onkeyup=function (event) {
+        event=event||window.event;
+        if((event.keyCode||event.which)===8)controllerBack(event);
     };
     window.addEventListener("message",function (event) {
         if(event.source!==frame.contentWindow || event.origin!==config.origin)return;

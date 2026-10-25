@@ -10,6 +10,11 @@ available only for valid ready states. Commands use Run. Blocked states offer
 Retry status. Result OK returns to the list and refreshes the affected status.
 Exit returns to the Mazda UI. Workers never reboot automatically.
 
+Multicontroller: rotate or tilt to move between controls; press to select.
+In details, tilt up/down scrolls text and rotation moves between buttons.
+Back returns from details to the list, or exits from the list. Action results
+must be acknowledged with OK. Vehicle confirmation of this mapping is pending.
+
 Current included tweaks support firmware 74.00.324. This migrated runtime and
 four-state contract still need a fresh vehicle test. See tests/runs/ for evidence.
 Launcher logs: installer-logs/. Action reports: reports/diffpatch/.

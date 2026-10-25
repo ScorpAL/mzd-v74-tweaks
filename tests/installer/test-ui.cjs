@@ -89,3 +89,29 @@ x.click('tweak-hello');assert.equal(x.nodes.action.textContent,'Run');
 x.click('action');x.pump();assert(x.calls.some(a=>a[0]==='action'&&a[1]==='hello'&&a[2]==='run'));
 x.click('result-ok');x.pump();assert.equal(x.states.hello,'uninstalled');
 console.log('COMMAND_UI_PASSED: manifest discovery, Run and status refresh.');
+
+// Real CMU controller codes: rotate M/N, tilt arrows, Backspace on release.
+x=boot();
+function controller(type,key,whichOnly=false){
+  let prevented=false;const event={preventDefault(){prevented=true;}};
+  event[whichOnly?'which':'keyCode']=key;x.doc[type](event);assert.equal(prevented,true);
+}
+x.nodes.refresh.focus();controller('onkeydown',77);assert.equal(x.doc.activeElement,x.nodes.exit);
+controller('onkeydown',78,true);assert.equal(x.doc.activeElement,x.nodes.refresh);
+controller('onkeydown',40);assert.equal(x.doc.activeElement,x.nodes.exit);
+controller('onkeydown',38);assert.equal(x.doc.activeElement,x.nodes.refresh);
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
+x.click('tweak-list-beep');controller('onkeydown',77);assert.equal(x.doc.activeElement,x.nodes.action);
+controller('onkeydown',78);assert.equal(x.doc.activeElement,x.nodes.back);
+const top=x.nodes['dialog-body'].scrollTop;
+controller('onkeydown',40);assert.equal(x.nodes['dialog-body'].scrollTop,top+70);
+controller('onkeydown',38);assert.equal(x.nodes['dialog-body'].scrollTop,top);
+controller('onkeydown',8);assert(!x.nodes.overlay.className.includes('hidden'));
+controller('onkeyup',8);assert(x.nodes.overlay.className.includes('hidden'));
+// Back cannot dismiss an in-flight operation or skip result acknowledgement.
+x.click('tweak-list-beep');x.click('action');controller('onkeydown',8);controller('onkeyup',8);
+assert(!x.nodes.overlay.className.includes('hidden'));x.pump();controller('onkeyup',8);
+assert.equal(x.nodes['dialog-title'].textContent,'Operation completed');
+x.click('result-ok');x.pump();controller('onkeydown',8);controller('onkeyup',8);x.pump();
+assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
+console.log('MULTICONTROLLER_PASSED: rotate, tilt up/down, Back on release, browser-history suppression and action guards.');
