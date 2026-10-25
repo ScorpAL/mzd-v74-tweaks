@@ -28,6 +28,29 @@
         }
     };
     function call(args, callback) { shell.exec("/bin/sh", ["./installer.sh"].concat(args), callback); }
+    var cpuTotal = "0", cpuIdle = "0", metricsPending = false;
+    function updateMetrics() {
+        // Never enqueue telemetry behind status scans or a modifying action.
+        if (!connected || closing || scanning || operating || metricsPending) return;
+        metricsPending = true;
+        call(["metrics", cpuTotal, cpuIdle], function (error, result) {
+            metricsPending = false;
+            var node = el("system-info"); clear(node);
+            if (error || resultError(result)) { node.textContent = "System information unavailable"; return; }
+            var lines = trim(result.stdout).split("\n"), parts, value, i;
+            for (i = 0; i < lines.length; i++) {
+                parts = lines[i].split("\t"); value = "";
+                if (parts[0] === "cpu" && /^\d+$/.test(parts[1]) && /^\d+$/.test(parts[2])) {
+                    cpuTotal = parts[1]; cpuIdle = parts[2];
+                    value = "CPU: " + (/^\d+$/.test(parts[3]) ? parts[3] + "%" : "--");
+                } else if (parts[0] === "disk" && /^\d+$/.test(parts[2])) {
+                    value = parts[1].replace(/\\040/g, " ") + ": " + parts[2] + "% free";
+                }
+                if (value) { var span = document.createElement("span"); span.textContent = value; node.appendChild(span); }
+            }
+            if (!node.firstChild) node.textContent = "System information unavailable";
+        });
+    }
     function footer(message) { text("footer-status", message); }
     function label(state) {
         if (state === "installed") return "Installed";
@@ -378,6 +401,8 @@
         call(["event","ready","viewport="+window.innerWidth+"x"+window.innerHeight+"; native="+(nativeMessage||"requested")],function(error,result) {
             if(error || resultError(result)) {footer("Cannot initialize USB session");return;}
             showDisclaimer();
+            updateMetrics();
+            window.setInterval(updateMetrics, 5000);
         });
     },false);
     controls(); frame.src=config.origin+"/#"+config.token;

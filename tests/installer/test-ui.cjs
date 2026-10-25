@@ -14,16 +14,16 @@ class Node {
   getElementsByTagName(tag){let all=[];for(const n of this.children){if(n.tagName===tag)all.push(n);all=all.concat(n.getElementsByTagName(tag));}return all;}
 }
 function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
-  const nodes={},jobs=[],calls=[],timers=[],listeners={},states={'backup-jci':'uninstalled','logs-collector':'uninstalled',hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
+  const nodes={},jobs=[],calls=[],timers=[],intervals=[],listeners={},states={'backup-jci':'uninstalled','logs-collector':'uninstalled',hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
   const doc={activeElement:null,createElement(t){return new Node(t,doc);},getElementById(id){return nodes[id]||walk(nodes.app).concat(walk(nodes.overlay)).find(n=>n.id===id)||null;}};
   function walk(n){return [n].concat(n.children.flatMap(walk));}
-  for(const id of ['app','header','tabs','content','cards','empty','footer-status','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-meta','dialog-output','dialog-actions','back','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
+  for(const id of ['app','header','system-info','tabs','content','cards','empty','footer-status','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-meta','dialog-output','dialog-actions','back','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
   for(const id of ['refresh','exit','back','action','result-ok'])nodes[id].tagName='button';
   nodes.app.appendChild(nodes.header);nodes.header.appendChild(nodes.refresh);nodes.header.appendChild(nodes.exit);nodes.app.appendChild(nodes.tabs);nodes.app.appendChild(nodes.content);nodes.content.appendChild(nodes.cards);
   nodes.overlay.appendChild(nodes.dialog);nodes.dialog.appendChild(nodes['dialog-actions']);for(const id of ['back','action','result-ok'])nodes['dialog-actions'].appendChild(nodes[id]);
   nodes.overlay.className='hidden';nodes['result-ok'].className='primary hidden';
   nodes.transport.contentWindow={postMessage(job,origin){assert.equal(origin,'http://127.0.0.1:1234');jobs.push(job);}};
-  const win={installerConfig:{origin:'http://127.0.0.1:1234',token:'secret'},innerWidth:800,innerHeight:480,setTimeout(fn){timers.push(fn);},addEventListener(n,f){listeners[n]=f;}};
+  const win={installerConfig:{origin:'http://127.0.0.1:1234',token:'secret'},innerWidth:800,innerHeight:480,setTimeout(fn){timers.push(fn);},setInterval(fn){intervals.push(fn);},addEventListener(n,f){listeners[n]=f;}};
   const ctx={window:win,document:doc,escape,decodeURIComponent,WaylandManager:function(){this.SetRequiredSurfaces=(...a)=>calls.push(['visible',...a]);this.SetKeyboardFocus=(...a)=>calls.push(['focus',...a]);}};
   vm.runInNewContext(fs.readFileSync(path.join(ROOT,'ui/app.js'),'utf8'),ctx);
   function event(data,origin='http://127.0.0.1:1234',source=nodes.transport.contentWindow){listeners.message({source,origin,data});}
@@ -32,6 +32,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
   function process(job){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
     if(a[0]==='event')return ok();
+    if(a[0]==='metrics')return ok('cpu\t1000\t700\t'+(a[1]==='0'?'-':'30')+'\ndisk\t/\t42\ndisk\t/jci\t18\n');
     if(a[0]==='start-run'){background=a[1];polls=0;return ok('job.test01\n');}
     if(a[0]==='job-status'){polls++;return ok(polls===1?'running\n0\n0\nCreating archive\n':polls===2?'running\n5\n10\nCopying files\n':'done\n'+(outcomes[background]||0)+'\n');}
     if(a[0]==='job-output')return ok(a[2]==='stdout'?'Saved to USB: /mnt/sdb1/exports/'+background:'');
@@ -47,7 +48,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
   event({type:'shell-ready',token:'secret'});pump();
   if(!keepDisclaimer){nodes.action.onclick();pump();}
   const click=id=>{const n=doc.getElementById(id);assert(n,'missing '+id);assert(!n.disabled,'disabled '+id);n.onclick();};
-  return {nodes,doc,jobs,calls,states,outcomes,reasons,timers,pump,click,ok,event};
+  return {nodes,doc,jobs,calls,states,outcomes,reasons,timers,intervals,pump,click,ok,event};
 }
 let x=boot();
 assert.equal(x.nodes.tabs.children.length,3); // Errors, Interface, System.
@@ -169,3 +170,15 @@ for(const id of ['backup-jci','logs-collector']){
  assert(!x.calls.some(a=>a[0]==='action'&&a[1]===id&&a[2]==='run'));
 }
 console.log('EXPORT_PROGRESS_UI_PASSED: background start, phase/file progress, final output and operation guards.');
+
+// Read-only header telemetry, periodic refresh and no polling during a worker.
+x=boot();assert.match(x.nodes['system-info'].textContent,/CPU: --/);
+assert.match(x.nodes['system-info'].textContent,/\/jci: 18% free/);
+x.intervals[0]();x.pump();assert.match(x.nodes['system-info'].textContent,/CPU: 30%/);
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
+x.click('tweak-list-beep');x.click('action');
+let metricCount=x.calls.filter(a=>a[0]==='metrics').length;
+x.intervals[0]();x.pump();assert.equal(x.calls.filter(a=>a[0]==='metrics').length,metricCount);
+x.click('result-ok');x.pump();x.intervals[0]();x.pump();
+assert.equal(x.calls.filter(a=>a[0]==='metrics').length,metricCount+1);
+console.log('SYSTEM_METRICS_UI_PASSED: CPU sampling, partition free space and paused polling during operations.');

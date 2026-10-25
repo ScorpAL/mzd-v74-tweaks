@@ -14,6 +14,10 @@ Development files stay outside `usb/`; no assembly step is required.
 
 The menu discovers `usb/tweaks/*/manifest.conf`, groups buttons by `group`, asks each
 `run.sh status`, and calls its declared actions. Exit returns to the Mazda UI.
+The header shows CPU utilization and free space percentages for mounted block
+filesystems, refreshed every five seconds while idle. CPU utilization uses two
+/proc/stat snapshots; telemetry pauses during scans and worker actions.
+
 Only firmware **74.00.324** is currently supported by the included tweaks.
 
 | Path | Purpose |

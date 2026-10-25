@@ -6,6 +6,10 @@ HERE=$(dirname "$SELF")
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 valid_id() { case "$1" in ''|*[!a-zA-Z0-9_-]*) return 1 ;; esac; }
 case "${1:-}" in
+  metrics)
+    shift
+    . "$HERE/lib/metrics.sh" || exit 1
+    mzd_metrics "$@" ;;
   list)
     for path in "$HERE/tweaks/"*; do
       [ -d "$path" ] && [ ! -L "$path" ] && [ -f "$path/manifest.conf" ] || continue

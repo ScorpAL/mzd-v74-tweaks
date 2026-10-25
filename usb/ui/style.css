@@ -8,10 +8,10 @@ button:focus{outline:3px solid #fff;outline-offset:-4px}button:active{background
 #wordmark{position:absolute;left:26px;top:17px;font-size:29px;letter-spacing:2px}#wordmark span{color:#e7e7e9}
 #subtitle{position:absolute;left:28px;top:54px;font-size:11px;letter-spacing:3px;color:#a1a1a9}
 .small{position:absolute;top:21px;height:43px;font-size:17px}#refresh{right:122px;width:104px}#exit{right:24px;width:83px}
-#tabs{position:absolute;left:20px;right:20px;top:97px;height:47px;overflow-x:auto;overflow-y:hidden;white-space:nowrap}
+#tabs{position:absolute;left:20px;right:20px;top:130px;height:47px;overflow-x:auto;overflow-y:hidden;white-space:nowrap}
 .tab{height:42px;min-width:150px;margin-right:8px;padding:0 19px;border:0;border-bottom:3px solid #42444a;background:#1b1c21;font-size:19px}
 .tab.selected{border-bottom:3px solid #ec2848;background:#431723;color:#fff}
-#content{position:absolute;left:20px;right:14px;top:156px;bottom:47px;overflow:auto}
+#content{position:absolute;left:20px;right:14px;top:187px;bottom:47px;overflow:auto}
 #cards{padding:3px 3px 8px}.tweak{position:relative;display:inline-block;vertical-align:top;width:359px;height:105px;margin:0 11px 12px 0;text-align:left;border:1px solid #46484e;border-left:3px solid #8b1d31;background:#202126}
 .tweak .dot{position:absolute;left:18px;top:24px}.tweak-name{position:absolute;left:45px;right:10px;top:18px;font-size:21px;line-height:25px;max-height:51px;overflow:hidden}
 .tweak-status{position:absolute;left:45px;right:10px;bottom:12px;font-size:13px;color:#b8b9c0}
@@ -35,3 +35,6 @@ button:focus{outline:3px solid #fff;outline-offset:-4px}button:active{background
 /* Blocked and damaged states remain selectable so their reasons can be read. */
 .dot.unavailable { background: #c09038; }
 .dot.broken { background: #d63535; }
+
+#system-info{position:absolute;left:24px;right:24px;top:91px;height:32px;overflow:hidden;font-size:12px;line-height:16px;color:#bcbec5}
+#system-info span{display:inline-block;margin-right:15px;white-space:nowrap}
