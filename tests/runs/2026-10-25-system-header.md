@@ -8,4 +8,4 @@ Local isolated verification only; physical CMU display validation is pending.
 
 Runtime reads /proc/stat and df -Pk, with no scratch files or USB writes. The browser retains CPU counters and polls every five seconds while idle. The first sample has no CPU percentage. Values after pauses represent the interval since the previous snapshot.
 
-Vehicle follow-up: confirm all expected mounted block devices are listed and header text fits the 800x480 display without obscuring tabs or controls.
+Vehicle follow-up: confirm all expected mounted block devices are listed and header text fits between the wordmark and Refresh/Exit above the red line on the 800x480 display without obscuring tabs or controls.
