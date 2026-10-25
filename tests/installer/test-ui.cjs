@@ -13,8 +13,8 @@ class Node {
   focus(){this.doc.activeElement=this;}
   getElementsByTagName(tag){let all=[];for(const n of this.children){if(n.tagName===tag)all.push(n);all=all.concat(n.getElementsByTagName(tag));}return all;}
 }
-function boot(manifestVersion,includeCommand,keepDisclaimer){
-  const nodes={},jobs=[],calls=[],listeners={},states={hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
+function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
+  const nodes={},jobs=[],calls=[],timers=[],listeners={},states={'backup-jci':'uninstalled','logs-collector':'uninstalled',hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
   const doc={activeElement:null,createElement(t){return new Node(t,doc);},getElementById(id){return nodes[id]||walk(nodes.app).concat(walk(nodes.overlay)).find(n=>n.id===id)||null;}};
   function walk(n){return [n].concat(n.children.flatMap(walk));}
   for(const id of ['app','header','tabs','content','cards','empty','footer-status','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-meta','dialog-output','dialog-actions','back','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
@@ -23,15 +23,19 @@ function boot(manifestVersion,includeCommand,keepDisclaimer){
   nodes.overlay.appendChild(nodes.dialog);nodes.dialog.appendChild(nodes['dialog-actions']);for(const id of ['back','action','result-ok'])nodes['dialog-actions'].appendChild(nodes[id]);
   nodes.overlay.className='hidden';nodes['result-ok'].className='primary hidden';
   nodes.transport.contentWindow={postMessage(job,origin){assert.equal(origin,'http://127.0.0.1:1234');jobs.push(job);}};
-  const win={installerConfig:{origin:'http://127.0.0.1:1234',token:'secret'},innerWidth:800,innerHeight:480,addEventListener(n,f){listeners[n]=f;}};
+  const win={installerConfig:{origin:'http://127.0.0.1:1234',token:'secret'},innerWidth:800,innerHeight:480,setTimeout(fn){timers.push(fn);},addEventListener(n,f){listeners[n]=f;}};
   const ctx={window:win,document:doc,escape,decodeURIComponent,WaylandManager:function(){this.SetRequiredSurfaces=(...a)=>calls.push(['visible',...a]);this.SetKeyboardFocus=(...a)=>calls.push(['focus',...a]);}};
   vm.runInNewContext(fs.readFileSync(path.join(ROOT,'ui/app.js'),'utf8'),ctx);
   function event(data,origin='http://127.0.0.1:1234',source=nodes.transport.contentWindow){listeners.message({source,origin,data});}
   function ok(stdout='',code=0,stderr=''){return {started:true,exitCode:code,signal:null,stdout,stderr,startError:'',stdoutTruncated:false,stderrTruncated:false};}
+  let background=null,polls=0;
   function process(job){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
     if(a[0]==='event')return ok();
-    if(a[0]==='list')return ok('list-beep\nmain-menu-loop\nssh\nbroken\n'+(includeCommand?'hello\n':''));
+    if(a[0]==='start-run'){background=a[1];polls=0;return ok('job.test01\n');}
+    if(a[0]==='job-status'){polls++;return ok(polls===1?'running\n0\n0\nCreating archive\n':polls===2?'running\n5\n10\nCopying files\n':'done\n'+(outcomes[background]||0)+'\n');}
+    if(a[0]==='job-output')return ok(a[2]==='stdout'?'Saved to USB: /mnt/sdb1/exports/'+background:'');
+    if(a[0]==='list')return ok('list-beep\nmain-menu-loop\nssh\nbroken\n'+(includeCommand?'hello\n':'')+(includeExports?'backup-jci\nlogs-collector\n':''));
     if(a[0]==='manifest'){if(a[1]==='broken')return ok('{broken');let m=fs.readFileSync(a[1]==='hello'?path.join(ROOT,'../examples/hello/manifest.conf'):path.join(ROOT,'tweaks',a[1],'manifest.conf'),'utf8');if(manifestVersion)m=m.replace(/^contract_version=.*$/m,'contract_version='+manifestVersion);return ok(m);}
     if(a[2]==='status')return states[a[1]]==='error'?ok('',1,'Patch state is ambiguous.'):ok(states[a[1]]+'\n',0,['unavailable','broken'].includes(states[a[1]])?(reasons[a[1]]||''):'');
     const code=outcomes[a[1]]||0;
@@ -43,7 +47,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer){
   event({type:'shell-ready',token:'secret'});pump();
   if(!keepDisclaimer){nodes.action.onclick();pump();}
   const click=id=>{const n=doc.getElementById(id);assert(n,'missing '+id);assert(!n.disabled,'disabled '+id);n.onclick();};
-  return {nodes,doc,jobs,calls,states,outcomes,reasons,pump,click,ok,event};
+  return {nodes,doc,jobs,calls,states,outcomes,reasons,timers,pump,click,ok,event};
 }
 let x=boot();
 assert.equal(x.nodes.tabs.children.length,3); // Errors, Interface, System.
@@ -152,3 +156,16 @@ x=boot(undefined,false,true);controller('onkeydown',27);x.pump();
 assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
 assert(!fs.readFileSync(path.join(ROOT,'autorun.sh'),'utf8').includes('/jci/tools/jci-dialog'));
 console.log('STARTUP_NOTICE_PASSED: controller OK/Exit/Back/Escape, no discovery before acceptance, no native dialog.');
+
+// Export jobs release the serial bridge and update progress between polls.
+for(const id of ['backup-jci','logs-collector']){
+ x=boot(undefined,false,false,true);
+ x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();
+ x.click('tweak-'+id);assert.equal(x.nodes.action.textContent,'Run');x.click('action');x.pump();
+ assert.match(x.nodes['dialog-state'].textContent,/Creating archive/);assert.equal(x.nodes.exit.disabled,true);
+ assert.equal(x.timers.length,1);x.timers.shift()();x.pump();assert.match(x.nodes['dialog-state'].textContent,/5\/10/);
+ x.timers.shift()();x.pump();assert.equal(x.nodes['dialog-title'].textContent,'Operation completed');
+ assert.match(x.nodes['dialog-output'].textContent,/Saved to USB/);x.click('result-ok');x.pump();assert.equal(x.nodes.exit.disabled,false);
+ assert(!x.calls.some(a=>a[0]==='action'&&a[1]===id&&a[2]==='run'));
+}
+console.log('EXPORT_PROGRESS_UI_PASSED: background start, phase/file progress, final output and operation guards.');

@@ -22,8 +22,8 @@ Only firmware **74.00.324** is currently supported by the included tweaks.
 | `usb/installer.sh` | Discovery and direct argument-based worker invocation |
 | `usb/bin/` | Ready-to-run ARM shell bridge and HTTP adapter |
 | `usb/ui/` | Styled launcher, compatible with the vehicle's Opera engine |
-| `usb/tweaks/` | Six maintained tweaks, assets, manifests and technical READMEs |
-| `usb/lib/` | Shared report, system, patch and read-only status functions |
+| `usb/tweaks/` | Eight maintained tweaks and System tools, assets, manifests and technical READMEs |
+| `usb/lib/` | Shared worker helpers, USB exports and progress jobs |
 | `docs/` | Website sources |
 | `wiki/` | Sources published by the Wiki sync workflow |
 | `examples/` | Hello command and patch-worker template |

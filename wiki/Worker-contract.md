@@ -69,3 +69,11 @@ shows the result and rechecks status after acknowledgement.
 
 Tests must exercise the declared entrypoint, not only a copied transform.
 Contract compliance and feature correctness are separate review responsibilities.
+
+## Export commands and progress
+
+System export commands declare `actions=run status`. A ready command returns `uninstalled`; the launcher labels this Ready. It does not claim an installed state after exporting. Unavailable sources, firmware, tools or USB space return `unavailable` with a reason. Status never copies data or scans the entire source tree for its size.
+
+With optional `progress=true`, Run executes as a background job. Shared export workers call `mzd_export_progress <done> <total> <message>`; zero total means a phase without a meaningful percentage. Progress is written atomically in RAM. Completion retains the worker exit code, stdout and stderr for the usual result dialog. Only one progress job runs per session; Exit is disabled while working. Launcher cleanup waits for an active export before restoring storage state. Direct shell `run` remains synchronous.
+
+Exports write unique folders below the originating USB's `exports/<id>/`. Completed folders end in `-complete`; failed exports retain `.incomplete` and diagnostics. They do not alter source data, root mount mode, watchdog or log rotation settings.

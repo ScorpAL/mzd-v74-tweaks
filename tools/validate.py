@@ -27,7 +27,7 @@ for folder in sorted((USB / 'tweaks').iterdir()):
     require(len(m['firmware']) == 1, 'Add explicit multi-firmware worker coverage before advertising it: ' + folder.name)
     require(m['id'] in CASES, 'Register entrypoint tests in tests/contract/cases.py: ' + m['id'])
     source = (folder / 'run.sh').read_text(encoding='utf-8')
-    require('mzd_manifest_load "$HERE/manifest.conf"' in source, 'Worker must load its manifest: ' + folder.name)
+    require(('mzd_manifest_load "$HERE/manifest.conf"' in source or (CASES[m['id']] == 'export-command' and 'mzd_export_main "$@"' in source)), 'Worker must load its manifest: ' + folder.name)
     require(not re.search(r'^(ID|FIRMWARE|APP|ORIGINAL|LOCK|REQUIRES|CONFLICTS)=', source, re.M),
             'Do not duplicate manifest configuration in run.sh: ' + folder.name)
     require(not re.search(r'(^|\n|;)\s*(/jci/tools/)?(reboot|jci-dialog)(?=\s|$)', '\n'.join(line for line in source.splitlines() if not line.lstrip().startswith('#'))),

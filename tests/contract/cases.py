@@ -9,5 +9,7 @@ CASES = {
     'shorter-delay': 'shared-patch',
     'main-menu-loop': 'shared-patch',
     'no-more-disclaimer': 'shared-patch',
+    'backup-jci': 'export-command',
+    'logs-collector': 'export-command',
     'ssh': 'shared-patch',
 }

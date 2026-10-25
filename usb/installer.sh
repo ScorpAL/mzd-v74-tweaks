@@ -34,6 +34,18 @@ case "${1:-}" in
       cd "$TWEAK" || exit 1
       exec /bin/sh "$TWEAK/run.sh" "$3"
     fi ;;
+  start-run|job-status|job-output|job-execute)
+    . "$HERE/lib/jobs.sh" || exit 1
+    case "$1" in
+      start-run) [ "$#" = 2 ] || fail 'Expected a tweak ID.'; mzd_job_start "$2" ;;
+      job-status) [ "$#" = 2 ] || fail 'Expected a job ID.'; mzd_job_status "$2" ;;
+      job-execute) [ "$#" = 3 ] || exit 1; mzd_job_execute "$2" "$3" ;;
+      job-output)
+        [ "$#" = 3 ] || fail 'Expected job and output stream.'
+        mzd_job_path "$2"
+        [ -f "$JOB/done" ] || fail 'Job has not completed.'
+        case "$3" in stdout|stderr) cat "$JOB/$3" ;; *) fail 'Unknown output stream.' ;; esac ;;
+    esac ;;
   event)
     [ -n "${INSTALLER_STATE:-}" ] && [ -d "$INSTALLER_STATE" ] || fail 'Installer session is missing.'
     case "${2:-}" in

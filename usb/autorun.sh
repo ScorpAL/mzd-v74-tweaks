@@ -26,6 +26,20 @@ finish() {
   # The direct D-Bus API is the additional, vehicle-confirmed visibility path.
   if [ "$ACTIVE" = 1 ]; then native_surface 9 >> "$STATE/native.log" 2>&1 || checkpoint 'Primary fallback request failed'; fi
   if [ -n "$OPERA_PID" ]; then kill "$OPERA_PID" 2>/dev/null || :; wait "$OPERA_PID" 2>/dev/null || :; fi
+  # A progress-enabled export is detached from the short bridge request. If the
+  # browser disappears, let that export finish before changing USB mount state.
+  for job in "$STATE"/job.*; do
+    [ -d "$job" ] || continue
+    for pid_file in pid worker.pid; do
+      [ ! -f "$job/done" ] || break
+      pid=$(cat "$job/$pid_file" 2>/dev/null)
+      case "$pid" in ''|*[!0-9]*) continue ;; esac
+      while kill -0 "$pid" 2>/dev/null && [ ! -f "$job/done" ]; do
+        tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -Fq "$HERE/" || break
+        sleep 1
+      done
+    done
+  done
   # The bridge completes an already-running worker before it exits. Do not
   # terminate an install worker just because the browser has disappeared.
   for pid in "$HTTP_PID" "$BRIDGE_PID"; do

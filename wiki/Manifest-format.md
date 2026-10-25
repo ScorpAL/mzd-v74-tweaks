@@ -50,3 +50,9 @@ and rollback. Those checks protect vehicle state and are independent of sidecars
 Invalid manifest data is an inspection failure: exit 1, empty stdout, reason on
 stderr. An unsupported firmware or incompatible target remains a successfully
 determined `unavailable` state, as specified in the worker contract.
+
+## Optional command progress
+
+`progress=true` enables asynchronous Run execution for command workers. It defaults to false and must be a literal boolean. A command may use `target` for its source directory; OEM backup hashes and patch locks are not required for commands.
+
+The launcher calls `installer.sh start-run <id>`, polls `job-status <token>`, and reads `job-output <token> stdout|stderr` after completion. Jobs and progress files live in the temporary installer session, not on USB. The unchanged native bridge executes these short requests serially.

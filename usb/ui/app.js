@@ -38,6 +38,7 @@
         if (state === "command") return "Command";
         return "Checking status...";
     }
+    function itemLabel(item) {return item.manifest.type==="command" && item.state==="uninstalled" ? "Ready" : label(item.state);}
     function controls() {
         el("refresh").disabled = !accepted || scanning || operating || closing || locked;
         el("exit").disabled = scanning || operating || closing;
@@ -49,8 +50,8 @@
     function updateCard(item) {
         if (!item.button) return;
         item.dot.className = "dot " + item.state;
-        item.statusNode.textContent = label(item.state);
-        item.button.setAttribute("aria-label", item.name + ": " + label(item.state));
+        item.statusNode.textContent = itemLabel(item);
+        item.button.setAttribute("aria-label", item.name + ": " + itemLabel(item));
     }
     function groups() {
         var found = [], i;
@@ -92,7 +93,7 @@
         el("content").scrollTop = 0; controls();
     }
     function parseManifest(id, raw) {
-        var m = {}, lines = raw.split("\n"), fields = "contract_version id name description version type group firmware entrypoint actions target oem_backup_md5 lock_group status_scope reboot_required requires conflicts".split(" ");
+        var m = {}, lines = raw.split("\n"), fields = "contract_version id name description version type group firmware entrypoint actions target oem_backup_md5 lock_group status_scope reboot_required requires conflicts progress".split(" ");
         for (var n = 0; n < lines.length; n++) {
             var line = lines[n].replace(/\r$/, "");
             if (/[\x00-\x1f\x7f]/.test(line)) throw new Error("Manifest contains control characters.");
@@ -108,6 +109,8 @@
         m.contract_version = 1;
         if (m.reboot_required !== "true" && m.reboot_required !== "false") throw new Error("Invalid reboot_required value.");
         m.reboot_required = m.reboot_required === "true";
+        if (m.progress !== undefined && m.progress !== "true" && m.progress !== "false") throw new Error("Invalid progress value.");
+        m.progress = m.progress === "true";
         var lists = ["firmware","actions","requires","conflicts"];
         for (var l = 0; l < lists.length; l++) m[lists[l]] = trim(m[lists[l]]) ? trim(m[lists[l]]).split(/ +/) : [];
         if (!m || m.contract_version !== 1 || m.id !== id || typeof m.name !== "string" || !trim(m.name) || typeof m.description !== "string" || !Array.isArray(m.actions) || m.entrypoint !== "run.sh") throw new Error("Invalid manifest: expected contract version 1, matching id, name, description, actions and entrypoint run.sh.");
@@ -188,7 +191,7 @@
         if (operating || closing || !item) return;
         selected = item; returnFocusId = "tweak-" + item.id; dialogMode = "details";
         text("dialog-title", item.name); el("dialog-dot").className = "dot " + item.state;
-        text("dialog-state", label(item.state) + (item.error ? "\n" + item.error : ""));
+        text("dialog-state", itemLabel(item) + (item.error ? "\n" + item.error : ""));
         text("dialog-description", item.manifest.description || "Manifest could not be loaded.");
         clear(el("dialog-meta")); text("dialog-output", "");
         // Present the manifest information needed to choose an action. Patch
@@ -243,12 +246,42 @@
         el("dialog-body").scrollTop = 0;
         el("result-ok").onclick = function () {closeDialog();callback();}; el("result-ok").focus();
     }
+    function executeAction(item, action, callback) {
+        if(action!=="run" || !item.manifest.progress) {call(["action",item.id,action],callback);return;}
+        call(["start-run",item.id],function(error,result) {
+            if(error || resultError(result)) {callback(error,result);return;}
+            var job=trim(result.stdout), started=new Date().getTime();
+            if(!/^job\.[A-Za-z0-9]+$/.test(job)) {callback("Invalid background job response.",result);return;}
+            function poll() {
+                call(["job-status",job],function(error,result) {
+                    if(error || resultError(result)) {callback("Background job state is uncertain: "+(error||resultError(result)),result);return;}
+                    var lines=result.stdout.split("\n");
+                    if(lines[0]==="running") {
+                        var done=Number(lines[1]),total=Number(lines[2]),message=lines[3]||"Working";
+                        text("dialog-state",message+(total>0?" ("+done+"/"+total+")":"")+" - "+Math.floor((new Date().getTime()-started)/1000)+" s");
+                        window.setTimeout(poll,1000);return;
+                    }
+                    if(lines[0]!=="done" || !/^[0-9]+$/.test(lines[1])) {callback("Invalid background job state.",result);return;}
+                    var code=Number(lines[1]);
+                    call(["job-output",job,"stdout"],function(error,out) {
+                        if(error || resultError(out)) {callback("Could not read background result.",out);return;}
+                        call(["job-output",job,"stderr"],function(error,err) {
+                            if(error || resultError(err)) {callback("Could not read background error output.",err);return;}
+                            callback(null,{started:true,startError:"",exitCode:code,signal:null,stdout:out.stdout,stderr:err.stdout,
+                                stdoutTruncated:out.stdoutTruncated,stderrTruncated:err.stdoutTruncated});
+                        });
+                    });
+                });
+            }
+            poll();
+        });
+    }
     function perform(item, action) {
         operating = true; controls(); dialogMode = "working";
         text("dialog-state",action + " in progress. Do not remove the USB drive.");
         el("back").disabled = true; el("action").disabled = true;
         footer("Working: " + item.name);
-        call(["action",item.id,action],function (error,result) {
+        executeAction(item,action,function (error,result) {
             operating=false;
             var problem = error || resultError(result);
             var critical = !!error || !result || (result.started && (result.exitCode === 2 || !!result.signal || result.exitCode === null));

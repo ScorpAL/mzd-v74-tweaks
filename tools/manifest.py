@@ -3,8 +3,8 @@ import re
 
 FIELDS = ('contract_version id name description version type group firmware '
           'entrypoint actions target oem_backup_md5 lock_group status_scope '
-          'reboot_required requires conflicts').split()
-REQUIRED = set(FIELDS) - {'target', 'oem_backup_md5', 'lock_group'}
+          'reboot_required requires conflicts progress').split()
+REQUIRED = set(FIELDS) - {'target', 'oem_backup_md5', 'lock_group', 'progress'}
 ID = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
 VERSION = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+$')
 
@@ -53,7 +53,10 @@ def parse(text):
             raise ValueError('Invalid OEM backup checksum.')
         if not re.fullmatch('[A-Za-z0-9_-]+', values.get('lock_group', '')):
             raise ValueError('Invalid lock group.')
+    if values.get('progress', 'false') not in ['true', 'false']:
+        raise ValueError('Expected true/false for progress.')
     result = dict(values)
+    result['progress'] = values.get('progress', 'false') == 'true'
     result['contract_version'] = 1
     for key in ['firmware', 'actions', 'requires', 'conflicts']:
         result[key] = values[key].split()
