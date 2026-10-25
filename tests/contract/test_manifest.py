@@ -1,0 +1,71 @@
+"""Check the actual shell and developer readers, including literal shell syntax."""
+from pathlib import Path
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tools'))
+from manifest import parse
+
+SHELL = 'C:/Program Files/Git/bin/bash.exe' if os.name == 'nt' else '/bin/sh'
+def bp(path):
+    s = Path(path).resolve().as_posix()
+    return '/' + s[0].lower() + s[2:] if len(s) > 1 and s[1] == ':' else s
+
+original = (ROOT / 'usb/tweaks/list-beep/manifest.conf').read_text(encoding='utf-8')
+checks = 0
+with tempfile.TemporaryDirectory(prefix='cmu-manifest-') as temporary:
+    base = Path(temporary); file = base / 'manifest.conf'; driver = base / 'read.sh'
+    marker = base / 'must-not-exist'
+    driver.write_text('. ' + shlex.quote(bp(ROOT / 'usb/lib/manifest.sh')) + '\n'
+                      'mzd_manifest_load "$1" || exit 1\nprintf \'%s\\n\' "$NAME" "$DESCRIPTION" "$APP" "$ORIGINAL" "$LOCK"\n',
+                      encoding='utf-8', newline='\n')
+    literal = 'Literal = # "quote" \\path $(touch ' + shlex.quote(bp(marker)) + ') `touch ' + shlex.quote(bp(marker)) + '`'
+    cases = [
+        ('ordinary', original, True),
+        ('CRLF', original.replace('\n', '\r\n'), True),
+        ('no final newline', original.rstrip('\n'), True),
+        ('comments and blank lines', '# comment\n\n   \n' + original, True),
+        ('literal values', original.replace('name=No List Beep', 'name=' + literal), True),
+        ('duplicate', original + 'id=list-beep\n', False),
+        ('duplicate dependency', original.replace('requires=\n', 'requires=ssh ssh\n'), False),
+        ('unknown', original + 'PATH=/bad\n', False),
+        ('missing', original.replace('id=list-beep\n', ''), False),
+        ('no equals', original + 'invalid line\n', False),
+        ('bad contract', original.replace('contract_version=1', 'contract_version=2'), False),
+        ('bad ID', original.replace('id=list-beep', 'id=../escape'), False),
+        ('bad firmware', original.replace('firmware=74.00.324', 'firmware=unknown'), False),
+        ('bad actions', original.replace('actions=install uninstall status', 'actions=reboot'), False),
+        ('bad boolean', original.replace('reboot_required=true', 'reboot_required=yes'), False),
+        ('bad OEM hash', original.replace('oem_backup_md5=', 'oem_backup_md5=bad'), False),
+        ('control character', original + '# tab\t\n', False),
+    ]
+    for label, data, valid in cases:
+        file.write_bytes(data.encode('utf-8'))
+        try:
+            parsed = parse(data); python_ok = True
+        except ValueError:
+            python_ok = False
+        r = subprocess.run([SHELL, bp(driver), bp(file)], capture_output=True, text=True, timeout=15)
+        assert python_ok == valid and (r.returncode == 0) == valid, (label, python_ok, r.stdout, r.stderr)
+        if valid:
+            assert r.stdout.splitlines()[0] == parsed['name'], (label, r.stdout)
+        else:
+            assert not r.stdout and r.stderr.strip(), (label, r.stdout, r.stderr)
+        assert not marker.exists(), 'Manifest content was executed.'
+        checks += 1
+    # Test the real installer adapter; it validates and forwards the same raw data.
+    usb = base / 'usb'; (usb / 'lib').mkdir(parents=True)
+    shutil.copyfile(ROOT / 'usb/installer.sh', usb / 'installer.sh')
+    shutil.copyfile(ROOT / 'usb/lib/manifest.sh', usb / 'lib/manifest.sh')
+    folder = usb / 'tweaks/list-beep'; folder.mkdir(parents=True)
+    (folder / 'manifest.conf').write_text(original, encoding='utf-8', newline='\n')
+    for args, expected in [(['list'], 'list-beep\n'), (['manifest', 'list-beep'], original)]:
+        r = subprocess.run([SHELL, bp(usb / 'installer.sh')] + args, capture_output=True, text=True, timeout=15)
+        assert r.returncode == 0 and r.stdout == expected, (args, r.stdout, r.stderr)
+        checks += 1
+print('MANIFEST_DATA_PASSED:', checks, 'shell/developer/adapter checks; no evaluation or sidecars.')

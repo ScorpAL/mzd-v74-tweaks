@@ -52,7 +52,7 @@ mzd_status_dependencies() (
 mzd_read_status() (
     ACTION=status
     [ ! -e "$LOCK" ] || mzd_fail 'Target is busy; retry status after the other operation.'
-    mzd_require_assets "$SELF" "$HERE/manifest.json" "$PATCH_FILE" || exit 1
+    mzd_require_assets "$SELF" "$HERE/manifest.conf" "$PATCH_FILE" || exit 1
     if command -v mzd_status_assets >/dev/null 2>&1; then mzd_status_assets || exit 1; fi
     [ -r /jci/version.ini ] || mzd_fail 'Cannot read the firmware version.'
     if ! mzd_line_is "JCI_SW_VER=\"MAZ_CMU-150_$FIRMWARE\"" /jci/version.ini; then

@@ -2,6 +2,7 @@
 
 This Wiki is maintained from `wiki/` on the development branch.
 
+- [Manifest format](Manifest-format)
 - [Worker contract](Worker-contract)
 - [Repository structure](Repository-structure)
 - [Vehicle testing](Vehicle-testing)

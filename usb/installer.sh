@@ -8,7 +8,7 @@ valid_id() { case "$1" in ''|*[!a-zA-Z0-9_-]*) return 1 ;; esac; }
 case "${1:-}" in
   list)
     for path in "$HERE/tweaks/"*; do
-      [ -d "$path" ] && [ ! -L "$path" ] && [ -f "$path/manifest.json" ] || continue
+      [ -d "$path" ] && [ ! -L "$path" ] && [ -f "$path/manifest.conf" ] || continue
       id=${path##*/}
       valid_id "$id" || continue
       printf '%s\n' "$id"
@@ -18,8 +18,13 @@ case "${1:-}" in
     TWEAK="$HERE/tweaks/$2"
     [ -d "$TWEAK" ] && [ ! -L "$TWEAK" ] || fail 'Tweak folder is missing or is a symbolic link.'
     if [ "$1" = manifest ]; then
-      [ -f "$TWEAK/manifest.json" ] && [ ! -L "$TWEAK/manifest.json" ] || fail 'Manifest is missing or is a symbolic link.'
-      cat "$TWEAK/manifest.json"
+      [ -f "$TWEAK/manifest.conf" ] && [ ! -L "$TWEAK/manifest.conf" ] || fail 'Manifest is missing or is a symbolic link.'
+      library="$HERE/lib/manifest.sh"
+      [ -f "$library" ] && [ ! -L "$library" ] && [ -r "$library" ] || fail 'Manifest reader is missing or unreadable.'
+      . "$library" || exit 1
+      mzd_manifest_load "$TWEAK/manifest.conf" || exit 1
+      [ "$ID" = "$2" ] || fail 'Manifest ID does not match its folder.'
+      cat "$TWEAK/manifest.conf"
     else
       [ "$#" = 3 ] || fail 'Expected tweak and action.'
       case "$3" in install|uninstall|status|run) ;; *) fail 'Unsupported action.' ;; esac

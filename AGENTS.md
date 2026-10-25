@@ -7,6 +7,7 @@ Use English documentation, comments and runtime messages. Runtime is POSIX sh
 and Opera-compatible ES5 JavaScript. Do not normalize binary or patch payloads.
 Do not add dialogs or reboot commands to tweak workers. Status is read-only and
 uses private RAM scratch space; require reasons for unavailable/broken.
-Keep script/asset checksums, manifests and dependency declarations consistent.
+Use manifest.conf as the single configuration source; never source/eval it.
+Do not add checksum sidecars for project files. Preserve OEM backup fingerprints.
 Run relevant contract/UI/behavior checks. Separate isolated, emulated and vehicle
 evidence. Never publish vehicle dumps, private keys or personal logs.

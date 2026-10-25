@@ -8,5 +8,5 @@ owns their lifecycle; JavaScript uses separate program/argument values.
 Optional rebuild: install Zig 0.13.0 on a development machine and run
 `sh tools/build-native.sh`. No rebuild is needed to copy the contents of usb/ to the stick.
 The current binaries target static arm-linux-musleabi, Cortex-A9. The musl license
-is included under licenses/. Changing native code requires rebuilding both the
-relevant binary and its checksum, and reviewing actual CMU behavior.
+is included under usb/licenses/. Changing native code requires rebuilding both the
+relevant binary and reviewing actual CMU behavior.

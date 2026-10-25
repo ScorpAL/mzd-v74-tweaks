@@ -1,6 +1,5 @@
-"""PR entrypoint: metadata, integrity, syntax and developer test coverage."""
+"""PR entrypoint: metadata, syntax and developer test coverage."""
 from pathlib import Path
-import json
 import os
 import re
 import subprocess
@@ -16,33 +15,21 @@ def require(ok, message):
     if not ok:
         raise SystemExit(message)
 
-schema_path = USB / 'tweaks/tweak-manifest.schema.json'
-schema = json.loads(schema_path.read_text(encoding='utf-8'))
-try:
-    import jsonschema
-except ImportError:
-    raise SystemExit('Install developer dependency: python -m pip install jsonschema')
-jsonschema.Draft202012Validator.check_schema(schema)
+from manifest import read as read_manifest
+
 manifests = {}
 for folder in sorted((USB / 'tweaks').iterdir()):
     if not folder.is_dir():
         continue
-    require((folder / 'manifest.json').is_file(), 'Unexpected folder under tweaks/: ' + folder.name)
-    m = json.loads((folder / 'manifest.json').read_text(encoding='utf-8'))
-    jsonschema.validate(m, schema)
+    require((folder / 'manifest.conf').is_file(), 'Unexpected folder under tweaks/: ' + folder.name)
+    m = read_manifest(folder / 'manifest.conf')
     require(m['id'] == folder.name, 'Manifest ID/folder mismatch: ' + folder.name)
     require(len(m['firmware']) == 1, 'Add explicit multi-firmware worker coverage before advertising it: ' + folder.name)
     require(m['id'] in CASES, 'Register entrypoint tests in tests/contract/cases.py: ' + m['id'])
     source = (folder / 'run.sh').read_text(encoding='utf-8')
-    for field, constant in [('requires', 'REQUIRES'), ('conflicts', 'CONFLICTS')]:
-        match = re.search(r'^' + constant + r"='([^']*)'$", source, re.M)
-        require(match and match.group(1).split() == m[field], 'Dependency metadata/code mismatch: ' + folder.name)
-    for field, constant in [('id', 'ID'), ('target', 'APP'), ('original_md5', 'ORIGINAL'), ('firmware', 'FIRMWARE')]:
-        if field not in m:
-            continue
-        expected = m[field][0] if field == 'firmware' else m[field]
-        require(re.search(r'^' + constant + '=' + re.escape(expected) + '$', source, re.M),
-                'Manifest/worker configuration mismatch: ' + folder.name + ' ' + field)
+    require('mzd_manifest_load "$HERE/manifest.conf"' in source, 'Worker must load its manifest: ' + folder.name)
+    require(not re.search(r'^(ID|FIRMWARE|APP|ORIGINAL|LOCK|REQUIRES|CONFLICTS)=', source, re.M),
+            'Do not duplicate manifest configuration in run.sh: ' + folder.name)
     require(not re.search(r'(^|\n|;)\s*(/jci/tools/)?(reboot|jci-dialog)(?=\s|$)', '\n'.join(line for line in source.splitlines() if not line.lstrip().startswith('#'))),
             'Workers must not open dialogs or reboot: ' + folder.name)
     patch = folder / 'assets/change.patch'
@@ -68,5 +55,4 @@ for name in ['shell-bridge-arm', 'browser-adapter-arm']:
 require((USB / 'jci-autoupdate').is_file(), 'USB autoupdate marker missing.')
 require(len(list(USB.glob('*.up'))) == 1, 'Expected exactly one automatic USB entry file.')
 require(not (USB / 'start-ssh.sh').exists() and not (USB / 'mazda.pub').exists(), 'Temporary SSH must not ship.')
-subprocess.run([sys.executable, str(ROOT / 'tools/checksums.py')], check=True)
 print('Validated', len(manifests), 'tweaks, dependency graph, syntax and runnable USB structure.')

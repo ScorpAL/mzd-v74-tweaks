@@ -5,16 +5,14 @@ mzd_hash() (
   md5sum "$1" | cut -d' ' -f1
 )
 
-mzd_check_asset() (
-  expected=$(cut -c1-32 "$1.md5" 2>/dev/null)
-  [ -n "$expected" ] && [ -f "$1" ] && [ ! -L "$1" ] &&
-    [ "$(mzd_hash "$1")" = "$expected" ]
+mzd_asset_readable() (
+  [ -f "$1" ] && [ ! -L "$1" ] && [ -r "$1" ]
 )
 
 mzd_require_assets() (
   for asset in "$@"
   do
-    mzd_check_asset "$asset" || mzd_fail "Asset checksum mismatch: $asset"
+    mzd_asset_readable "$asset" || mzd_fail "Missing or unreadable asset: $asset"
   done
 )
 

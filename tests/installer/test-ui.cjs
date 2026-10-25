@@ -32,7 +32,7 @@ function boot(manifestVersion,includeCommand){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
     if(a[0]==='event')return ok();
     if(a[0]==='list')return ok('list-beep\nmain-menu-loop\nssh\nbroken\n'+(includeCommand?'hello\n':''));
-    if(a[0]==='manifest'){if(a[1]==='broken')return ok('{broken');const m=JSON.parse(fs.readFileSync(a[1]==='hello'?path.join(ROOT,'../examples/hello/manifest.json'):path.join(ROOT,'tweaks',a[1],'manifest.json'),'utf8'));if(manifestVersion)m.contract_version=manifestVersion;return ok(JSON.stringify(m));}
+    if(a[0]==='manifest'){if(a[1]==='broken')return ok('{broken');let m=fs.readFileSync(a[1]==='hello'?path.join(ROOT,'../examples/hello/manifest.conf'):path.join(ROOT,'tweaks',a[1],'manifest.conf'),'utf8');if(manifestVersion)m=m.replace(/^contract_version=.*$/m,'contract_version='+manifestVersion);return ok(m);}
     if(a[2]==='status')return states[a[1]]==='error'?ok('',1,'Patch state is ambiguous.'):ok(states[a[1]]+'\n',0,['unavailable','broken'].includes(states[a[1]])?(reasons[a[1]]||''):'');
     const code=outcomes[a[1]]||0;
     if(code===0)states[a[1]]=a[2]==='install'?'installed':'uninstalled';
@@ -115,3 +115,17 @@ assert.equal(x.nodes['dialog-title'].textContent,'Operation completed');
 x.click('result-ok');x.pump();controller('onkeydown',8);controller('onkeyup',8);x.pump();
 assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
 console.log('MULTICONTROLLER_PASSED: rotate, tilt up/down, Back on release, browser-history suppression and action guards.');
+
+// Exercise the production manifest parser directly with literal text values.
+const appSource=fs.readFileSync(path.join(ROOT,'ui/app.js'),'utf8');
+const manifestFunction=appSource.slice(appSource.indexOf('    function parseManifest('),appSource.indexOf('    function discover('));
+const parseConf=vm.runInNewContext('(function(){function trim(v){return String(v||" ").replace(/^\\s+|\\s+$/g,"");}'+manifestFunction+';return parseManifest;}())');
+const rawConf=fs.readFileSync(path.join(ROOT,'tweaks/list-beep/manifest.conf'),'utf8');
+const literal='Text = # "quotes" $(not_a_command) `not_a_command`';
+const parsedConf=parseConf('list-beep',rawConf.replace(/^name=.*$/m,'name='+literal));
+assert.equal(parsedConf.name,literal);assert.equal(parsedConf.actions.join(' '),'install uninstall status');
+assert.equal(parsedConf.requires.length,0);assert.equal(parsedConf.reboot_required,true);
+for(const raw of [rawConf+'id=list-beep\n',rawConf+'unknown=value\n',rawConf.replace(/^id=.*\n/m,''),rawConf+'# tab\t\n']) {
+  assert.throws(()=>parseConf('list-beep',raw));
+}
+console.log('MANIFEST_UI_PASSED: literal values, lists, booleans, duplicate/unknown/missing/control rejection.');

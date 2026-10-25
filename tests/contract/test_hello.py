@@ -1,6 +1,7 @@
 """Execute the stateless command example with isolated firmware data."""
 from pathlib import Path
 import os
+import shutil
 import subprocess
 import tempfile
 
@@ -12,7 +13,12 @@ def bp(path):
     return '/' + s[0].lower() + s[2:] if len(s) > 1 and s[1] == ':' else s
 
 with tempfile.TemporaryDirectory(prefix='cmu-hello-') as folder:
-    base = Path(folder); version = base / 'version.ini'; script = base / 'run.sh'
+    base = Path(folder); version = base / 'version.ini'; script = base / 'usb/tweaks/hello/run.sh'
+    script.parent.mkdir(parents=True)
+    (base / 'usb/lib').mkdir()
+    shutil.copyfile(ROOT / 'usb/lib/manifest.sh', base / 'usb/lib/manifest.sh')
+    manifest = script.parent / 'manifest.conf'
+    shutil.copyfile(ROOT / 'examples/hello/manifest.conf', manifest)
     source = (ROOT / 'examples/hello/run.sh').read_text(encoding='utf-8')
     script.write_text(source.replace('/jci/version.ini', bp(version)), encoding='utf-8', newline='\n')
     def run(args, code, stdout=None):
@@ -29,5 +35,5 @@ with tempfile.TemporaryDirectory(prefix='cmu-hello-') as folder:
     run(['status'], 0, 'uninstalled\n')
     run(['run'], 0, 'Hello from the CMU shell!\n')
     run(['install'], 1, '')
-    assert sorted(p.name for p in base.iterdir()) == ['run.sh', 'version.ini']
+    assert sorted(p.name for p in base.iterdir()) == ['usb', 'version.ini']
 print('HELLO_CONTRACT_PASSED: help, errors, ready, unavailable, Run and no extra files.')

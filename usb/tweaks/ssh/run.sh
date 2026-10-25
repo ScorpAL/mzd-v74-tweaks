@@ -5,7 +5,7 @@
 # Reading guide:
 #   1. Validate the requested action without changing the system.
 #   2. Define local reporting, system-state and patch helpers.
-#   3. Set this tweak's paths/checksum in the configuration section below.
+#   3. Load this tweak's configuration from manifest.conf.
 #   4. Run the installation flow at the end of the file.
 # The manifest describes the tweak for discovery; this script executes it.
 set -u
@@ -40,30 +40,19 @@ esac
 SELF=$(readlink -f "$0") || exit 1
 HERE=$(dirname "$SELF")
 
-# The repository is the ready-to-run USB package. Verify shared helpers before
-# sourcing them; checksums detect package corruption, not malicious changes.
+# Load the shared runtime from the ready-to-run USB layout.
 ROOT=$(CDPATH= cd "$HERE/../.." && pwd) || exit 1
-for library in report system patch status; do
+for library in manifest report system patch status; do
     file="$ROOT/lib/$library.sh"
-    expected=$(cut -c1-32 "$file.md5" 2>/dev/null)
-    actual=$(md5sum "$file" 2>/dev/null | cut -d' ' -f1)
-    if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
-        printf 'ERROR: Shared library checksum mismatch: %s\n' "$library" >&2
+    [ -f "$file" ] && [ ! -L "$file" ] && [ -r "$file" ] || {
+        printf 'ERROR: Missing or unreadable library: %s\n' "$library" >&2
         exit 1
-    fi
+    }
     . "$file" || exit 1
 done
 
-# --- Tweak configuration --------------------------------------------------
-# Maintain these values together with manifest.json; offline tests check them.
-# ORIGINAL identifies the unmodified OEM file, not a file with other tweaks.
-# Tweaks editing the same file share LOCK to avoid simultaneous writes.
-# JSON is not executed or parsed on the CMU.
-ID=ssh
-FIRMWARE=74.00.324
-APP=/jci/scripts/stage_wifi.sh
-ORIGINAL=d740449dea568696660a62fce0fb35bd
-LOCK=/tmp/mzd-stage_wifi-tweak.lock
+# Metadata and execution settings have one source of truth.
+mzd_manifest_load "$HERE/manifest.conf" || exit 1
 PATCH_FILE="$HERE/assets/change.patch"
 
 # --- SSH payload preparation ------------------------------------------------
@@ -126,7 +115,11 @@ mzd_status_target_missing() {
 }
 
 mzd_check_status() {
-    if [ "$1" = installed ]; then
+    if [ "$1" = uninstalled ] && ! awk 'NR==1 {valid=($0=="#!/bin/sh")} END {exit !valid}' "$APP"; then
+        # The insertion-only patch has little context. Some host patch tools
+        # otherwise accept unrelated text after dropping all context as fuzz.
+        mzd_status_emit unavailable 'The startup target is not a supported shell script.'
+    elif [ "$1" = installed ]; then
         if ! ssh_hook_ok; then
             mzd_status_emit broken 'The SSH startup hook is duplicated or incomplete.'
         elif ! ssh_payload_ok; then
@@ -146,7 +139,7 @@ mzd_check_status() {
 ssh_prepare() {
     for _file in service.sh sshd_config password.hash usb-log-marker.txt
     do
-        mzd_check_asset "$PAYLOAD/$_file" || mzd_fail 'SSH asset checksum mismatch.'
+        mzd_asset_readable "$PAYLOAD/$_file" || mzd_fail 'SSH asset is missing or unreadable.'
     done
 
     if [ -e "$SERVICE" ]
@@ -252,8 +245,6 @@ ssh_complete() {
 }
 
 # Declared dependencies/conflicts are enforced for direct CLI calls as well.
-REQUIRES=''
-CONFLICTS=''
 if [ "$ACTION" = status ]; then
     mzd_read_status
     exit $?
@@ -267,7 +258,7 @@ mzd_action_preflight || exit 1
 mzd_begin "$SELF" "$ID" mzd_system_cleanup
 mzd_system_begin
 mzd_require_tools awk md5sum cp cmp || exit 1
-mzd_require_assets "$SELF" "$HERE/manifest.json" || exit 1
+mzd_require_assets "$SELF" "$HERE/manifest.conf" || exit 1
 mzd_validate_firmware "$FIRMWARE" || exit 1
 mzd_system_lock "$LOCK" || exit 1
 

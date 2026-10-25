@@ -92,7 +92,24 @@
         el("content").scrollTop = 0; controls();
     }
     function parseManifest(id, raw) {
-        var m = JSON.parse(raw);
+        var m = {}, lines = raw.split("\n"), fields = "contract_version id name description version type group firmware entrypoint actions target oem_backup_md5 lock_group status_scope reboot_required requires conflicts".split(" ");
+        for (var n = 0; n < lines.length; n++) {
+            var line = lines[n].replace(/\r$/, "");
+            if (/[\x00-\x1f\x7f]/.test(line)) throw new Error("Manifest contains control characters.");
+            if (!trim(line) || line.charAt(0) === "#") continue;
+            var at = line.indexOf("="), key = line.substring(0, at);
+            if (at < 0 || fields.indexOf(key) === -1) throw new Error("Invalid manifest field.");
+            if (Object.prototype.hasOwnProperty.call(m,key)) throw new Error("Duplicate manifest field: " + key);
+            m[key] = line.substring(at + 1);
+        }
+        var required = "contract_version id name description version type group firmware entrypoint actions status_scope reboot_required requires conflicts".split(" ");
+        for (var r = 0; r < required.length; r++) if (!Object.prototype.hasOwnProperty.call(m,required[r])) throw new Error("Missing manifest field: " + required[r]);
+        if (m.contract_version !== "1") throw new Error("Unsupported manifest contract version.");
+        m.contract_version = 1;
+        if (m.reboot_required !== "true" && m.reboot_required !== "false") throw new Error("Invalid reboot_required value.");
+        m.reboot_required = m.reboot_required === "true";
+        var lists = ["firmware","actions","requires","conflicts"];
+        for (var l = 0; l < lists.length; l++) m[lists[l]] = trim(m[lists[l]]) ? trim(m[lists[l]]).split(/ +/) : [];
         if (!m || m.contract_version !== 1 || m.id !== id || typeof m.name !== "string" || !trim(m.name) || typeof m.description !== "string" || !Array.isArray(m.actions) || m.entrypoint !== "run.sh") throw new Error("Invalid manifest: expected contract version 1, matching id, name, description, actions and entrypoint run.sh.");
         if (m.group !== undefined && (typeof m.group !== "string" || !trim(m.group))) throw new Error("Invalid manifest group.");
         return m;

@@ -12,7 +12,7 @@ Download this branch, extract it, and copy the contents of `usb/` to the USB roo
 
 Development files stay outside `usb/`; no assembly step is required.
 
-The menu discovers `usb/tweaks/*/manifest.json`, groups buttons by `group`, asks each
+The menu discovers `usb/tweaks/*/manifest.conf`, groups buttons by `group`, asks each
 `run.sh status`, and calls its declared actions. Exit returns to the Mazda UI.
 Only firmware **74.00.324** is currently supported by the included tweaks.
 

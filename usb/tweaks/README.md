@@ -1,6 +1,6 @@
 # Launcher tweaks
 
-Each immediate child folder contains manifest.json, run.sh, README.md and assets/.
+Each immediate child folder contains manifest.conf, run.sh, README.md and assets/.
 The launcher discovers these folders directly; grouping is manifest data.
 
 Shared helpers live in ../lib/. Keep the repository runtime layout intact on USB.

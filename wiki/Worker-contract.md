@@ -2,8 +2,8 @@
 
 ## Discovery
 
-A tweak is `usb/tweaks/<id>/manifest.json` plus `run.sh`. The manifest has
-`contract_version: 1`; see `usb/tweaks/tweak-manifest.schema.json`. It is data, never
+A tweak is `usb/tweaks/<id>/manifest.conf` plus `run.sh`. The manifest has
+`contract_version=1`; see [Manifest format](Manifest-format.md). It is data, never
 shell code. The launcher starts `/bin/sh <path>/run.sh <action>` using separate
 arguments and captures stdout, stderr, exitCode, signals and output truncation.
 No worker depends on interactive stdin, dialogs, a reboot or a build step.
@@ -26,7 +26,7 @@ why on stderr. Other successful states normally leave stderr empty. The launcher
 shows the reason and provides Retry status instead of install/uninstall/run for
 blocked states. Broken is not an automatic repair permission.
 
-An inspection failure (for example unreadable target, corrupt package, missing
+An inspection failure (for example unreadable target, invalid manifest or missing assets, missing
 probe tool or concurrent change) returns 1, empty stdout and a reason on stderr.
 Unknown target content alone is unavailable; only evidence of an installation
 justifies broken. Patch workers detect complete forward/reverse states on RAM
@@ -45,8 +45,9 @@ may define mzd_check_prerequisites() for hardware/component checks; it returns
 failure with a clear stderr reason. Shared status maps that to unavailable, or
 broken if an installed tweak has lost a prerequisite.
 
-requires/conflicts contain tweak IDs. REQUIRES/CONFLICTS mirror them in run.sh
-because the vehicle shell need not parse JSON. CI checks parity. Dependencies
+requires/conflicts contain space-separated tweak IDs in manifest.conf. The
+shared reader loads all configuration for run.sh; no duplicate declarations or
+JSON parser are needed. Dependencies
 must be installed. Conflicts must report uninstalled; every unresolved or blocked status
 blocks the operation. Cycles are rejected. Recheck immediately before modifying
 anything. The manifest never substitutes for runtime checks.

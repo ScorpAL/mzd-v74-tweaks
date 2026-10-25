@@ -28,9 +28,6 @@ def write(path, text):
     path.write_text(text, encoding='utf-8', newline='\n')
     path.chmod(0o755)
 
-def checksum(path):
-    Path(str(path) + '.md5').write_text(hashlib.md5(path.read_bytes()).hexdigest() + '\n', encoding='ascii', newline='\n')
-
 def fixture(patch, installed=False):
     # Reconstruct only the checked-in hunk contexts, with unique harmless gaps.
     lines = []; position = 0
@@ -58,7 +55,6 @@ for id_, runner in CASES.items():
             # The real supervisor has its own fake-kernel/network suite. Here
             # only its read-only prerequisite interface is represented.
             write(worker / 'assets/service.sh', '#!/bin/sh\n[ "$1" = check ] || exit 1\nprintf "Prerequisites checked.\\n"\n')
-            checksum(worker / 'assets/service.sh')
         target = base / 'target.data'; service = base / 'service'
         version = base / 'version.ini'; lock = base / 'lock'; events = base / 'events'
         bins = base / 'bin'; bins.mkdir()
@@ -81,10 +77,14 @@ for id_, runner in CASES.items():
         write(version, 'JCI_SW_VER="MAZ_CMU-150_74.00.324"\n')
         p = worker / 'run.sh'; source = p.read_text(encoding='utf-8')
         source = source.replace('#!/bin/sh\n', '#!/bin/sh\nPATH=' + shlex.quote(bp(bins) + ':/usr/bin:/bin') + '\nexport PATH\n', 1)
-        source = re.sub(r'^APP=.*$', 'APP=' + shlex.quote(bp(target)), source, flags=re.M)
-        source = re.sub(r'^ORIGINAL=.*$', 'ORIGINAL=' + hashlib.md5(original.encode()).hexdigest(), source, flags=re.M)
+        manifest_path = worker / 'manifest.conf'
+        manifest_source = manifest_path.read_text(encoding='utf-8')
+        manifest_source = re.sub(r'^target=.*$', 'target=' + bp(target), manifest_source, flags=re.M)
+        manifest_source = re.sub(r'^oem_backup_md5=.*$', 'oem_backup_md5=' + hashlib.md5(original.encode()).hexdigest(), manifest_source, flags=re.M)
+        write(manifest_path, manifest_source)
+        source = source.replace('mzd_manifest_load "$HERE/manifest.conf" || exit 1',
+            'mzd_manifest_load "$HERE/manifest.conf" || exit 1\nLOCK=' + shlex.quote(bp(lock)))
         source = re.sub(r'^SERVICE=.*$', 'SERVICE=' + shlex.quote(bp(service)), source, flags=re.M)
-        source = re.sub(r'^LOCK=.*$', 'LOCK=' + shlex.quote(bp(lock)), source, flags=re.M)
         write(p, source)
         for lib in (usb / 'lib').glob('*.sh'):
             text = lib.read_text(encoding='utf-8').replace('/jci/version.ini', bp(version))
@@ -92,8 +92,7 @@ for id_, runner in CASES.items():
                 # Keep sandbox probe diagnostics only for an actionable CI failure.
                 text = text.replace('trap \'rm -rf "$MZD_REPORT"\' 0',
                     'trap \'cp -R "$MZD_REPORT" ' + shlex.quote(bp(base / 'probe-debug')) + '; rm -rf "$MZD_REPORT"\' 0')
-            write(lib, text); checksum(lib)
-        checksum(p)
+            write(lib, text)
         env = dict(os.environ, PATH=bp(bins) + ':/usr/bin:/bin')
         before_usb = lambda: {q.relative_to(usb).as_posix(): q.read_bytes() for q in usb.rglob('*') if q.is_file()}
         def run(action, state=None, code=0, reason=False):
@@ -139,9 +138,9 @@ for id_, runner in CASES.items():
         write(backup, original)
         # Installed state plus a failed worker-owned prerequisite is broken.
         injected = 'mzd_check_prerequisites() { printf "Required component missing.\\n" >&2; return 1; }\n'
-        write(p, source.replace("REQUIRES=''", injected + "REQUIRES=''")); checksum(p)
+        write(p, source.replace('if [ "$ACTION" = status ]; then', injected + 'if [ "$ACTION" = status ]; then', 1))
         run(['status'], 'broken', reason=True)
-        write(p, source); checksum(p)
+        write(p, source)
         if id_ == 'ssh':
             saved = target.read_text()
             additions = ''.join(line[1:] for line in patch.splitlines(keepends=True) if line.startswith('+') and not line.startswith('+++'))
@@ -177,21 +176,19 @@ for id_, runner in CASES.items():
         lock.mkdir(); run(['status'], code=1); lock.rmdir()
         # Real worker dependency checks: missing requirement, conflict and cycle.
         for setting, value in [('REQUIRES', 'missing'), ('CONFLICTS', 'missing'), ('REQUIRES', id_)]:
-            write(p, source.replace(setting + "=''", setting + "='" + value + "'")); checksum(p)
+            write(manifest_path, re.sub(r'^' + setting.lower() + '=.*$', setting.lower() + '=' + value, manifest_source, flags=re.M))
             run(['status'], 'unavailable', reason=True)
-        write(p, source); checksum(p)
+        write(manifest_path, manifest_source)
+        write(p, source)
         # Add a worker-owned component check without changing the status helper.
         injected = 'mzd_check_prerequisites() { printf "Required component missing.\\n" >&2; return 1; }\n'
-        write(p, source.replace("REQUIRES=''", injected + "REQUIRES=''")); checksum(p)
+        write(p, source.replace('if [ "$ACTION" = status ]; then', injected + 'if [ "$ACTION" = status ]; then', 1))
         run(['status'], 'unavailable', reason=True)
-        write(p, source); checksum(p)
-        write(p, source + '# checksum deliberately not refreshed\n')
-        run(['status'], code=1)
-        write(p, source); checksum(p)
+        write(p, source)
         patch_path = worker / 'assets/change.patch'
-        write(patch_path, patch.replace('--- target.data', '--- forbidden.data')); checksum(patch_path)
+        write(patch_path, patch.replace('--- target.data', '--- forbidden.data'))
         run(['status'], code=1)
-        write(patch_path, patch); checksum(patch_path)
+        write(patch_path, patch)
         # An unavailable/crashed probe tool is an inspection failure, not an
         # assertion that this target is incompatible.
         write(bins / 'patch', '#!/bin/sh\nprintf "patch: applet not found\\n" >&2\nexit 127\n')
@@ -200,7 +197,7 @@ for id_, runner in CASES.items():
         if os.environ.get('CMU_TEST_BUSYBOX'): os.symlink(busybox, bins / 'patch')
         # Exercise successful changes and rollback through the same entrypoint.
         # Only mount/watchdog/service effects are simulated; real patching,
-        # integrity checks, reports, locks and result cleanup still execute.
+        # backup checks, reports, locks and result cleanup still execute.
         write(target, original)
         resources = base / 'resources'; resources.mkdir()
         mounts = base / 'mounts'; gpio = base / 'gpio'
@@ -210,10 +207,10 @@ for id_, runner in CASES.items():
         for lib in (usb / 'lib').glob('*.sh'):
             text = lib.read_text(encoding='utf-8').replace('/proc/mounts', bp(mounts))
             text = text.replace('/sys/class/gpio/Watchdog\\ Disable/value', bp(gpio))
-            write(lib, text); checksum(lib)
-        modified = re.sub(r'^ORIGINAL=.*$', 'ORIGINAL=' + hashlib.md5(original.encode()).hexdigest(), source, flags=re.M)
+            write(lib, text)
+        modified = source
         modified = modified.replace('mzd_system_remount_rw /tmp/mnt/resources', 'mzd_system_remount_rw ' + bp(resources))
-        write(p, modified); checksum(p)
+        write(p, modified)
         write(bins / 'sync', '#!/bin/sh\nprintf "sync\\n" >> ' + shlex.quote(bp(events)) + '\n')
         write(bins / 'mount', '''#!/bin/sh
 printf 'mount\\n' >> EVENTS
@@ -240,7 +237,6 @@ case "$1" in
 esac
 '''.replace('FAIL_START', shlex.quote(bp(base / 'fail-start'))).replace('FAIL_STOP', shlex.quote(bp(base / 'fail-stop')))
                   .replace('RUNNING', shlex.quote(bp(base / 'running'))))
-            checksum(worker / 'assets/service.sh')
         def mutate(action, code=0):
             global checks
             r = subprocess.run([SHELL, bp(p), action], env=env, capture_output=True, text=True, timeout=30)

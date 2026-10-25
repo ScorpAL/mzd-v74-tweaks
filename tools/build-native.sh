@@ -7,4 +7,4 @@ for name in bridge browser-adapter; do
     [ "$name" != browser-adapter ] || output=browser-adapter-arm
     zig cc -target arm-linux-musleabi -mcpu=cortex_a9 -std=c99 -Os -static -s -Wall -Wextra -Werror "src/$name.c" -o "usb/bin/$output"
 done
-printf '%s\n' 'Refresh checksums and run contract/transport tests before committing.'
+printf '%s\n' 'Run contract/transport tests before committing.'
