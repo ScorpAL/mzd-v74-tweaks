@@ -258,14 +258,15 @@
         el("action").onclick = function () {text("back","Back");el("back").onclick=closeDialog;perform(item,"run");};
     }
     function closeDialog() {
-        show("overlay",false); dialogMode = "";
+        show("overlay",false); dialogMode = ""; el("dialog-state").className="";
         var button = document.getElementById(returnFocusId); if (button) button.focus();
     }
     function showDisclaimer() {
         dialogMode="disclaimer";
         text("dialog-title","Before you begin"); el("dialog-dot").className="dot";
+        el("dialog-state").className="startup-warning";
         text("dialog-state","Use only while parked.");
-        text("dialog-description","This installer can modify CMU software. Review each tweak before installing. Keep power on and leave the USB connected until changes finish.");
+        text("dialog-description","Choose how you want to customize your Mazda.\nRead each description before installing.\n\nKeep the system on and leave the USB stick plugged in until everything is finished.");
         clear(el("dialog-meta")); text("dialog-output","");
         text("back","Exit"); text("action","OK");
         show("back",true); show("action",true); show("result-ok",false); show("overlay",true);

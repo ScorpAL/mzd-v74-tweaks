@@ -43,3 +43,5 @@ button:focus{outline:3px solid #fff;outline-offset:-4px}button:active{background
 
 #system-info{position:absolute;left:270px;right:240px;bottom:6px;max-height:67px;overflow:auto;text-align:center;font-size:12px;line-height:15px;color:#bcbec5}
 #system-info span{display:inline-block;margin:0 6px;white-space:nowrap}
+
+#dialog-state.startup-warning{font-size:26px;line-height:32px;font-weight:bold;color:#fff;margin-bottom:18px}
