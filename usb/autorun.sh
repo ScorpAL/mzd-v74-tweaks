@@ -44,9 +44,10 @@ finish() {
   done
   # The bridge completes an already-running worker before it exits. Do not
   # terminate an install worker just because the browser has disappeared.
-  for pid in "$HTTP_PID"; do
-    if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || :; wait "$pid" 2>/dev/null || :; fi
-  done
+  if [ -n "$HTTP_PID" ]; then
+    kill "$HTTP_PID" 2>/dev/null || :
+    wait "$HTTP_PID" 2>/dev/null || :
+  fi
   checkpoint "Installer closed; exit=$code"; save_logs
   if [ "$USB_CHANGED" = 1 ]; then
     if ! mount -o ro,remount "$USB_MOUNT"; then
