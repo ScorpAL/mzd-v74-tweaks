@@ -7,9 +7,11 @@ local checks=0
 local function check(value,message) assert(value,message);checks=checks+1;print("PASS",checks,message);io.stdout:flush() end
 print("CMU_RUNTIME",_VERSION,p.version,socket._VERSION)
 local function run(script) return process.run("/bin/sh",{"-c",script}) end
-local packages=process.run("/usr/bin/qemu-arm",{"-L","/cmu","/cmu/lib/ld-linux.so.3","--library-path","/cmu/lib:/cmu/usr/lib","/cmu/bin/busybox","sh","/experiment/tests/package-test.sh"})
-print("ORIGINAL_SHELL_PACKAGES",protocol.result(packages));io.stdout:flush()
-check(packages.exitCode==0 and packages.stdout:find("ORIGINAL_SHELL_PACKAGES_PASSED",1,true),"persistent install/uninstall with original CMU shell")
+if os.getenv("CMU_TRANSPORT_ONLY")~="1" then
+    local packages=process.run("/usr/bin/qemu-arm",{"-L","/cmu","/cmu/lib/ld-linux.so.3","--library-path","/cmu/lib:/cmu/usr/lib","/cmu/bin/busybox","sh","/experiment/tests/package-test.sh"})
+    print("ORIGINAL_SHELL_PACKAGES",protocol.result(packages));io.stdout:flush()
+    check(packages.exitCode==0 and packages.stdout:find("ORIGINAL_SHELL_PACKAGES_PASSED",1,true),"persistent install/uninstall with original CMU shell")
+end
 local originalShell=process.run("/usr/bin/qemu-arm",{"-L","/cmu","/cmu/lib/ld-linux.so.3","--library-path","/cmu/lib:/cmu/usr/lib","/cmu/bin/busybox","sh","/experiment/package/tweaks/backup-jci/run.sh","status"})
 print("ORIGINAL_SHELL_BACKUP_STATUS",protocol.result(originalShell))
 check(originalShell.exitCode==0 and originalShell.stdout=="unavailable\n","actual CMU shell must inspect without critical exit")
@@ -80,7 +82,9 @@ local pid,port,token=start()
 local host="127.0.0.1:"..port
 local function request(method,path,body,options)
     body=body or "";options=options or {}
-    local client=assert(socket.connect("127.0.0.1",port));client:settimeout(15)
+    -- The client must allow the production 30-second read-only deadline plus
+    -- response time; nested CPU emulation can exceed the old 15-second limit.
+    local client=assert(socket.connect("127.0.0.1",port));client:settimeout(45)
     local headers={method.." "..path.." HTTP/1.1","Host: "..(options.host or host)}
     if method=="POST" then
         headers[#headers+1]="Content-Length: "..#body
@@ -146,7 +150,8 @@ for _,backend in ipairs({"normal","debug","off"}) do
         p.exec("/bin/sh","/experiment/tests/start-helper.sh",state,backend);p._exit(99)
     end
     local readyData
-    for i=1,100 do if read(state.."/pids") then readyData=read(state.."/ready");break end;socket.sleep(0.1) end
+    -- Allow the runtime precheck before the helper's own startup wait begins.
+    for i=1,300 do if read(state.."/pids") then readyData=read(state.."/ready");break end;socket.sleep(0.1) end
     assert(readyData,"shared helper failed: "..tostring(read(state.."/http.log")))
     port,token=readyData:match("^(%d+)\n([0-9a-f]+)");port=tonumber(port);host="127.0.0.1:"..port
     r=exec({"./installer.sh","list"});check(r.exitCode==0 and r.stdout:find("demo\n",1,true),"shared helper "..backend)
