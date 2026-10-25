@@ -57,9 +57,4 @@
     Object.defineProperty(frame,"src",{set:function () {
         window.setTimeout(function () {reply({type:"shell-ready",token:"preview"});},0);
     }});
-    // Start directly with the example buttons; dialogs remain available on click.
-    window.setTimeout(function () {
-        var action = document.getElementById("action");
-        if (action && action.textContent === "OK") action.click();
-    },500);
 }());
