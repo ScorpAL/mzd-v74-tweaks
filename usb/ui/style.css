@@ -36,5 +36,5 @@ button:focus{outline:3px solid #fff;outline-offset:-4px}button:active{background
 .dot.unavailable { background: #c09038; }
 .dot.broken { background: #d63535; }
 
-#system-info{position:absolute;left:270px;right:240px;top:10px;height:63px;overflow:auto;text-align:center;font-size:12px;line-height:15px;color:#bcbec5}
+#system-info{position:absolute;left:270px;right:240px;bottom:6px;max-height:67px;overflow:auto;text-align:center;font-size:12px;line-height:15px;color:#bcbec5}
 #system-info span{display:inline-block;margin:0 6px;white-space:nowrap}
