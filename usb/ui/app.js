@@ -221,7 +221,7 @@
         text("dialog-state", itemLabel(item) + (item.error ? "\n" + item.error : ""));
         var description = item.manifest.description || "Manifest could not be loaded.";
         if (item.manifest.type === "patch" || item.manifest.type === "service" || item.manifest.type === "files") {
-            if (item.state === "broken" || item.state === "unavailable") description += "\n\nFor a damaged or incompatible target file, use System > Restore originals, then retry. Restore resets ALL patches on affected files. It cannot fix unsupported firmware or missing hardware; check the reason above.";
+            if (item.state === "broken" || (item.state === "unavailable" && /target|patch|file|content|incompatible/i.test(item.error || ""))) description += "\n\nUse System > Restore originals, then retry.\nThis resets ALL patches on affected files.";
         }
         text("dialog-description", description);
         clear(el("dialog-meta")); text("dialog-output", "");
@@ -231,7 +231,7 @@
         if (item.manifest.firmware !== undefined) addMeta("Firmware",Array.isArray(item.manifest.firmware) ? item.manifest.firmware.join(", ") : item.manifest.firmware);
         if (item.manifest.type !== undefined) addMeta("Type",item.manifest.type);
         if (!item.invalid) addMeta("Category",groupName(item.group));
-        if (item.manifest.reboot_required !== undefined) addMeta("Restart required",item.manifest.reboot_required ? "Yes - after closing the installer" : "No");
+        if (item.manifest.reboot_required !== undefined) addMeta("Restart required",item.manifest.reboot_required ? "Yes (after exit)" : "No");
         show("back",true); show("action",true); show("result-ok",false); show("overlay",true);
         el("dialog-body").scrollTop = 0;
         var action = item.state === "installed" ? "uninstall" : item.state === "uninstalled" ? (supported(item,"run") ? "run" : "install") : item.state === "command" ? "run" : "status";
