@@ -1,6 +1,29 @@
 #!/bin/sh
 # Explicit recovery of one unmanaged patch target. No adoption or service cleanup.
+MZD_RECOVERY_ROOT=/
+MZD_RECOVERY_RESOURCES=/tmp/mnt/resources
+MZD_RECOVERY_DATA=/tmp/mnt/data_persist
 mzd_recovery_error() { printf 'Restore: %s\n' "$*" >&2; return 1; }
+mzd_recovery_mount() (
+    # Platform mount roles describe internal storage, independently of block-device
+    # names. Inspect every mount: an unsupported child must not fall back to root.
+    awk -v p="$APP" -v b="$APP.org" -v origin="$ROOT" \
+        -v root="$MZD_RECOVERY_ROOT" -v resources="$MZD_RECOVERY_RESOURCES" -v data="$MZD_RECOVERY_DATA" '
+      function contains(path,mount) {return mount=="/" || path==mount || index(path,mount "/")==1}
+      {
+        # Target paths reject controls/backslashes; decode accepted path spaces.
+        mount=$2; gsub(/\\040/," ",mount)
+        if(contains(p,mount) && length(mount)>=length(best)){best=mount; fs=$3}
+        if(contains(b,mount) && length(mount)>=length(backup)){backup=mount}
+        if(contains(origin,mount) && length(mount)>=length(source)){source=mount}
+      }
+      END {
+        internal=(best==root || best=="/jci" || best==resources || best=="/mnt/resources" || best==data || best=="/mnt/data_persist")
+        if(!internal || fs !~ /^(ext2|ext3|ext4|relfs|ubifs|jffs2)$/ || best!=backup || source=="" || best==source)exit 1
+        print best
+      }
+    ' /proc/mounts
+)
 mzd_recovery_owners() (
     case "$APP/" in "$MZD_PACKAGE_STORE/"*) mzd_recovery_error 'Saved package files cannot be restored this way.'; exit 1 ;; esac
     [ ! -e "$MZD_PACKAGE_STORE/$ID" ] && [ ! -L "$MZD_PACKAGE_STORE/$ID" ] || {
@@ -39,13 +62,9 @@ mzd_recovery_validate() {
     [ "$(readlink -f "$APP")" = "$APP" ] && [ "$(readlink -f "$APP.org")" = "$APP.org" ] || {
         mzd_recovery_error 'Target and backup paths must not contain symbolic links.'; return 1;
     }
-    # Select the actual deepest mount, never a parent underneath USB/RAM mounts.
-    RECOVERY_MOUNT=$(awk -v p="$APP" '
-      $3!="rootfs" && ($2=="/" || p==$2 || index(p,$2 "/")==1) {
-        if(length($2)>length(best)){best=$2; device=$1; fs=$3}
-      }
-      END {if(device !~ /^\/dev\/(ffx|mmcblk|mtdblock|ubi|root)/ || fs !~ /^(ext2|ext3|ext4|relfs|ubifs|jffs2)$/)exit 1; print best}
-    ' /proc/mounts) || { mzd_recovery_error 'The target is not on a supported internal filesystem.'; return 1; }
+    RECOVERY_MOUNT=$(mzd_recovery_mount) || {
+        mzd_recovery_error 'Target and backup must share a supported internal mount, separate from the installer USB.'; return 1;
+    }
     if [ -e "$ROOT/tweaks/$ID/managed-paths.tsv" ]; then
         mzd_asset_readable "$ROOT/tweaks/$ID/managed-paths.tsv" || return 1
         awk -F "$(printf '\t')" -v p="$APP" 'NF!=2 || $1!="patch" || $2!=p {bad=1} END {exit bad || NR!=1}' "$ROOT/tweaks/$ID/managed-paths.tsv" || {

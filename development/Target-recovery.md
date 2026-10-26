@@ -21,6 +21,15 @@ A current file supporting normal installation is not a recovery candidate.
 Tool errors fail closed. Services and installed applications need their own
 reviewed removal procedures and are deliberately excluded.
 
+Mount eligibility uses software roles, never block-device names. The deepest
+actual mount for target and backup must be the same supported Linux filesystem
+at `/`, `/jci`, Resources (`/tmp/mnt/resources` or `/mnt/resources`) or persistent
+data (`/tmp/mnt/data_persist` or `/mnt/data_persist`). The installer source mount
+is excluded even if it uses ext4. Unknown child mounts and RAM/network filesystems
+cannot fall back to an allowed parent. Package-store paths remain excluded by
+the ownership checks below. A new filesystem layout needs an explicit role-map
+update; a different device name does not.
+
 Every saved package is verified before checking registered paths. A receipt for
 the same ID, a shared target/backup or an owned ancestor container blocks recovery.
 Registered paths are resolved before comparison to catch aliases of the same file.

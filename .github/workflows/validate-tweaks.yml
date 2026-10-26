@@ -51,7 +51,9 @@ jobs:
       - name: Test internal backup restore and owned cleanup hooks
         run: python tests/contract/test_restore.py
       - name: Test confirmed recovery of unmanaged patch targets
-        run: python tests/contract/test_recovery.py
+        run: |
+          python tests/contract/test_recovery_mounts.py
+          python tests/contract/test_recovery.py
       - name: Test optional restart and launcher cleanup
         run: python tests/contract/test_restart.py
       - name: Test read-only system metrics
