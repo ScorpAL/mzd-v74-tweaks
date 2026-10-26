@@ -6,10 +6,15 @@
     var tweaks = [], selectedGroup = "", selected = null, scanning = false;
     var restartRequired = false, failedStatusName = "";
     var operating = false, closing = false, locked = false, dialogMode = "", returnFocusId = "", accepted = false;
+    var detailView = 0;
     function el(id) { return document.getElementById(id); }
     function text(id, value) { el(id).textContent = value; }
     function show(id, visible) { el(id).className = visible ? el(id).className.replace(/\bhidden\b/g, "") : el(id).className.replace(/\bhidden\b/g, "") + " hidden"; }
     function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+    function setDialogMode(mode) {
+        dialogMode=mode;
+        if (mode!=="details") show("restore-action",false);
+    }
     function trim(value) { return String(value || "").replace(/^\s+|\s+$/g, ""); }
     function supported(item, action) { return item.manifest.actions.indexOf(action) !== -1; }
     function resultError(result) {
@@ -67,6 +72,7 @@
     function controls() {
         el("refresh").disabled = !accepted || scanning || operating || closing || locked;
         el("exit").disabled = operating || closing;
+        el("restore-action").disabled = scanning || locked || operating || closing;
         if (dialogMode === "restart") el("action").disabled = scanning || locked || operating || closing;
         var nodes = el("tabs").getElementsByTagName("button"), i;
         for (i = 0; i < nodes.length; i++) nodes[i].disabled = operating || closing;
@@ -264,9 +270,11 @@
     }
     function openDetails(item) {
         if (operating || closing || !item) return;
+        var view=++detailView;
+        show("restore-action",false);
         text("back","Back"); el("back").onclick=closeDialog;
         el("dialog-body").className = "bottom-info";
-        selected = item; returnFocusId = "tweak-" + item.id; dialogMode = "details";
+        selected = item; returnFocusId = "tweak-" + item.id; setDialogMode("details");
         text("dialog-title", item.name); el("dialog-dot").className = "dot " + item.state;
         text("dialog-state", itemLabel(item) + (item.error ? "\n" + item.error : ""));
         var description = item.manifest.description || "Manifest could not be loaded.";
@@ -304,9 +312,24 @@
             } else if (action === "run" && item.manifest.confirmation) confirmRun(item);
             else perform(item,action);
         };
+        // Inspect only the opened detail view, never the whole menu. Leave it
+        // visible and preserve focus; eligibility adds a button, not a dialog.
+        if (!scanning && !locked && !item.invalid && item.manifest.type==="patch" && item.state!=="installed" && supported(item,"install")) {
+            call(["restore-check",item.id],function (error,result) {
+                if (error || view!==detailView || dialogMode!=="details" || selected!==item || operating || closing || scanning || locked) return;
+                var offer=originalRestoreOffer(result);
+                if (!offer) return;
+                show("restore-action",true); el("restore-action").disabled=false;
+                text("dialog-description",item.manifest.description+"\n\nRestore original resets ALL changes to this file.");
+                el("restore-action").onclick=function () {
+                    if (el("restore-action").disabled) return;
+                    confirmOriginalRestore(item,offer.hash,offer.path,function () {openDetails(item);});
+                };
+            });
+        }
     }
     function confirmRun(item) {
-        dialogMode = "confirm";
+        setDialogMode("confirm");
         el("dialog-body").className = "";
         text("dialog-title", "Confirm: " + item.name);
         text("dialog-state", "This action changes the system.");
@@ -316,11 +339,11 @@
         el("action").onclick = function () {text("back","Back");el("back").onclick=closeDialog;perform(item,"run");};
     }
     function closeDialog() {
-        show("overlay",false); dialogMode = ""; el("dialog-state").className=""; el("dialog-body").className="";
+        show("overlay",false); setDialogMode(""); el("dialog-state").className=""; el("dialog-body").className="";
         var button = document.getElementById(returnFocusId); if (button) button.focus();
     }
     function showDisclaimer() {
-        dialogMode="disclaimer";
+        setDialogMode("disclaimer");
         el("dialog-body").className="";
         text("dialog-title","Before you begin"); el("dialog-dot").className="dot";
         el("dialog-state").className="startup-warning";
@@ -341,7 +364,7 @@
     }
     function showResult(title, message, critical, callback, status) {
         el("dialog-body").className = status ? "bottom-info" : "";
-        dialogMode = "result"; show("overlay",true); text("dialog-title",title);
+        setDialogMode("result"); show("overlay",true); text("dialog-title",title);
         el("dialog-dot").className = "dot " + (critical ? "error" : "uninstalled");
         el("dialog-state").className = status ? "operation-status" : "";
         text("dialog-state",status || "");
@@ -381,8 +404,14 @@
             poll();
         });
     }
+    function originalRestoreOffer(result) {
+        if (!result || resultError(result) || result.stdoutTruncated || result.stderrTruncated) return null;
+        var fields=result.stdout.split("\t");
+        if (fields.length!==3 || fields[0]!=="available" || !/^[0-9a-f]{32}$/.test(fields[1]) || !/^\/[^\x00-\x1f\x7f]+\n$/.test(fields[2])) return null;
+        return {hash:fields[1],path:fields[2].slice(0,-1)};
+    }
     function confirmOriginalRestore(item, hash, path, cancel) {
-        dialogMode="restore-confirm"; el("dialog-body").className="";
+        setDialogMode("restore-confirm"); el("dialog-body").className="";
         el("dialog-state").className="";
         text("dialog-title","Restore original file?"); el("dialog-dot").className="dot unavailable";
         text("dialog-state","A verified original backup is available");
@@ -397,7 +426,7 @@
     }
     function perform(item, action, restoreHash) {
         var actionName = action==="restore-original" ? "Restore" : action.charAt(0).toUpperCase() + action.slice(1);
-        operating = true; controls(); dialogMode = "working";
+        operating = true; controls(); setDialogMode("working");
         el("dialog-body").className = "bottom-info";
         el("dialog-state").className = "operation-status";
         text("dialog-state",actionName + " in progress...");
@@ -405,31 +434,12 @@
         clear(el("dialog-meta"));
         el("back").disabled = true; el("action").disabled = true;
         footer("Working: " + item.name);
-        function complete(error,result,allowRestore) {
+        function complete(error,result) {
             operating=false;
             var recoveryCandidate=result && /(^|\n)MZD_RECOVERY_CANDIDATE\n/.test(result.stdout);
             if (result && result.stdout) result.stdout=result.stdout.replace(/^MZD_RECOVERY_CANDIDATE\n/gm,"");
             var problem = error || resultError(result);
             var critical = !!error || !result || (result.started && (result.exitCode === 2 || !!result.signal || result.exitCode === null));
-            if (allowRestore && recoveryCandidate && action==="install" && item.manifest.type==="patch" && problem && !critical && result.started && result.exitCode===1) {
-                operating=true; controls(); footer("Checking original backup...");
-                call(["restore-check",item.id],function (checkError,checkResult) {
-                    operating=false; controls();
-                    if (checkError) {complete(checkError,checkResult,false);return;}
-                    if (checkResult && checkResult.started && (checkResult.exitCode===2 || checkResult.signal || checkResult.exitCode===null)) {complete("Original backup check failed",checkResult,false);return;}
-                    var fields=checkResult && !resultError(checkResult) && !checkResult.stdoutTruncated && !checkResult.stderrTruncated ? checkResult.stdout.split("\t") : [];
-                    if (fields.length===3 && fields[0]==="available" && /^[0-9a-f]{32}$/.test(fields[1]) && /^\/[^\x00-\x1f\x7f]+\n$/.test(fields[2])) {
-                        footer("Install refused - original backup available");
-                        confirmOriginalRestore(item,fields[1],fields[2].slice(0,-1),function () {complete(error,result,false);});
-                    } else {
-                        // Keep the original failure; a recovery refusal may explain
-                        // protected shared targets or a missing/mismatched backup.
-                        if (checkResult && checkResult.stderr) result.stderr = (result.stderr || "") + "\n" + checkResult.stderr;
-                        complete(error,result,false);
-                    }
-                });
-                return;
-            }
             if (critical) locked=true;
             if (!problem && (action==="restore-original" || (item.manifest.reboot_required && (action === "install" || action === "uninstall" || action === "run")))) restartRequired=true;
             var message = result ? trim(result.stdout + (result.stderr ? "\n" + result.stderr : "")) : "";
@@ -447,10 +457,13 @@
                 if (locked) return;
                 if (item.manifest.refresh_all) {refreshAll();return;}
                 scanning=true; controls(); footer("Checking " + item.name + "...");
-                checkStatus(item,function () {scanning=false;controls();footer(locked ? "Critical worker failure. Do NOT reboot." : "Status updated - " + item.name);});
+                checkStatus(item,function () {
+                    scanning=false;controls();footer(locked ? "Critical worker failure. Do NOT reboot." : "Status updated - " + item.name);
+                    if (recoveryCandidate && action==="install" && !locked) openDetails(item);
+                });
             },status);
         }
-        executeAction(item,action,function(error,result) {complete(error,result,true);},restoreHash);
+        executeAction(item,action,complete,restoreHash);
     }
     function restorePrimary() {
         if (!manager) return "Native focus controller unavailable.";
@@ -475,7 +488,7 @@
     function exit() {
         if (operating || closing) return;
         if (!restartRequired || locked) {leaveInstaller(false);return;}
-        dialogMode="restart";returnFocusId="exit";
+        setDialogMode("restart");returnFocusId="exit";
         el("dialog-body").className="";
         text("dialog-title","Restart recommended");el("dialog-dot").className="dot installed";
         text("dialog-state","Changes were made during this session.");

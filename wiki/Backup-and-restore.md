@@ -20,11 +20,12 @@ preserves unrelated patches where possible. Use this when removing one feature.
 
 ## Restore originals
 
-If Install is refused because a file contains an old patch, the installer may
-offer **Restore original** for that one file. This is offered only when a matching
-original backup can be verified and no registered tweak uses the file. Read the
+Open the tweak's detail dialog. If a matching original backup can be verified
+and no registered tweak uses the file, an additional **Restore original** button
+appears. Opening the details does not start Restore or open its confirmation.
+Select the button to review the confirmation; no install attempt is needed. Read the
 warning: **all tweaks on that file will be removed**. Current and original files
-are saved to USB first. Back cancels; after Restore and OK, select Install again
+are saved to USB first. Back returns to the details; after Restore and OK, select Install
 if you want to install the tweak. Installation is not retried automatically.
 
 The single-file option does not remove unknown programs, services or extra files.

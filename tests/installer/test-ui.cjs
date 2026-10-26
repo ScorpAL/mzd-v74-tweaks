@@ -18,10 +18,11 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
   const nodes={},jobs=[],calls=[],timers=[],intervals=[],listeners={},states={'restore-originals':'uninstalled','backup-jci':'uninstalled','logs-collector':'uninstalled',hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
   const doc={activeElement:null,createElement(t){return new Node(t,doc);},getElementById(id){return nodes[id]||walk(nodes.app).concat(walk(nodes.overlay)).find(n=>n.id===id)||null;}};
   function walk(n){return [n].concat(n.children.flatMap(walk));}
-  for(const id of ['app','header','system-info','tabs','content','cards','empty','footer-status','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-meta','dialog-output','dialog-actions','back','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
-  for(const id of ['refresh','exit','back','action','result-ok'])nodes[id].tagName='button';
+  for(const id of ['app','header','system-info','tabs','content','cards','empty','footer-status','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-meta','dialog-output','dialog-actions','back','restore-action','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
+  for(const id of ['refresh','exit','back','restore-action','action','result-ok'])nodes[id].tagName='button';
   nodes.app.appendChild(nodes.header);nodes.header.appendChild(nodes.refresh);nodes.header.appendChild(nodes.exit);nodes.app.appendChild(nodes.tabs);nodes.app.appendChild(nodes.content);nodes.content.appendChild(nodes.cards);
-  nodes.overlay.appendChild(nodes.dialog);nodes.dialog.appendChild(nodes['dialog-actions']);for(const id of ['back','action','result-ok'])nodes['dialog-actions'].appendChild(nodes[id]);
+  nodes.overlay.appendChild(nodes.dialog);nodes.dialog.appendChild(nodes['dialog-actions']);for(const id of ['back','restore-action','action','result-ok'])nodes['dialog-actions'].appendChild(nodes[id]);
+  nodes['restore-action'].className='hidden';
   nodes.overlay.className='hidden';nodes['result-ok'].className='primary hidden';
   nodes.transport.contentWindow={postMessage(job,origin){assert.equal(origin,'http://127.0.0.1:1234');jobs.push(job);}};
   const win={installerConfig:{origin:'http://127.0.0.1:1234',token:'secret'},innerWidth:800,innerHeight:480,setTimeout(fn){timers.push(fn);},setInterval(fn){intervals.push(fn);},addEventListener(n,f){listeners[n]=f;}};
@@ -34,7 +35,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
     if(a[0]==='event')return ok();
     if(a[0]==='restore-check')return recovery[a[1]]?ok(recovery[a[1]]):ok('',1,'No verified original backup is available.');
-    if(a[0]==='restore-original') {const code=restoreOutcomes[a[1]]||0;if(!code)states[a[1]]='uninstalled';return ok(code?'':'Original file restored. You can now retry Install.',code,code===2?'Restore cleanup failed. Do NOT reboot.':code?'Restore refused: file changed.':'');}
+    if(a[0]==='restore-original') {const code=restoreOutcomes[a[1]]||0;if(!code){states[a[1]]='uninstalled';delete recovery[a[1]];}return ok(code?'':'Original file restored. You can now retry Install.',code,code===2?'Restore cleanup failed. Do NOT reboot.':code?'Restore refused: file changed.':'');}
     if(a[0]==='package-info')return ok(states[a[1]]==='installed'?'0.7.0\tinstalled\n':'');
     if(a[0]==='metrics')return ok('cpu\t1000\t700\t'+(a[1]==='0'?'-':'30')+'\ndisk\t/\t42\ndisk\t/tmp/mnt/resources\t18\ndisk\t/tmp/mnt/sdb1\t80\n');
     if(a[0]==='start-run'){background=a[1];polls=0;return ok('job.test01\n');}
@@ -77,7 +78,7 @@ x.click('exit');x.pump();assert.deepEqual(x.calls.filter(a=>a[0]==='focus').at(-
 // A known start failure cannot have changed the target and must not falsely
 // claim that manual rollback or a no-reboot state is required.
 x=boot();x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();x.click('tweak-list-beep');x.click('action');
-let request=x.jobs.shift();x.event({type:'shell-result',token:'secret',id:request.id,error:null,result:{started:false,exitCode:null,signal:null,stdout:'',stderr:'',startError:'Missing executable'}});
+let request=x.jobs.pop();assert.equal(request.args[1],'action');x.event({type:'shell-result',token:'secret',id:request.id,error:null,result:{started:false,exitCode:null,signal:null,stdout:'',stderr:'',startError:'Missing executable'}});
 assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');x.click('result-ok');x.pump();assert.equal(x.nodes.refresh.disabled,false);
 console.log('INSTALLER_UI_TESTS_PASSED: discovery, tabs, dots, metadata, status errors, install/uninstall, result OK, critical lock, Exit.');
 
@@ -281,28 +282,48 @@ assert.match(x.nodes['dialog-meta'].textContent,/0\.7\.0 installed \/ [0-9]+\.[0
 assert.equal(x.nodes.action.textContent,'Uninstall');
 console.log('SAVED_VERSION_UI_PASSED: installed and USB versions shown in one row, existing uninstall action retained.');
 
-function recoveryOffer(raw='available\t'+'a'.repeat(32)+'\t/jci/test.js\n',hint=true) {
-  const r=boot();r.outcomes['list-beep']=1;r.recovery['list-beep']=raw;r.recoveryHints['list-beep']=hint;
+function recoveryOffer(raw='available\t'+'a'.repeat(32)+'\t/jci/test.js\n') {
+  const r=boot();r.recovery['list-beep']=raw;r.states['list-beep']='broken';r.reasons['list-beep']='An existing modification was detected.';
+  r.click('refresh');r.pump();
   r.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
-  r.click('tweak-list-beep');r.click('action');r.pump();return r;
+  r.click('tweak-list-beep');r.pump();return r;
 }
-x=recoveryOffer();assert.equal(x.nodes['dialog-title'].textContent,'Restore original file?');
+x=recoveryOffer();assert.equal(x.nodes['dialog-title'].textContent,'No List Beep');
+assert(!x.nodes['restore-action'].className.includes('hidden'));
+assert.equal(x.nodes.action.textContent,'Retry status');
+assert.equal(x.doc.activeElement,x.nodes.back,'Showing Restore must not move focus');
+assert(!x.calls.some(a=>a[0]==='action'&&a[2]==='install'),'Broken tweaks need no attempted install');
+assert(!x.calls.some(a=>a[0]==='restore-original'));
+x.click('restore-action');assert.equal(x.nodes['dialog-title'].textContent,'Restore original file?');
 assert.match(x.nodes['dialog-description'].textContent,/ALL tweaks/);
 assert.match(x.nodes['dialog-description'].textContent,/saved to USB/);
+assert(x.nodes['restore-action'].className.includes('hidden'));
 assert(!x.calls.some(a=>a[0]==='restore-original'));
-x.click('back');assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');
+x.click('back');x.pump();assert.equal(x.nodes['dialog-title'].textContent,'No List Beep');
 assert(!x.calls.some(a=>a[0]==='restore-original'));
-x=recoveryOffer();controller('onkeyup',8);assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');
-x=recoveryOffer(undefined,false);assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');
-assert(!x.calls.some(a=>a[0]==='restore-check'),'An unrelated install error must not trigger recovery');
-x=recoveryOffer();x.click('action');x.pump();
+x=recoveryOffer();controller('onkeydown',77);assert.equal(x.doc.activeElement,x.nodes['restore-action']);
+controller('onkeydown',13);assert.equal(x.nodes['dialog-title'].textContent,'Restore original file?');
+controller('onkeyup',8);x.pump();assert.equal(x.nodes['dialog-title'].textContent,'No List Beep');
+x=recoveryOffer();x.click('restore-action');x.click('action');x.pump();
 assert.deepEqual(Array.from(x.calls.find(a=>a[0]==='restore-original')),['restore-original','list-beep','a'.repeat(32)]);
 assert.equal(x.nodes['dialog-state'].textContent,'Restore completed');
-assert.equal(x.calls.filter(a=>a[0]==='action'&&a[2]==='install').length,1,'Restore must not automatically reinstall');
+assert.equal(x.calls.filter(a=>a[0]==='action'&&a[2]==='install').length,0,'Restore must not automatically reinstall');
 x.click('result-ok');x.pump();x.outcomes['list-beep']=0;x.click('tweak-list-beep');assert.equal(x.nodes.action.textContent,'Install');
-x=recoveryOffer();x.restoreOutcomes['list-beep']=2;x.click('action');x.pump();
+x.pump();assert(x.nodes['restore-action'].className.includes('hidden'));
+x=recoveryOffer();x.restoreOutcomes['list-beep']=2;x.click('restore-action');x.click('action');x.pump();
 assert.match(x.nodes['dialog-description'].textContent,/Do NOT reboot/);x.click('result-ok');assert.equal(x.nodes.refresh.disabled,true);
-for(const raw of ['available\tbad-hash\t/jci/test.js\n','available\t'+'a'.repeat(32)+'\t/jci/test.js','available\t'+'a'.repeat(32)+'\t/jci/test.js\nextra\n']) {
-  x=recoveryOffer(raw);assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');assert(!x.calls.some(a=>a[0]==='restore-original'));
+for(const raw of ['', 'available\tbad-hash\t/jci/test.js\n','available\t'+'a'.repeat(32)+'\t/jci/test.js','available\t'+'a'.repeat(32)+'\t/jci/test.js\nextra\n']) {
+  x=recoveryOffer(raw);assert.equal(x.nodes['dialog-title'].textContent,'No List Beep');assert(x.nodes['restore-action'].className.includes('hidden'));assert(!x.calls.some(a=>a[0]==='restore-original'));
 }
-console.log('TARGET_RECOVERY_UI_PASSED: validated offer, explicit confirmation, Back, no automatic install and critical restore failures.');
+// Eligibility is not required to arrive before the user navigates elsewhere.
+x=recoveryOffer();x.click('back');x.click('tweak-list-beep');let oldRecovery=x.jobs.shift();x.click('back');x.click('tweak-list-beep');
+x.event({type:'shell-result',token:'secret',id:oldRecovery.id,result:x.ok('available\t'+'a'.repeat(32)+'\t/jci/test.js\n')});
+assert(x.nodes['restore-action'].className.includes('hidden'),'An older detail-view response must not reveal Restore');
+delete x.recovery['list-beep'];x.pump();assert(x.nodes['restore-action'].className.includes('hidden'));
+// A blocked install returns to details after OK, without opening confirmation.
+x=boot();x.recovery['list-beep']='available\t'+'a'.repeat(32)+'\t/jci/test.js\n';x.outcomes['list-beep']=1;
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();x.click('tweak-list-beep');x.click('action');x.pump();
+assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');x.click('result-ok');x.pump();
+assert.equal(x.nodes['dialog-title'].textContent,'No List Beep');assert(!x.nodes['restore-action'].className.includes('hidden'));
+assert(!x.calls.some(a=>a[0]==='restore-original'));
+console.log('TARGET_RECOVERY_UI_PASSED: conditional detail button, preserved focus, no attempted install, explicit confirmation, stale-view guards and critical failures.');

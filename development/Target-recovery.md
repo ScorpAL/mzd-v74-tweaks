@@ -1,18 +1,25 @@
 # Confirmed recovery of an unmanaged patch target
 
 This is a separate single-file action, not adoption of an old installation.
-An ordinary failed install only becomes a recovery candidate when the package
-controller completed the worker target inspection and found a blocked state.
-It emits `MZD_RECOVERY_CANDIDATE` on stdout; the UI consumes this line rather
-than interpreting human error text. Other install errors do not start recovery.
+Opening the detail view of a non-installed or blocked patch checks eligibility
+in the background. A verified response adds a secondary **Restore original**
+button without moving focus or opening another dialog. Only clicking that button
+opens confirmation. A failed/denied check leaves the existing detail view intact.
+Stale responses from closed/replaced detail views are ignored.
 
-The UI then calls `installer.sh restore-check <id>`. This is read-only: it uses
+The UI calls `installer.sh restore-check <id>`. This is read-only: it uses
 private RAM copies and produces no USB reports, locks, remounts or service changes.
 An eligible result is one line:
 
 ```text
 available<TAB>confirmation-fingerprint<TAB>absolute-target-path<LF>
 ```
+
+An install blocked by a completed worker target inspection can still emit
+`MZD_RECOVERY_CANDIDATE`. After the failed result is acknowledged, this returns
+to the detail view to offer the same button. It never opens confirmation
+automatically, and does not interpret human error text. Other install errors do
+not trigger this return. No install attempt is required for the detail button.
 
 Eligibility requires a plain patch without cleanup hooks or additional owned
 paths, matching firmware, regular non-symlink internal files, and a `.org` matching
