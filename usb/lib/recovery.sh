@@ -74,8 +74,17 @@ mzd_recovery_validate() {
         }
     fi
     mzd_recovery_owners || return 1
-    [ "$(mzd_hash "$APP.org")" = "$ORIGINAL" ] || {
-        mzd_recovery_error 'The .org backup does not match the expected firmware original.'; return 1;
+    RECOVERY_BACKUP_HASH=$(mzd_hash "$APP.org")
+    case "$RECOVERY_BACKUP_HASH" in
+        ''|*[!0-9a-f]*) mzd_recovery_error 'Cannot read a valid MD5 from the .org backup.'; return 1 ;;
+    esac
+    [ "${#RECOVERY_BACKUP_HASH}" = 32 ] || {
+        mzd_recovery_error 'Cannot read a valid MD5 from the .org backup.'; return 1;
+    }
+    [ "$RECOVERY_BACKUP_HASH" = "$ORIGINAL" ] || {
+        mzd_recovery_error "The .org backup has an unexpected MD5.
+Expected MD5: $ORIGINAL
+Actual MD5: $RECOVERY_BACKUP_HASH"; return 1;
     }
     RECOVERY_OBSERVED=$(mzd_hash "$APP")
     case "$RECOVERY_OBSERVED" in ''|*[!0-9a-f]*) return 1 ;; esac

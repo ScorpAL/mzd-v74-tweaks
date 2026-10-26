@@ -118,7 +118,12 @@ awk -v p="$3" -v mode="$2" '{$4=($2==p?(mode=="rw,remount"?"rw":"ro"):$4);print}
         if scenario=='version-change':
             unchanged_check();write(fixture/'manifest.conf',re.sub('^version=.*$','version=0.8.999',template,flags=re.M))
         before=target.read_bytes();backup_before=backup.read_bytes() if backup.exists() else None
-        if scenario not in ['stale','retarget','backup-retarget','version-change']:unchanged_check(1)
+        if scenario not in ['stale','retarget','backup-retarget','version-change']:
+            refused=unchanged_check(1)
+            if scenario=='bad-backup':
+                assert 'unexpected MD5' in refused.stderr
+                assert 'Expected MD5: '+md5(original) in refused.stderr
+                assert 'Actual MD5: '+md5('wrong original\n') in refused.stderr
         restore(1)
         assert target.read_bytes()==before and (backup.read_bytes() if backup.exists() else None)==backup_before,scenario
         if scenario=='retarget':assert alternate.read_text()==foreign and (internal/'alternate.js.org').read_text()==original
