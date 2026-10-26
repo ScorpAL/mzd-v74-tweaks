@@ -1,46 +1,227 @@
-# CMU Tweaks
+# MZD v74 Tweaks - Mazda CMU Modifications
 
-Ready-to-run USB installer for Mazda CMU tweaks. The included tweaks currently
-support firmware **74.00.324**. This is the development branch, not a released 2.0.
+A collection of tweaks and modifications for the Mazda infotainment system (CMU - Connectivity Master Unit) running firmware version 74.00.324. These mods allow you to customize your Mazda Connect experience with additional features and improvements.
 
-## Use
+## System Requirements
 
-Download this branch, extract it, and copy the **contents of `usb/`** to the USB
-root, including `jci-autoupdate` and the long `.up` filename. Insert the USB drive.
-The installer opens with **OK** and **Exit**. Use it only while parked and keep
-power and USB connected until changes finish.
+- **Infotainment System**: MZD Connect (CMU firmware version **74.00.324 only**)
+- **USB Drive**: FAT32 formatted USB flash drive (up to 32 GB)
+- **Input Device**: None for the launcher. A USB keyboard is needed only for the alternative terminal workflow.
 
-Choose a category and tweak to read its description, then select **Install**,
-**Uninstall** or **Run**. Touchscreen and multicontroller navigation are supported.
-The header shows CPU use and free space for System and Resources. After changes
-requiring a restart, leaving the installer offers **Restart** or **Exit**.
+## Installation Instructions
 
-The installer uses the CMU's existing runtime. No extra ARM program, Python,
-Node.js, compilation or package assembly is required on the vehicle.
+1. Download the latest release ZIP and unpack its contents directly onto a FAT32-formatted USB drive (up to 32 GB). Do not put the files inside another folder.
+2. Turn the ignition to ACC and wait for MZD to finish loading.
+3. Plug the USB drive into the Mazda USB hub and wait for the launcher dialog to appear.
+4. Choose which available script to run and follow its on-screen prompts. No keyboard is needed for this launcher workflow.
 
-The installed tweak version is saved on the CMU so a newer USB package can still
-uninstall it using the matching scripts. Old test installations made before this
-mechanism must first be uninstalled using their matching previous USB package.
+### Launcher
 
-## Documentation
+`run.sh` automatically starts `launcher.sh` when the USB drive is loaded. The launcher displays on-screen dialog window with available scripts one at a time; choose **Open** to run the displayed script, **Next** to skip it, or **Exit** to leave the launcher. It also offers **Start over** after the list is complete.
 
-- [User guide](wiki/Home.md): setup, controls, states, backup, restore and help.
-- [Included tweaks](usb/tweaks/): each folder contains its user README.
-- [Development](development/README.md): all developer documentation and examples.
-- [Website sources](docs/).
+The launcher includes entries for **Terminal** and **Built-in MZD Scripts** (the stock CMU system menu). **Terminal** closes the launcher and opens the terminal; a USB keyboard is needed to use it. **Reboot** is available from the launcher. Additional `.sh` files placed in the root of the USB drive are also offered after the built-in script entries; select **Open** to run one.
 
-System tools can back up JCI, collect logs and restore original files. Restore
-resets all patches on affected files and is not a factory reset. Read its
-confirmation carefully. Backups and reports are stored on the USB drive.
+### Alternative: run scripts from Terminal
 
-Installer diagnostics are controlled by `logging=normal`, `logging=debug` or
-`logging=off` in `usb/installer.conf`. Normal is the default; use Debug when
-collecting details for a reported problem. Action reports and explicit exports
-remain available with logging Off.
+To open Terminal instead of using the launcher, follow this method:
 
-Vehicle checks cover the native Lua launcher, SSH lifecycle/Wi-Fi startup and
-selected patches. This does not establish every tweak on every firmware;
-[reviewed evidence](development/test-runs/README.md) records the tested scope.
+1. With the USB drive connected, open its contents from the MZD **Entertainment** menu as if starting music playback. This launches the service menu.
+2. Select **Next > Terminal**. A USB keyboard is required for this method.
+3. In Terminal, find the USB mount (usually `/tmp/mnt/sda1` or `/tmp/mnt/sdb1`), then run a script directly, for example `sh fuel-consumption.sh`.
+4. Use the keyboard to inspect terminal output and logs while in the car. Follow the script's prompts.
 
-Original repository: https://github.com/piotrmocko/mzd-v74-tweaks.
-Existing authorship remains in Git history; migration is not a claim of ownership.
+The launcher is the recommended option for normal use. The terminal method is useful when you need to run a script manually or review its output directly in the car.
+
+## Available Scripts
+
+### 1. `hud-eu-region.sh` - HUD Settings Europe Region Mod
+**Purpose**: Enables Active Driving Display hidden settings in the Europe region and non-English/French/Spanish languages - **Street information: Always/At Maneuver/Off** with Windshield Head-Up Display only.
+
+![MZD Active Driving Display Settings](images/WHUD-supported-CHUD-unsupported.jpg)
+
+![MZD Active Driving Display Settings](images/mzd-hud.jpg)
+
+![MZD Active Driving Display Settings > Display Information](images/mzd-hud-display-info.jpg)
+
+![MZD Active Driving Display Settings > Street Information](images/mzd-hud-street-info.jpg)
+
+**What it does**:
+- Modifies the vehicle settings application to unlock HUD configuration options
+- Allows customization of HUD display preferences
+
+**Configuration**:
+- After reboot navigate to **Settings** > **Active Driving Display** > **Display Information** to change **Street Information**
+
+**Issues**:
+- **Street Information** menu is grayed out - your HUD doesn't support displaying road name
+
+### 2. `no-more-disclaimer.sh` - No More Disclaimer Mod
+**Purpose**: Removes entirely the disclaimer/warning screen that appears on the system startup. With the stock behavior it disappears in 3.5 seconds.
+
+![MZD Active Driving Display Settings](images/mzd-disclaimer.jpg)
+
+**What it does**:
+- Modifies the system application to skip disclaimer prompts
+- Provides a cleaner boot experience without interruptions
+
+### 3. `fuel-consumption.sh` - Fuel Consumption Tweaks
+**Purpose**: Three tweaks for the Fuel Consumption app. Each one can be installed, uninstalled or skipped on its own:
+- **Bar values**: the L/100km value above every bar of both graphs. Stock firmware shows it only above "Current".
+- **Fuel ending screen**: at ignition off, show the Fuel Consumption screen instead of the i-stop screen (cars with i-stop always get the i-stop screen), for 7 s instead of 5 s.
+- **Fuel ending data**: on i-stop cars, the ending screen also gets its data (graphs filled). This is a small shim for the MMUI service (`jci-shims/fuel_ending_mmui.so`).
+
+**Is i-stop required?** No. The head unit picks the ending screen from the *equipped* features (reported by the EEM service), not from whether i-stop is switched on right now:
+- **Bar values** works on every car.
+- **Fuel ending screen**: on a car equipped with i-stop it replaces the i-stop ending screen. Without i-stop, the stock ending screen already is the Fuel Consumption screen, so the tweak only makes it 7 s long.
+- **Fuel ending data** only changes something on a car equipped with i-stop; otherwise it passes everything through unchanged.
+- Turning i-stop off with its button makes no difference (tested: in the test car i-stop is switched off at every engine start, the same way as with the button). The Instrument Cluster setting should behave the same (not tested). If i-stop was disabled in the as-built data (FORScan) and the EEM then reports no i-stop, the car behaves like one without i-stop (not tested). See [docs/fuel-consumption.md](docs/fuel-consumption.md#is-i-stop-required).
+
+| | Stock | Tweak |
+|---|---|---|
+| Fuel Consumption screen | ![stock](images/fuel-bar-values-stock.jpg) | ![tweak](images/fuel-bar-values-tweak.jpg) |
+| At ignition off (i-stop car) | ![stock](images/fuel-ending-stock.jpg) | ![tweak](images/fuel-ending-tweak.jpg) |
+
+**Documentation**:
+- Details of the fuel consumption tweaks: [docs/fuel-consumption.md](docs/fuel-consumption.md).
+
+### 4. `android-auto.sh` - OEM Android Auto Mods
+**Purpose**: Installs or uninstalls [OEM Android Auto Mods](https://github.com/VitaliyKurokhtin/oem-aa-mod) by Vitaliy Kurokhtin: touchscreen in Android Auto, navigation (street name, maneuver, distance) on the HUD and more. Based on the installer by [Bijan-A](https://github.com/Bijan-A/oem-aa-mod-installer).
+
+**Included version**: the release ZIP contains the oem-aa-mod release set in `OEM_AA_MOD_TAG` in `.github/workflows/release.yml` (currently `0.10.0`). Its shims are in `jci-shims/libpatch-*.so` and its configuration in `config/` (`libpatch.conf`, `aap_system_attributes.xml`, `aap_system_attributes_UCP.xml`). These files are not in the git repository, only in the release ZIP.
+
+**Settings**: to change a setting (for example `force_street_name` or `use_protocol_v1_6`), edit `config/libpatch.conf` on the USB drive before running the script. The keys are described in [installation.md](https://github.com/VitaliyKurokhtin/oem-aa-mod/blob/main/docs/installation.md) of oem-aa-mod.
+
+**Running**:
+- Choose **Install**, **Uninstall** or **Cancel** (Cancel changes nothing).
+- **Install** backs up `/jci/sm/sm.conf`, `/jci/sm/sm_WCP.conf` (`.orig`) and the two `/etc/aap_system_attributes*.xml` files (`.orig`), adds the shims to the services (`aap_service` only if `use_protocol_v1_6 = true`), and copies the shims and `libpatch.conf` to `/data_persist/oem-aa-mod/`. Every copy is verified. Running **Install** again over an existing installation updates it.
+- At the end of Install, the script checks the HUD: street names on the HUD need the windshield color HUD (WHUD_color). If another HUD type or no HUD is found, a message tells you what will not work.
+- **Uninstall** removes the shim entries from both `sm.conf` files, restores the XML files from their backups and removes `/data_persist/oem-aa-mod/`.
+- Then choose **Reboot now** or **Reboot later**. If a step failed, the script says so: do NOT reboot, and check `logs/android-auto.log`.
+
+### 5. `logs-collector.sh` - Running Logs Collector
+**Purpose**: Copies the CMU's `/var/log/running_log` files to the USB drive or changes their rotation size.
+
+**Running**:
+- Choose **Copy logs** to save the current running logs under `logs/` on the USB drive. Each collection is saved in its own numbered folder.
+- Choose **Change size** and then **Enlarged 5MB** to increase the running log rotation size. This can help collect more logs when using an OEM AA Mods debug release. The CMU must reboot for the new size to take effect.
+- To preserve diagnostic output, run **Copy logs before turning off the ignition**. Turning the ignition off first can cause the running logs you want to collect to be lost.
+
+### 6. `touchscreen.sh` - Touchscreen Enabled Tweak
+**Purpose**: Enables touchscreen input while the vehicle is moving.
+
+### 7. `backup-jci.sh` - JCI Full System Backup
+**Purpose**: Creates a complete backup of the JCI system directory.
+
+**What it does**:
+- Creates a ZIP archive of the entire `/jci` directory
+- Automatically checks for sufficient free space on USB drive
+
+**Requirements**:
+- At least 170 MB of free space on USB drive
+
+**Output**:
+- Backup file: `backup/JCI-[VERSION].zip`
+- Use this backup to restore your system to a known-good state
+
+### 8. `revert-aio.sh` - Uninstall AIO base Tweaks only
+**Purpose**: Removes previously installed base modifications of AIO (All-In-One) Tweaks from your system. It doesn't remove the targeted mods. Remove them with AIO scripts.
+
+**What it does**:
+- Restores original configurations:
+  - `/jci/sm/sm.conf` - System Manager configuration
+  - `/jci/opera/opera_home/opera.ini` - Opera browser settings
+  - `/jci/opera/opera_dir/userjs/fps.js` - Frame rate settings
+- Verifies file integrity before completion
+- Logs all operations for troubleshooting
+
+## File Structure
+
+```
+mzd-v74-tweaks/
+├── README.md
+├── run.sh                             # Starts the launcher
+├── launcher.sh                        # Offers scripts and launcher actions
+├── fuel-consumption.sh                # Fuel Consumption tweaks
+├── android-auto.sh                    # OEM Android Auto Mods installer
+├── hud-eu-region.sh                   # HUD Street Info region tweak
+├── no-more-disclaimer.sh              # Disclaimer removal tweak
+├── touchscreen.sh                     # Touchscreen tweak
+├── logs-collector.sh                  # Copy running logs / change rotation size
+├── backup-jci.sh                      # Back up /jci to a ZIP on the USB drive
+├── revert-aio.sh                      # Remove AIO base tweaks
+├── autorun/                           # USB autorun files for the CMU
+├── *.md5                              # Checksums for protected scripts and payload files
+├── .github/workflows/                 # CI, Build, and Release workflows
+├── jci-mods/                          # Modified application files
+├── jci-org/                           # Original application files
+├── jci-patches/                       # Rebuild modified JS files from originals
+├── jci-shims/                         # Prebuilt ARM shims and checksums (+ oem-aa-mod shims in the release ZIP)
+├── config/                            # oem-aa-mod configuration (release ZIP only)
+├── mazda/                             # Toolchain submodule and shim source code
+├── build/                             # Shim build and checksum tools
+├── docs/                              # Additional technical documentation
+├── tests/                             # Installer and shim tests
+├── images/                            # README screenshots
+├── js/                                # JavaScript utility files
+├── mp3/                               # USB audio files used by the autorun setup
+└── mp3title.txt                       # Audio metadata
+```
+
+## Common Issues & Troubleshooting
+
+### "no such file or directory"
+- **Cause**: USB drive not detected or incorrect path
+- **Solution**:
+  - Verify USB drive is properly connected to the Mazda USB hub
+  - Try the alternate path: if `sda1` doesn't work, try `sdb1`
+  - Ensure USB drive is formatted as FAT32 and not larger than 32 GB
+  - Check the path is typed correctly (case-sensitive)
+
+### "command not found"
+- **Cause**: command is misspelled or incorrect syntax
+- **Solution**:
+  - Type the command carefully, paying attention to capitalization and spacing
+
+### "sh: 0: cannot open ...: No such file"
+- **Cause**: misspelled filename
+- **Solution**:
+  - Verify the exact filename: use `ls` to list files
+  - Ensure you're using the correct script name with the `.sh` extension
+  - Type the command carefully, paying attention to capitalization and spacing
+  - Press TAB key to autocomplete the filename
+
+## Technical Details
+
+### How Installation Works
+1. Scripts disable the hardware watchdog to prevent timeout during operations
+2. File system is remounted in read-write mode
+3. Original system files are backed up with `.org` extension
+4. Modified files are copied to system directories
+5. File integrity is verified after copying
+6. System offers reboot to apply changes
+
+## Support & Debugging
+
+If you encounter issues:
+1. Check the log files in the `logs/` directory
+2. Verify your firmware version is exactly 74.00.324
+3. Ensure USB drive is properly formatted (FAT32)
+4. Try a different USB port on the vehicle
+5. Review the error messages in the dialog boxes carefully
+
+## Contributing
+
+- Every file an installer brings, and the installer itself, has an `.md5` next to it (`md5sum` format). The **CI** workflow fails if any `.md5` does not match its file. It also checks that `jci-patches/` reproduces `jci-mods/`, that the shell scripts parse, and that `jci-shims/` matches what `mazda/patches/` builds to.
+- CI also runs the tests in `tests/`: `fuel-consumption/installer/run.sh` simulates `fuel-consumption.sh` in busybox (`docker run --rm --tmpfs /usb -v "$PWD:/repo:ro" busybox:1.36 sh /repo/tests/fuel-consumption/installer/run.sh`), and `fuel-consumption/shim/run.sh` runs the shims under qemu-arm against stand-in libraries (needs the m3-toolchain and `qemu-user`). The **Build** workflow runs these tests before it proposes new shims.
+- The **Build** workflow rebuilds shims with the pinned m3-toolchain and opens a PR when `jci-shims/` changes.
+- The **Release** workflow publishes a ready-to-copy USB drive ZIP. It runs when a tag `X.Y.Z` (release) or `X.Y.Z-suffix` (pre-release, e.g. `1.1.0-rc1`) is pushed on a commit that is on `main`: `git tag 1.1.0 && git push origin 1.1.0`. A tag pushed before the workflow existed can be released with **Actions > Release > Run workflow** and its name. The release name is the tag; the description lists the non-merge commit subjects since the previous tag and the contributors (`build/contributors.sh`: commit authors and `Co-authored-by` users of this release, and of the included oem-aa-mod release). The workflow downloads the oem-aa-mod release set in `OEM_AA_MOD_TAG`, checks it against that release's `SHA256SUMS`, and adds its shims to `jci-shims/` and its `resources/` files to `config/`, each with an `.md5`.
+
+## Disclaimer
+
+These modifications alter system files on your Mazda infotainment system. Use at your own risk. Always create backups before installing any modifications. The author is not responsible for any damage or issues resulting from the use of these tweaks.
+
+## License
+
+Original modifications by the community.
+The terminal access based on https://github.com/shunceyb/mzd74-tweaks-no-touch.
+MZD UI changes tested and screenshoted with https://github.com/ScorpAL/mzd-emu.
