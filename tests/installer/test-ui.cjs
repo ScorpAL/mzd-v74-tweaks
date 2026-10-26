@@ -14,6 +14,7 @@ class Node {
   getElementsByTagName(tag){let all=[];for(const n of this.children){if(n.tagName===tag)all.push(n);all=all.concat(n.getElementsByTagName(tag));}return all;}
 }
 function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
+  const recovery={},restoreOutcomes={},recoveryHints={};
   const nodes={},jobs=[],calls=[],timers=[],intervals=[],listeners={},states={'restore-originals':'uninstalled','backup-jci':'uninstalled','logs-collector':'uninstalled',hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
   const doc={activeElement:null,createElement(t){return new Node(t,doc);},getElementById(id){return nodes[id]||walk(nodes.app).concat(walk(nodes.overlay)).find(n=>n.id===id)||null;}};
   function walk(n){return [n].concat(n.children.flatMap(walk));}
@@ -32,6 +33,8 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
   function process(job){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
     if(a[0]==='event')return ok();
+    if(a[0]==='restore-check')return recovery[a[1]]?ok(recovery[a[1]]):ok('',1,'No verified original backup is available.');
+    if(a[0]==='restore-original') {const code=restoreOutcomes[a[1]]||0;if(!code)states[a[1]]='uninstalled';return ok(code?'':'Original file restored. You can now retry Install.',code,code===2?'Restore cleanup failed. Do NOT reboot.':code?'Restore refused: file changed.':'');}
     if(a[0]==='package-info')return ok(states[a[1]]==='installed'?'0.7.0\tinstalled\n':'');
     if(a[0]==='metrics')return ok('cpu\t1000\t700\t'+(a[1]==='0'?'-':'30')+'\ndisk\t/\t42\ndisk\t/tmp/mnt/resources\t18\ndisk\t/tmp/mnt/sdb1\t80\n');
     if(a[0]==='start-run'){background=a[1];polls=0;return ok('job.test01\n');}
@@ -43,14 +46,14 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
     if(a[2]==='status')return states[a[1]]==='error'?ok('',1,'Patch state is ambiguous.'):ok(states[a[1]]+'\n',0,['unavailable','broken'].includes(states[a[1]])?(reasons[a[1]]||''):'');
     const code=outcomes[a[1]]||0;
     if(code===0)states[a[1]]=a[2]==='install'?'installed':'uninstalled';
-    return ok(code?'':a[2]+' completed. Other changes were preserved.',code,code===2?'Rollback failed. Do NOT reboot.':code?'Installation rejected.':'');
+    return ok(code?(code===1&&recovery[a[1]]&&recoveryHints[a[1]]!==false?'MZD_RECOVERY_CANDIDATE\n':''):a[2]+' completed. Other changes were preserved.',code,code===2?'Rollback failed. Do NOT reboot.':code?'Installation rejected.':'');
   }
   function pump(){let count=0;while(jobs.length){if(++count>100)throw new Error('request loop');const j=jobs.shift();event({type:'shell-result',token:'secret',id:j.id,result:process(j),error:null});}}
   event({type:'shell-ready',token:'wrong'});event({type:'shell-ready',token:'secret'},'http://wrong');assert.equal(jobs.length,0);
   event({type:'shell-ready',token:'secret'});pump();
   if(!keepDisclaimer){nodes.action.onclick();pump();}
   const click=id=>{const n=doc.getElementById(id);assert(n,'missing '+id);assert(!n.disabled,'disabled '+id);n.onclick();};
-  return {nodes,doc,jobs,calls,states,outcomes,reasons,timers,intervals,pump,click,ok,event};
+  return {nodes,doc,jobs,calls,states,outcomes,reasons,recovery,restoreOutcomes,recoveryHints,timers,intervals,pump,click,ok,event};
 }
 let x=boot();
 assert.equal(x.calls.filter(a=>a[0]==='statuses').length,1);
@@ -277,3 +280,29 @@ x.click('tweak-main-menu-loop');x.pump();
 assert.match(x.nodes['dialog-meta'].textContent,/0\.7\.0 installed \/ [0-9]+\.[0-9]+\.[0-9]+ on USB/);
 assert.equal(x.nodes.action.textContent,'Uninstall');
 console.log('SAVED_VERSION_UI_PASSED: installed and USB versions shown in one row, existing uninstall action retained.');
+
+function recoveryOffer(raw='available\t'+'a'.repeat(32)+'\t/jci/test.js\n',hint=true) {
+  const r=boot();r.outcomes['list-beep']=1;r.recovery['list-beep']=raw;r.recoveryHints['list-beep']=hint;
+  r.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
+  r.click('tweak-list-beep');r.click('action');r.pump();return r;
+}
+x=recoveryOffer();assert.equal(x.nodes['dialog-title'].textContent,'Restore original file?');
+assert.match(x.nodes['dialog-description'].textContent,/ALL tweaks/);
+assert.match(x.nodes['dialog-description'].textContent,/saved to USB/);
+assert(!x.calls.some(a=>a[0]==='restore-original'));
+x.click('back');assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');
+assert(!x.calls.some(a=>a[0]==='restore-original'));
+x=recoveryOffer();controller('onkeyup',8);assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');
+x=recoveryOffer(undefined,false);assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');
+assert(!x.calls.some(a=>a[0]==='restore-check'),'An unrelated install error must not trigger recovery');
+x=recoveryOffer();x.click('action');x.pump();
+assert.deepEqual(Array.from(x.calls.find(a=>a[0]==='restore-original')),['restore-original','list-beep','a'.repeat(32)]);
+assert.equal(x.nodes['dialog-state'].textContent,'Restore completed');
+assert.equal(x.calls.filter(a=>a[0]==='action'&&a[2]==='install').length,1,'Restore must not automatically reinstall');
+x.click('result-ok');x.pump();x.outcomes['list-beep']=0;x.click('tweak-list-beep');assert.equal(x.nodes.action.textContent,'Install');
+x=recoveryOffer();x.restoreOutcomes['list-beep']=2;x.click('action');x.pump();
+assert.match(x.nodes['dialog-description'].textContent,/Do NOT reboot/);x.click('result-ok');assert.equal(x.nodes.refresh.disabled,true);
+for(const raw of ['available\tbad-hash\t/jci/test.js\n','available\t'+'a'.repeat(32)+'\t/jci/test.js','available\t'+'a'.repeat(32)+'\t/jci/test.js\nextra\n']) {
+  x=recoveryOffer(raw);assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');assert(!x.calls.some(a=>a[0]==='restore-original'));
+}
+console.log('TARGET_RECOVERY_UI_PASSED: validated offer, explicit confirmation, Back, no automatic install and critical restore failures.');

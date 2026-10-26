@@ -20,6 +20,17 @@ preserves unrelated patches where possible. Use this when removing one feature.
 
 ## Restore originals
 
+If Install is refused because a file contains an old patch, the installer may
+offer **Restore original** for that one file. This is offered only when a matching
+original backup can be verified and no registered tweak uses the file. Read the
+warning: **all tweaks on that file will be removed**. Current and original files
+are saved to USB first. Back cancels; after Restore and OK, select Install again
+if you want to install the tweak. Installation is not retried automatically.
+
+The single-file option does not remove unknown programs, services or extra files.
+If registered tweaks share the file, use their normal Uninstall actions or the
+broader System command described below.
+
 **System > Restore originals** restores files from their internal `.org` backups
 and removes registered tweak extras. It resets **all patches on affected files**,
 including changes from other installers. It is not a factory reset.

@@ -6,6 +6,11 @@ HERE=$(dirname "$SELF")
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 valid_id() { case "$1" in ''|*[!a-zA-Z0-9_-]*) return 1 ;; esac; }
 case "${1:-}" in
+  restore-check|restore-original)
+    case "$1:$#" in restore-check:2|restore-original:3) ;; *) fail 'Expected a tweak ID and, for Restore, the confirmation fingerprint.' ;; esac
+    ROOT=$HERE
+    . "$ROOT/lib/recovery.sh" || exit 1
+    mzd_recovery_main "$@" ;;
   statuses)
     shift
     . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1

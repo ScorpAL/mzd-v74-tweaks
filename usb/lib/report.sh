@@ -87,8 +87,9 @@ mzd_begin() {
     exit 1
   fi
   mount -o rw,remount "$MZD_USB" || exit 1
-  MZD_REPORT="$MZD_USB/reports/diffpatch/$2-$(date +%Y%m%d-%H%M%S)-$$"
-  mkdir -p "$MZD_REPORT" || exit 1
+  mkdir -p "$MZD_USB/reports/diffpatch" || exit 1
+  # CMU clocks and PIDs can repeat across boots. Never reuse stale rollback state.
+  MZD_REPORT=$(mktemp -d "$MZD_USB/reports/diffpatch/$2-$(date +%Y%m%d-%H%M%S)-XXXXXX") || exit 1
   : > "$MZD_REPORT/run.log" || exit 1
   exec 3>&1
   exec 4>&2
@@ -103,7 +104,7 @@ mzd_finish() {
   MZD_EXIT=$?
   trap - 0
   case "${ACTION:-}:$MZD_EXIT" in
-    install:130|install:143|uninstall:130|uninstall:143)
+    install:130|install:143|uninstall:130|uninstall:143|restore-original:130|restore-original:143)
       printf 'ERROR: The operation was interrupted; changes may be incomplete. Do NOT reboot.\nReports: %s\n' "$MZD_REPORT" >&4
       MZD_EXIT=2 ;;
   esac

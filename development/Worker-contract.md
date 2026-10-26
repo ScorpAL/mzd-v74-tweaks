@@ -95,6 +95,12 @@ Exports write unique folders below the originating USB's `exports/<id>/`. Comple
 
 ## Explicit reset and owned extras
 
+For unmanaged plain file patches, a rejected install may offer a separately
+confirmed single-file recovery. This requires a verified OEM `.org` and no
+overlapping saved installation. It never adopts or uninstalls unknown services.
+See [Target recovery](Target-recovery.md) for the controller protocol and guards.
+Worker status/action interfaces remain unchanged.
+
 `System > Restore originals` resets `.org` snapshots on internal Linux filesystems
 and runs registered cleanup hooks. This is a separately confirmed command, never
 an automatic response to broken/unavailable status. Known backups require the OEM

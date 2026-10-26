@@ -12,6 +12,7 @@ Runtime source remains in `usb/`, executable tests in `tests/`, and tools in `to
 - [Manifest format](Manifest-format.md)
 - [Worker contract](Worker-contract.md)
 - [Persistent packages and versioned uninstall](Persistent-packages.md)
+- [Confirmed recovery of an unmanaged patch target](Target-recovery.md)
 - [Shared runtime](Shared-runtime.md)
 - [Native Lua transport](Lua-transport.md)
 

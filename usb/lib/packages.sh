@@ -220,11 +220,11 @@ mzd_package_action() (
         MZD_ORIGIN_USB=$(dirname "$MZD_ORIGIN_USB")
     done
     [ "$MZD_ORIGIN_USB" != / ] || { mzd_package_error 'Originating USB mount is missing.'; exit 1; }
-    requested=''
+    requested=''; requested_type=''
     if [ "$action" = install ]; then
         mzd_manifest_load "$source/tweaks/$id/manifest.conf" || exit 1
         [ "$ID" = "$id" ] || { mzd_package_error 'Manifest ID differs from its folder.'; exit 1; }
-        requested=$VERSION
+        requested=$VERSION; requested_type=$TYPE
         awk -v expected="JCI_SW_VER=\"MAZ_CMU-150_$FIRMWARE\"" '$0==expected {found=1} END {exit !found}' /jci/version.ini || {
             mzd_package_error 'USB package does not support the current firmware; existing installation unchanged.'; exit 1;
         }
@@ -256,6 +256,11 @@ mzd_package_action() (
     fi
     result=$(sh "$source/tweaks/$id/run.sh" status); code=$?
     [ "$code" = 0 ] && [ "$result" = uninstalled ] || {
+        # A machine-readable hint only for a completed, blocked target check.
+        # The separate recovery check still verifies OEM data and ownership.
+        if [ "$code" = 0 ] && [ "$requested_type" = patch ]; then
+            case "$result" in installed|broken|unavailable) printf 'MZD_RECOVERY_CANDIDATE\n' ;; esac
+        fi
         mzd_package_error 'Target is not ready for a fresh managed installation; remove unmanaged changes with their original package first.'; exit 1;
     }
     if [ -z "$stage" ]; then

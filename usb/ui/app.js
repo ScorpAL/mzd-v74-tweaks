@@ -350,7 +350,8 @@
         el("dialog-body").scrollTop = 0;
         el("result-ok").onclick = function () {closeDialog();callback();}; el("result-ok").focus();
     }
-    function executeAction(item, action, callback) {
+    function executeAction(item, action, callback, restoreHash) {
+        if(action==="restore-original") {call(["restore-original",item.id,restoreHash],callback);return;}
         if(action!=="run" || !item.manifest.progress) {call(["action",item.id,action],callback);return;}
         call(["start-run",item.id],function(error,result) {
             if(error || resultError(result)) {callback(error,result);return;}
@@ -380,8 +381,22 @@
             poll();
         });
     }
-    function perform(item, action) {
-        var actionName = action.charAt(0).toUpperCase() + action.slice(1);
+    function confirmOriginalRestore(item, hash, path, cancel) {
+        dialogMode="restore-confirm"; el("dialog-body").className="";
+        el("dialog-state").className="";
+        text("dialog-title","Restore original file?"); el("dialog-dot").className="dot unavailable";
+        text("dialog-state","A verified original backup is available");
+        text("dialog-description","Restoring this file removes ALL tweaks affecting it.\nYour current file and original backup will be saved to USB first.\n\n"+path+"\n\nThis does not install the tweak. You can retry Install afterwards.");
+        clear(el("dialog-meta")); text("dialog-output","");
+        show("overlay",true); show("back",true); show("action",true); show("result-ok",false);
+        text("back","Back"); text("action","Restore original");
+        el("back").disabled=false; el("action").disabled=false;
+        el("back").onclick=cancel;
+        el("action").onclick=function () {perform(item,"restore-original",hash);};
+        el("dialog-body").scrollTop=0; el("back").focus();
+    }
+    function perform(item, action, restoreHash) {
+        var actionName = action==="restore-original" ? "Restore" : action.charAt(0).toUpperCase() + action.slice(1);
         operating = true; controls(); dialogMode = "working";
         el("dialog-body").className = "bottom-info";
         el("dialog-state").className = "operation-status";
@@ -390,12 +405,33 @@
         clear(el("dialog-meta"));
         el("back").disabled = true; el("action").disabled = true;
         footer("Working: " + item.name);
-        executeAction(item,action,function (error,result) {
+        function complete(error,result,allowRestore) {
             operating=false;
+            var recoveryCandidate=result && /(^|\n)MZD_RECOVERY_CANDIDATE\n/.test(result.stdout);
+            if (result && result.stdout) result.stdout=result.stdout.replace(/^MZD_RECOVERY_CANDIDATE\n/gm,"");
             var problem = error || resultError(result);
             var critical = !!error || !result || (result.started && (result.exitCode === 2 || !!result.signal || result.exitCode === null));
+            if (allowRestore && recoveryCandidate && action==="install" && item.manifest.type==="patch" && problem && !critical && result.started && result.exitCode===1) {
+                operating=true; controls(); footer("Checking original backup...");
+                call(["restore-check",item.id],function (checkError,checkResult) {
+                    operating=false; controls();
+                    if (checkError) {complete(checkError,checkResult,false);return;}
+                    if (checkResult && checkResult.started && (checkResult.exitCode===2 || checkResult.signal || checkResult.exitCode===null)) {complete("Original backup check failed",checkResult,false);return;}
+                    var fields=checkResult && !resultError(checkResult) && !checkResult.stdoutTruncated && !checkResult.stderrTruncated ? checkResult.stdout.split("\t") : [];
+                    if (fields.length===3 && fields[0]==="available" && /^[0-9a-f]{32}$/.test(fields[1]) && /^\/[^\x00-\x1f\x7f]+\n$/.test(fields[2])) {
+                        footer("Install refused - original backup available");
+                        confirmOriginalRestore(item,fields[1],fields[2].slice(0,-1),function () {complete(error,result,false);});
+                    } else {
+                        // Keep the original failure; a recovery refusal may explain
+                        // protected shared targets or a missing/mismatched backup.
+                        if (checkResult && checkResult.stderr) result.stderr = (result.stderr || "") + "\n" + checkResult.stderr;
+                        complete(error,result,false);
+                    }
+                });
+                return;
+            }
             if (critical) locked=true;
-            if (!problem && item.manifest.reboot_required && (action === "install" || action === "uninstall" || action === "run")) restartRequired=true;
+            if (!problem && (action==="restore-original" || (item.manifest.reboot_required && (action === "install" || action === "uninstall" || action === "run")))) restartRequired=true;
             var message = result ? trim(result.stdout + (result.stderr ? "\n" + result.stderr : "")) : "";
             // Old saved workers may still return their original progress preamble.
             // Keep the single live status row authoritative; retain useful details.
@@ -413,7 +449,8 @@
                 scanning=true; controls(); footer("Checking " + item.name + "...");
                 checkStatus(item,function () {scanning=false;controls();footer(locked ? "Critical worker failure. Do NOT reboot." : "Status updated - " + item.name);});
             },status);
-        });
+        }
+        executeAction(item,action,function(error,result) {complete(error,result,true);},restoreHash);
     }
     function restorePrimary() {
         if (!manager) return "Native focus controller unavailable.";
@@ -458,7 +495,7 @@
         // Backspace is the CMU Back button. Always suppress browser history.
         if(event.preventDefault)event.preventDefault();event.returnValue=false;
         if(operating || closing)return;
-        if(dialogMode==="restart")leaveInstaller(false);else if(dialogMode==="confirm")openDetails(selected);else if(dialogMode==="details")closeDialog();else if(dialogMode==="disclaimer" || !dialogMode)exit();
+        if(dialogMode==="restore-confirm")el("back").onclick();else if(dialogMode==="restart")leaveInstaller(false);else if(dialogMode==="confirm")openDetails(selected);else if(dialogMode==="details")closeDialog();else if(dialogMode==="disclaimer" || !dialogMode)exit();
     }
     document.onkeydown=function (event) {
         event=event||window.event; var key=event.keyCode||event.which, nodes, buttons=[],i,index=-1;
@@ -470,7 +507,7 @@
         // Route rotation to focus navigation; up/down keep detail-text scrolling.
         if(key===77)key=39;else if(key===78)key=37;
         if (key===27) {
-            if (dialogMode==="restart") leaveInstaller(false); else if (dialogMode==="confirm") openDetails(selected); else if (dialogMode==="details") closeDialog(); else if (dialogMode==="disclaimer" || !dialogMode) exit(); else return;
+            if (dialogMode==="restore-confirm") el("back").onclick(); else if (dialogMode==="restart") leaveInstaller(false); else if (dialogMode==="confirm") openDetails(selected); else if (dialogMode==="details") closeDialog(); else if (dialogMode==="disclaimer" || !dialogMode) exit(); else return;
         } else if (key===38 || key===40 || key===37 || key===39) {
             // Up/down scroll detail text; left/right selects its action buttons.
             if (dialogMode && (key===38 || key===40)) el("dialog-body").scrollTop += key===38 ? -70 : 70;

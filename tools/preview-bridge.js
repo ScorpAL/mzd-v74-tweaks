@@ -4,6 +4,7 @@
     var frame = document.getElementById("transport"), manifests = window.previewManifests;
     var states = {"list-beep":"installed", "list-loop":"unavailable", "shorter-delay":"broken"};
     var jobs = {}, nextJob = 0, sample = 0;
+    var oldDisclaimer = true, recoveryHash = "0123456789abcdef0123456789abcdef";
     function reply(data) {
         window.dispatchEvent(new MessageEvent("message", {
             source:frame.contentWindow, origin:"preview", data:data
@@ -30,6 +31,14 @@
                 (args[1] === "0" ? "-" : "30") + "\ndisk\t/\t42\ndisk\t/jci\t18\ndisk\t/data\t65\ndisk\t/tmp/mnt/sdb1\t80\n");
         }
         if (args[0] === "list") return ok(Object.keys(manifests).join("\n")+"\n");
+        // Demonstrate an old unmanaged JS patch without touching vehicle files.
+        if (args[0] === "restore-check") return id === "no-more-disclaimer" && oldDisclaimer ?
+            ok("available\t"+recoveryHash+"\t/jci/gui/apps/system/js/systemApp.js\n") : ok("",1,"No verified original backup is available.");
+        if (args[0] === "restore-original") {
+            if (id !== "no-more-disclaimer" || !oldDisclaimer || args[2] !== recoveryHash) return ok("",1,"The file changed; inspect it again.");
+            oldDisclaimer = false; states[id] = "uninstalled";
+            return ok("PREVIEW ONLY: Original file restored. You can now retry Install. No files were changed.");
+        }
         if (args[0] === "package-info") return ok(states[id] === "installed" ? "0.7.0\tinstalled\n" : "");
         if (args[0] === "manifest") return manifests[id] ? ok(manifests[id]) : ok("",1,"Missing preview manifest.");
         if (args[0] === "statuses") return ok(args[1].split(" ").map(function (entry) {
@@ -43,6 +52,8 @@
                 return ok(state+"\n",0,state === "unavailable" ? "Preview: target file does not match this patch." :
                     state === "broken" ? "Preview: incomplete installation detected." : "");
             }
+            if (id === "no-more-disclaimer" && action === "install" && oldDisclaimer)
+                return ok("MZD_RECOVERY_CANDIDATE\n",1,"Preview: the target contains an old unmanaged patch.");
             states[id] = action === "install" ? "installed" : "uninstalled";
             return ok("PREVIEW ONLY: " + action + " completed. No files were changed.");
         }
@@ -60,7 +71,7 @@
     frame.contentWindow.postMessage = function (message) {
         if (message.type !== "shell-exec") return;
         var args = message.args.slice(1);
-        var delay = args[0] === "action" && args[2] !== "status" ? 8000 : 120;
+        var delay = (args[0] === "action" && args[2] !== "status") || args[0] === "restore-original" ? 8000 : 120;
         window.setTimeout(function () {
             reply({type:"shell-result", token:"preview", id:message.id, result:process(args)});
         },delay);

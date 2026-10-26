@@ -22,6 +22,7 @@ Do not introduce a second legacy launcher or generated runtime tree.
    shared package controller; do not bypass it with MZD_WORKER_DIRECT in normal use.
 7. Run `python tools/validate.py` and `python tests/contract/test_workers.py`.
    Also run `python tests/contract/test_packages.py` for lifecycle/helper changes.
+   Run `python tests/contract/test_recovery.py` for single-file recovery changes.
    Run `node tests/installer/test-ui.cjs` and the transport test for UI changes.
    CI additionally runs ShellCheck and tests on BusyBox in Linux.
 8. Record real vehicle results under `development/test-runs/` using its template. Include
