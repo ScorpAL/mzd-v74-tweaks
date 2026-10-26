@@ -95,7 +95,10 @@
             button.className = "tab" + (group === selectedGroup ? " selected" : "");
             button.textContent = groupName(group) + " (" + count + ")";
             button.setAttribute("role", "tab"); button.setAttribute("aria-selected", group === selectedGroup ? "true" : "false");
-            button.onclick = function () { selectedGroup = group; renderTabs(); renderCards(); };
+            button.onclick = function () {
+                selectedGroup = group; renderTabs(); renderCards();
+                if (el("cards").firstChild) el("cards").firstChild.focus();
+            };
             node.appendChild(button);
         }(all[i]));
         controls();
@@ -377,7 +380,7 @@
         el("dialog-body").className = "bottom-info";
         el("dialog-state").className = "operation-status";
         text("dialog-state",actionName + " in progress...");
-        text("dialog-description","Keep the system on and do not remove the USB drive.");
+        text("dialog-description","Keep the system on and do not remove the USB drive");
         clear(el("dialog-meta"));
         el("back").disabled = true; el("action").disabled = true;
         footer("Working: " + item.name);

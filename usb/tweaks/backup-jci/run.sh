@@ -7,12 +7,12 @@ ROOT=$(CDPATH= cd "$HERE/../.." && pwd) || exit 1
 EXPORT_TOOLS='zip unzip mktemp'
 EXPORT_MIN_KB=174080
 mzd_export_run() {
-    mzd_export_progress 0 0 'Creating JCI ZIP archive; this can take several minutes'
+    mzd_export_progress 0 0 'Creating JCI backup'
     source_parent=$(dirname "$APP"); source_name=${APP##*/}
     (cd "$source_parent" && zip -q -r -y "$EXPORT_PARTIAL/jci.zip" "$source_name") >> "$EXPORT_PARTIAL/run.log" 2>&1 || {
         printf 'JCI archive creation failed. See the incomplete export run.log.\n' >&2; return 1;
     }
-    mzd_export_progress 0 0 'Checking JCI archive integrity'
+    mzd_export_progress 0 0 'Verifying JCI backup'
     unzip -t "$EXPORT_PARTIAL/jci.zip" >> "$EXPORT_PARTIAL/run.log" 2>&1 || {
         printf 'JCI archive integrity check failed.\n' >&2; return 1;
     }

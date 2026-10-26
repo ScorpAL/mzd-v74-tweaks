@@ -101,7 +101,7 @@ x.click('result-ok');x.pump();assert.equal(x.states.hello,'uninstalled');
 console.log('COMMAND_UI_PASSED: manifest discovery, Run and status refresh.');
 
 // Real CMU controller codes: rotate M/N, tilt arrows, Backspace on release.
-x=boot();
+x=boot(undefined,false,false,true);
 function controller(type,key,whichOnly=false){
   let prevented=false;const event={preventDefault(){prevented=true;}};
   event[whichOnly?'which':'keyCode']=key;x.doc[type](event);assert.equal(prevented,true);
@@ -110,6 +110,12 @@ x.nodes.refresh.focus();controller('onkeydown',77);assert.equal(x.doc.activeElem
 controller('onkeydown',78,true);assert.equal(x.doc.activeElement,x.nodes.refresh);
 controller('onkeydown',40);assert.equal(x.doc.activeElement,x.nodes.exit);
 controller('onkeydown',38);assert.equal(x.doc.activeElement,x.nodes.refresh);
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
+assert.equal(x.doc.activeElement,x.nodes.cards.children[0]);
+controller('onkeydown',77);assert.equal(x.doc.activeElement,x.nodes.cards.children[1]);
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();
+assert.equal(x.doc.activeElement,x.nodes.cards.children[0]);
+controller('onkeydown',77);assert.equal(x.doc.activeElement,x.nodes.cards.children[1]);
 x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
 x.click('tweak-list-beep');controller('onkeydown',77);assert.equal(x.doc.activeElement,x.nodes.action);
 controller('onkeydown',78);assert.equal(x.doc.activeElement,x.nodes.back);
