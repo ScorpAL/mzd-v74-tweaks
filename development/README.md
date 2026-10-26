@@ -35,3 +35,7 @@ the paths used after copying into the USB layout.
 - [Reviewed test runs and template](test-runs/README.md)
 - [Wiki publishing](Wiki-publishing.md)
 - [Tweak implementation notes](tweaks/)
+
+## Wallpaper branch
+
+- [Wallpaper application plan](Wallpaper-app.md)
