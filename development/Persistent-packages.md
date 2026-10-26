@@ -97,4 +97,4 @@ Corrupt packages and unknown extras remain protected for manual investigation.
 There is intentionally no adoption or recovery table for pre-receipt versions.
 Uninstall the existing test tweaks (especially SSH) with their matching previous
 USB package before switching to this layout. Do not overwrite the USB package
-first. The physical CMU has not been modified by this development work.
+first. For the recorded physical test scope, see [test evidence](test-runs/2026-10-25-persistent-packages.md).

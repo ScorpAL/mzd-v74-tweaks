@@ -6,7 +6,7 @@
 __pycache__/
 *.pyc
 *.o
-/tests/runs/local/
+/development/test-runs/local/
 
 /usb/exports/
 

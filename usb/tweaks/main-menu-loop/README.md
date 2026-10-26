@@ -2,17 +2,10 @@
 
 Wrap between the first and last main-menu icons.
 
-- Firmware: 74.00.324
-- Target: `/jci/gui/apps/system/controls/MainMenu/js/MainMenuCtrl.js`
-- Shared lock group: `MainMenuCtrl`
-- Restart required for UI behavior: true
+Supported firmware: **74.00.324**. Select the tweak in the installer, read its
+description, and choose **Install** or **Uninstall**. Restart the CMU after changing
+this tweak; the installer offers Restart when leaving.
 
-Run `sh tweaks/main-menu-loop/run.sh status`, `install` or `uninstall` from the USB
-repository layout. Status inspects the current file, not a cached flag. A complete
-reversible patch is installed; a supported forward patch is uninstalled.
-Unsupported content is unavailable; demonstrable partial changes are broken.
-
-Modifying actions recheck prerequisites, use exact reversible patches, retain a
-verified OEM backup, preserve other tweaks and restore owned mount/watchdog state.
-See ../../../wiki/Worker-contract.md and ../../../tests/runs/ for protocol and evidence.
-The shared runtime/contract migration still requires a fresh vehicle test.
+Normal uninstall removes this tweak while preserving unrelated changes where
+possible. If installation is refused, read the displayed reason. Restore originals
+resets all patches on affected files, not just this tweak.

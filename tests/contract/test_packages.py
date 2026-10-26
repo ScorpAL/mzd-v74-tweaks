@@ -91,7 +91,7 @@ esac
     # probing and no command worker may run during menu status collection.
     write(target,'unmanaged content\n')
     write(bins/'md5sum','#!/bin/sh\necho status-must-not-hash >&2\nexit 91\n')
-    shutil.copytree(ROOT/'examples/hello',usb/'tweaks/hello')
+    shutil.copytree(ROOT/'development/examples/hello',usb/'tweaks/hello')
     write(usb/'tweaks/hello/run.sh','#!/bin/sh\necho command-must-not-run >> '+shlex.quote(bp(events))+'\nexit 91\n')
     action('alpha','status',output='uninstalled\n')
     action('hello','status',output='uninstalled\n')

@@ -1,6 +1,6 @@
 # Repository instructions
 
-Read CONTRIBUTING.md and wiki/Worker-contract.md before editing. User directions
+Read development/CONTRIBUTING.md and development/Worker-contract.md before editing. User directions
 have precedence. Runtime files live in usb/; keep developer files outside it. Target the new ready-to-run launcher only; no legacy layout or
 compatibility wrappers. Use the factory Lua/POSIX/LuaSocket runtime; no custom compiled transport helpers.
 Use English documentation, comments and runtime messages. Runtime is POSIX sh

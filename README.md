@@ -1,116 +1,46 @@
-# CMU Tweaks - development
+# CMU Tweaks
 
-Ready-to-run USB layout for the Lua shell bridge and styled Secondary Opera
-launcher. This branch targets the new launcher directly. No MP3 entry,
-compatibility layer or assembly step is included.
+Ready-to-run USB installer for Mazda CMU tweaks. The included tweaks currently
+support firmware **74.00.324**. This is the development branch, not a released 2.0.
 
 ## Use
 
-Download this branch, extract it, and copy the contents of `usb/` to the USB root, including
-`jci-autoupdate` and the long `.up` filename. Insert the USB drive. The styled installer starts directly and shows a notice
-with **OK** and **Exit**. Select OK to load the tweak menu. No Python, Node.js or compiler is required on the CMU.
+Download this branch, extract it, and copy the **contents of `usb/`** to the USB
+root, including `jci-autoupdate` and the long `.up` filename. Insert the USB drive.
+The installer opens with **OK** and **Exit**. Use it only while parked and keep
+power and USB connected until changes finish.
 
-Development files stay outside `usb/`; no assembly step is required.
+Choose a category and tweak to read its description, then select **Install**,
+**Uninstall** or **Run**. Touchscreen and multicontroller navigation are supported.
+The header shows CPU use and free space for System and Resources. After changes
+requiring a restart, leaving the installer offers **Restart** or **Exit**.
 
-Patch/service/files installations are first copied with their shared helpers to
-`/tmp/mnt/data_persist/mzd-v74-tweaks/installed/<id>/`. Uninstall always uses that
-saved version. Menu status checks the receipt and file presence; deep checks run
-before changes. See [persistent packages](wiki/Persistent-packages.md).
-For the first deployment, uninstall existing test tweaks using their previous
-matching USB package before copying this version. Old installations without
-receipts are deliberately not adopted.
+The installer uses the CMU's existing runtime. No extra ARM program, Python,
+Node.js, compilation or package assembly is required on the vehicle.
 
-The menu discovers `usb/tweaks/*/manifest.conf`, groups buttons by `group`, reads
-registered states in one request, and calls the declared actions. Exit returns to the Mazda UI.
-The header shows CPU utilization and free space percentages for mounted block
-System and Resources partitions, refreshed every five seconds while idle. CPU utilization uses two
-/proc/stat snapshots; telemetry pauses during scans and worker actions.
+The installed tweak version is saved on the CMU so a newer USB package can still
+uninstall it using the matching scripts. Old test installations made before this
+mechanism must first be uninstalled using their matching previous USB package.
 
-After successful changes requiring a restart, Exit offers **Restart** or **Exit**
-without restarting. Restart uses the shell bridge after launcher cleanup; it does
-not require SSH. Critical errors disable this option.
+## Documentation
 
-Only firmware **74.00.324** is currently supported by the included tweaks.
+- [User guide](wiki/Home.md): setup, controls, states, backup, restore and help.
+- [Included tweaks](usb/tweaks/): each folder contains its user README.
+- [Development](development/README.md): all developer documentation and examples.
+- [Website sources](docs/).
 
-| Path | Purpose |
-| --- | --- |
-| `usb/autorun.sh`, `.up`, `usb/jci-autoupdate` | Automatic USB entry and process lifecycle |
-| `usb/installer.sh` | Discovery and direct argument-based worker invocation |
-| `usb/lib/lua-bridge/` | Shell execution and loopback HTTP using the factory Lua runtime |
-| `usb/ui/` | Styled launcher, compatible with the vehicle's Opera engine |
-| `usb/tweaks/` | Nine maintained tweaks and System tools, assets, manifests and technical READMEs |
-| `usb/lib/` | Shared worker helpers, USB exports and progress jobs |
-| `docs/` | Website sources |
-| `wiki/` | Sources published by the Wiki sync workflow |
-| `examples/` | Hello command and patch-worker template |
-| `tests/contract/` | Manifest, worker interface and isolated behavior checks |
-| `tests/installer/` | Functional UI and transport tests |
-| `tests/runs/` | Reviewed evidence and manual vehicle test records |
-| `tools/` | Development validation and styling preview |
+System tools can back up JCI, collect logs and restore original files. Restore
+resets all patches on affected files and is not a factory reset. Read its
+confirmation carefully. Backups and reports are stored on the USB drive.
 
-## Restore originals
+Installer diagnostics are controlled by `logging=normal`, `logging=debug` or
+`logging=off` in `usb/installer.conf`. Normal is the default; use Debug when
+collecting details for a reported problem. Action reports and explicit exports
+remain available with logging Off.
 
-System includes an explicitly confirmed **Restore originals** command. It archives
-current files and internal `.org` backups on USB, restores and verifies the files,
-cleans up registered tweak extras, then removes internal `.org`
-backups and rechecks all statuses. All patches on affected files are reset.
-Unknown old backups cannot be authenticated as factory originals; unknown extra
-files are not deleted. This is not a factory reset. See the
-[restore worker](usb/tweaks/restore-originals/README.md).
-
-## Offline styling preview (Windows)
-
-Double-click `tools/preview.cmd` to open a disposable local HTML preview with
-example states and simulated actions. It embeds the current UI and manifests;
-no shell worker executes. Run it again after editing CSS or JavaScript to rebuild
-the preview. Python, Node.js and a web server are not needed for this preview.
-The tweak menu uses compact single-column rows with status on the right.
-
-## State contract
-
-`status` prints exactly one state and a newline on stdout, with exit code 0:
-`installed`, `uninstalled`, `unavailable` or `broken`. The last two require an
-explanation on stderr. A failed inspection leaves stdout empty and exits 1.
-Status never creates USB reports, remounts storage or changes services.
-
-Install/uninstall: 0 success, 1 ordinary failure, 2 critical/uncertain changes.
-The launcher displays the result, then asks for status again. Workers never
-open dialogs or reboot. Dependencies and conflicts are enforced by workers.
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [contract](wiki/Worker-contract.md)
-before contributing. This is a reviewable development proposal, not an upstream
-agreement or a released 2.0 version.
-
-## Evidence
-
-The preceding launcher displayed and operated in the vehicle. SSH installation,
-password login on port 22 and uninstallation were also checked on the vehicle.
-The Lua launcher, all nine status queries and the integrated SSH Wi-Fi startup
-have now also been checked on the vehicle. This does not establish every tweak
-on every firmware; isolated CI checks are not vehicle tests. See `tests/runs/`.
+Vehicle checks cover the native Lua launcher, SSH lifecycle/Wi-Fi startup and
+selected patches. This does not establish every tweak on every firmware;
+[reviewed evidence](development/test-runs/README.md) records the tested scope.
 
 Original repository: https://github.com/piotrmocko/mzd-v74-tweaks.
 Existing authorship remains in Git history; migration is not a claim of ownership.
-
-## Lua transport and logging
-
-The installer uses the CMU's existing Lua 5.1, LuaPOSIX 5.1.19 and LuaSocket
-2.0.2. No custom ARM executables or backend selector are included. The Lua server
-binds to loopback and executes workers with separate arguments, capturing stdout,
-stderr, exit codes and signals. See [transport details](usb/lib/lua-bridge/README.md).
-
-Set `logging=normal`, `logging=debug` or `logging=off` in `usb/installer.conf`:
-
-- `normal` (default): concise launcher/error logs, saved to USB on Exit or failure.
-  No repeated request/status/metrics traces or five-second log copies.
-- `debug`: detailed process/HTTP diagnostics; USB snapshots every 30 seconds and
-  at Exit.
-- `off`: no installer diagnostics saved to USB. Worker action reports and explicit
-  backup/log exports remain available in all modes. The separate SSH service
-  retains its existing brief boot/error log when its matching USB marker is present.
-
-UI events accumulate in RAM and are copied with the other session logs. Debug
-logging never includes the session token or arbitrary command arguments. Failed
-worker output is included only in debug mode. Vehicle evidence and limitations
-are recorded under `tests/runs/`. The optional original-runtime VM checks are in
-[tests/transport](tests/transport/README.md).

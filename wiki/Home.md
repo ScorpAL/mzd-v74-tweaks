@@ -1,14 +1,13 @@
-# CMU Tweaks development
+# CMU Tweaks user guide
 
-This Wiki is maintained from `wiki/` on the development branch.
+Install, remove and run CMU tweaks from a USB drive using the touchscreen or
+Mazda multicontroller. The included tweaks currently support firmware **74.00.324**.
+This is a development version.
 
-- [Manifest format](Manifest-format)
-- [Worker contract](Worker-contract)
-- [Repository structure](Repository-structure)
-- [Vehicle testing](Vehicle-testing)
+- [Getting started](Getting-started)
+- [Using the installer](Using-the-installer)
+- [Backup and restore](Backup-and-restore)
+- [Troubleshooting](Troubleshooting)
 
-Edit sources in a PR. The Wiki sync workflow publishes them after a push to
-`development`. Initial setup requires enabling this repository's Wiki, creating
-its first page and adding a `WIKI_TOKEN` Actions secret with write access to that
-Wiki repository. Without that secret, synchronization is skipped with a notice.
-The workflow never needs a token in the USB package.
+Use only while parked. Keep vehicle power on and leave the USB connected until
+the installer reports that an operation has finished.
