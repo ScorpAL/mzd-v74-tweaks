@@ -96,8 +96,14 @@
             button.textContent = groupName(group) + " (" + count + ")";
             button.setAttribute("role", "tab"); button.setAttribute("aria-selected", group === selectedGroup ? "true" : "false");
             button.onclick = function () {
-                selectedGroup = group; renderTabs(); renderCards();
-                if (el("cards").firstChild) el("cards").firstChild.focus();
+                selectedGroup = group;
+                // Keep the category buttons in the DOM so controller focus survives.
+                var tabs = el("tabs").getElementsByTagName("button");
+                for (var k = 0; k < tabs.length; k++) {
+                    tabs[k].className = tabs[k] === button ? "tab selected" : "tab";
+                    tabs[k].setAttribute("aria-selected", tabs[k] === button ? "true" : "false");
+                }
+                renderCards(); button.focus();
             };
             node.appendChild(button);
         }(all[i]));
