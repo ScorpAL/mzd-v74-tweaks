@@ -96,19 +96,16 @@ awk -v p="$3" -v mode="$2" '{$4=($2==p?(mode=="rw,remount"?"rw":"ro"):$4);print}
     assert len(archives)==1 and (archives[0]/'before.data').read_text()==foreign and (archives[0]/'original.data').read_text()==original
     prepare();write(mounts,mounts.read_text().replace('/dev/ffx01p1','/dev/mmcblk0p1'))
     unchanged_check();restore();assert target.read_text()==original and not backup.exists();clean()
-    for scenario in ['missing-backup','bad-backup','oem-target','compatible-target','service','extra-path','unsupported','external-target','ram-target','bad-patch','patch-tool-failure','busy','stale','retarget','backup-retarget','version-change']:
+    for scenario in ['missing-backup','bad-backup','oem-target','service','extra-path','unsupported','external-target','ram-target','busy','stale','retarget','backup-retarget','version-change']:
         prepare()
         if scenario=='missing-backup':backup.unlink()
         if scenario=='bad-backup':write(backup,'wrong original\n')
         if scenario=='oem-target':write(target,original)
-        if scenario=='compatible-target':write(target,original+'unrelated addition\n')
         if scenario=='service':write(fixture/'manifest.conf',template.replace('type=patch','type=service'))
         if scenario=='extra-path':write(fixture/'managed-paths.tsv','create\t'+bp(other)+'\n')
         if scenario=='unsupported':write(version,'JCI_SW_VER="MAZ_CMU-150_70.00.100"\n')
         if scenario=='external-target':write(mounts,mounts.read_text()+'/dev/external '+bp(target)+' ext4 ro 0 0\n')
         if scenario=='ram-target':write(mounts,mounts.read_text().replace(bp(internal)+' relfs ',bp(internal)+' tmpfs '))
-        if scenario=='bad-patch':write(fixture/'assets/change.patch',patch.replace('value=stock','value=not-stock'))
-        if scenario=='patch-tool-failure':write(bins/'patch','#!/bin/sh\nexit 2\n')
         if scenario=='busy':(locks/'packages.lock').mkdir()
         if scenario=='stale':
             unchanged_check();write(target,'new foreign edit\n')
@@ -128,6 +125,17 @@ awk -v p="$3" -v mode="$2" '{$4=($2==p?(mode=="rw,remount"?"rw":"ro"):$4);print}
         if scenario=='busy':(locks/'packages.lock').rmdir()
         clean();print('PASS recovery refusal:',scenario,flush=True)
     prepare();write(target,patched);token=unchanged_check().stdout.split('\t')[1];restore(token=token);assert target.read_text()==original;clean()
+    # Restoration depends on verified OEM bytes, not recognition of an old patch.
+    for scenario in ['compatible-target','bad-patch','missing-patch','patch-tool-failure','old-unrelated-patch']:
+        prepare()
+        if scenario=='compatible-target':write(target,original+'unrelated addition\n')
+        if scenario=='bad-patch':write(fixture/'assets/change.patch','unusable newer patch\n')
+        if scenario=='missing-patch':(fixture/'assets/change.patch').unlink()
+        if scenario=='patch-tool-failure':write(bins/'patch','#!/bin/sh\nexit 2\n')
+        if scenario=='old-unrelated-patch':write(target,'old unknown patch content\n')
+        token=unchanged_check().stdout.split('\t')[1]
+        restore(token=token);assert target.read_text()==original and not backup.exists();clean()
+        print('PASS patch-independent recovery:',scenario,flush=True)
     # Valid saved receipts using this file, a parent container, or this ID block recovery.
     for owner_mode in ['same-file','parent-container','own-id','corrupt-record','unrelated','alias-target']:
         prepare()

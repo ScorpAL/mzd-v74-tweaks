@@ -313,13 +313,15 @@ x.pump();assert(x.nodes['restore-action'].className.includes('hidden'));
 x=recoveryOffer();x.restoreOutcomes['list-beep']=2;x.click('restore-action');x.click('action');x.pump();
 assert.match(x.nodes['dialog-description'].textContent,/Do NOT reboot/);x.click('result-ok');assert.equal(x.nodes.refresh.disabled,true);
 for(const raw of ['', 'available\tbad-hash\t/jci/test.js\n','available\t'+'a'.repeat(32)+'\t/jci/test.js','available\t'+'a'.repeat(32)+'\t/jci/test.js\nextra\n']) {
-  x=recoveryOffer(raw);assert.equal(x.nodes['dialog-title'].textContent,'No List Beep');assert(x.nodes['restore-action'].className.includes('hidden'));assert(!x.calls.some(a=>a[0]==='restore-original'));
+  x=recoveryOffer(raw);assert.match(x.nodes['dialog-description'].textContent,/Restore original unavailable:/);assert.equal(x.nodes['dialog-title'].textContent,'No List Beep');assert(x.nodes['restore-action'].className.includes('hidden'));assert(!x.calls.some(a=>a[0]==='restore-original'));
 }
 // Eligibility is not required to arrive before the user navigates elsewhere.
 x=recoveryOffer();x.click('back');x.click('tweak-list-beep');let oldRecovery=x.jobs.shift();x.click('back');x.click('tweak-list-beep');
 x.event({type:'shell-result',token:'secret',id:oldRecovery.id,result:x.ok('available\t'+'a'.repeat(32)+'\t/jci/test.js\n')});
 assert(x.nodes['restore-action'].className.includes('hidden'),'An older detail-view response must not reveal Restore');
 delete x.recovery['list-beep'];x.pump();assert(x.nodes['restore-action'].className.includes('hidden'));
+assert.match(x.nodes['dialog-description'].textContent,/Restore original unavailable:[\s\S]*No verified original backup is available/);
+assert.equal(x.doc.activeElement,x.nodes.back,'A refused restore check must preserve focus');
 // A blocked install returns to details after OK, without opening confirmation.
 x=boot();x.recovery['list-beep']='available\t'+'a'.repeat(32)+'\t/jci/test.js\n';x.outcomes['list-beep']=1;
 x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();x.click('tweak-list-beep');x.click('action');x.pump();

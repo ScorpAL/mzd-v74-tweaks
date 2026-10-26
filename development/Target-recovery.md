@@ -8,7 +8,7 @@ opens confirmation. A failed/denied check leaves the existing detail view intact
 Stale responses from closed/replaced detail views are ignored.
 
 The UI calls `installer.sh restore-check <id>`. This is read-only: it uses
-private RAM copies and produces no USB reports, locks, remounts or service changes.
+file checks and produces no USB reports, locks, remounts or service changes.
 An eligible result is one line:
 
 ```text
@@ -23,9 +23,12 @@ not trigger this return. No install attempt is required for the detail button.
 
 Eligibility requires a plain patch without cleanup hooks or additional owned
 paths, matching firmware, regular non-symlink internal files, and a `.org` matching
-the manifest's OEM fingerprint. The patch must apply reversibly to the OEM copy.
-A current file supporting normal installation is not a recovery candidate.
-Tool errors fail closed. Services and installed applications need their own
+the manifest's OEM fingerprint, with a current file different from that original.
+The creator and version of the old patch are irrelevant. Recovery does not run
+the patch tool or require the newer patch to recognize the old modifications;
+it is also available when normal installation could preserve those modifications.
+This avoids expensive forward/reverse probes and old patch-applet limitations.
+Read/hash/tool errors fail closed. Services and installed applications need their own
 reviewed removal procedures and are deliberately excluded.
 
 Mount eligibility uses software roles, never block-device names. The deepest
@@ -67,3 +70,29 @@ Back or Escape on the confirmation makes no changes. No restart is automatic.
 Run `python tests/contract/test_recovery.py` and `node tests/installer/test-ui.cjs`.
 The offline preview demonstrates the offer when installing No More Disclaimer;
 its restore and subsequent install are simulated. This proves no vehicle behavior.
+
+## Diagnose a missing Restore button
+
+From the installer directory on the USB, run this read-only command on the CMU:
+
+```sh
+sh installer.sh restore-check list-beep
+```
+
+Success prints `available`, a confirmation fingerprint and the target path.
+A refusal returns nonzero and explains the condition on stderr. The detail
+dialog also displays that reason below ?Restore original unavailable?, so it
+can be read or photographed without SSH or shell access. Capture both
+streams when sharing results; do not run `restore-original` without confirmation.
+The expected backup for No List Beep is
+`/jci/gui/common/controls/List2/js/List2Ctrl.js.org`, next to the target.
+Its expected OEM MD5 for 74.00.324 is `e111883b9dcbeb6bb154521826fcacac`.
+A differently named, relocated or already modified backup is not equivalent.
+Other managed tweaks using List2Ctrl also prevent single-file restoration.
+
+With the private CMU backup and existing emulator prerequisites available,
+`python tests/transport/test-in-vm.py --recovery` reproduces the pre-persistence
+List Beep patch using the original ARM BusyBox, then compares recovery at `f88e9db` with the
+working-tree recovery check. It uses private disposable fixtures and never
+connects to a vehicle or publishes the OEM file. This is emulation evidence,
+not a test of a particular user's filesystem, backup or runtime deadline.

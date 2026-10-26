@@ -49,6 +49,8 @@ mzd_recovery_owners() (
         }
     done
 )
+# Recovery validates the saved OEM bytes, independently of any old patch format.
+# Installation still performs its own complete forward/reverse preflight.
 mzd_recovery_validate() {
     [ "$TYPE" = patch ] && [ -z "$RESET_ENTRYPOINT" ] || {
         mzd_recovery_error 'Single-file recovery is only available for plain file patches.'; return 1;
@@ -86,34 +88,6 @@ mzd_recovery_validate() {
     RECOVERY_TOKEN=$(printf '%s\n' "$ID" "$VERSION" "$FIRMWARE" "$APP" "$ORIGINAL" "$RECOVERY_OBSERVED" | md5sum | cut -d' ' -f1)
     [ "${#RECOVERY_TOKEN}" = 32 ] || return 1
 }
-mzd_recovery_probe() (
-    patch_file="$ROOT/tweaks/$ID/assets/change.patch"
-    mzd_asset_readable "$patch_file" || exit 1
-    awk '/^--- / {old++; if($0!="--- target.data") bad=1} /^\+\+\+ / {new++; if($0!="+++ target.data") bad=1} END {exit bad || old!=1 || new!=1}' "$patch_file" || exit 1
-    scratch=$(mktemp -d /tmp/mzd-recovery.XXXXXX) || exit 1
-    trap 'rm -rf "$scratch"' 0
-    trap 'exit 1' INT TERM
-    mkdir "$scratch/oem" "$scratch/current" || exit 1
-    cp "$APP.org" "$scratch/oem/before.data" && cp "$APP" "$scratch/current/before.data" || exit 1
-    [ "$(mzd_hash "$scratch/oem/before.data")" = "$ORIGINAL" ] &&
-        [ "$(mzd_hash "$scratch/current/before.data")" = "$RECOVERY_OBSERVED" ] || exit 1
-    mzd_patch_probe "$scratch/oem" install "$patch_file" || {
-        mzd_recovery_error 'This patch cannot be verified against the original backup.'; exit 1;
-    }
-    [ ! -e "$scratch/oem/probe-error" ] || exit 1
-    forward=0; reverse=0
-    mzd_patch_probe "$scratch/current" install "$patch_file" && forward=1
-    mzd_patch_probe "$scratch/current" uninstall "$patch_file" && reverse=1
-    [ ! -e "$scratch/current/probe-error" ] || {
-        mzd_recovery_error 'The patch tool failed; recovery is not offered.'; exit 1;
-    }
-    [ "$forward:$reverse" != 1:0 ] || {
-        mzd_recovery_error 'The target supports normal installation; original-file recovery is not needed.'; exit 1;
-    }
-    cmp -s "$APP" "$scratch/current/before.data" && cmp -s "$APP.org" "$scratch/oem/before.data" || {
-        mzd_recovery_error 'Target or backup changed during inspection.'; exit 1;
-    }
-)
 mzd_recovery_run() (
     # The caller restores USB mode after the report lifecycle has finished writing.
     ACTION=restore-original
@@ -124,7 +98,7 @@ mzd_recovery_run() (
     mzd_system_lock /tmp/mzd-restore-originals.lock || exit 1
     mzd_system_lock "$MZD_PACKAGE_LOCK" || exit 1
     mzd_system_lock "$LOCK" || exit 1
-    mzd_recovery_validate && mzd_recovery_probe || exit 1
+    mzd_recovery_validate || exit 1
     [ "$RECOVERY_TOKEN" = "$1" ] || mzd_fail 'The file or tweak information changed after confirmation. Nothing restored; inspect it again.'
     required=$(du -sk "$APP" "$APP.org" | awk '{n+=$1} END {print n+16384}')
     available=$(df -Pk "$MZD_USB" | awk 'NR==2 {print $4}')
@@ -164,10 +138,10 @@ mzd_recovery_main() (
     mzd_manifest_id "$id" || exit 1
     mzd_manifest_load "$ROOT/tweaks/$id/manifest.conf" || exit 1
     [ "$ID" = "$id" ] || exit 1
-    mzd_require_tools awk md5sum cut cp cmp patch mktemp readlink || exit 1
+    mzd_require_tools awk md5sum cut readlink || exit 1
     if [ "$command" = restore-check ]; then
         [ ! -e "$MZD_PACKAGE_LOCK" ] && [ ! -e "$LOCK" ] || { mzd_recovery_error 'Another operation is active.'; exit 1; }
-        mzd_recovery_validate && mzd_recovery_probe || exit 1
+        mzd_recovery_validate || exit 1
         [ ! -e "$MZD_PACKAGE_LOCK" ] && [ ! -e "$LOCK" ] || exit 1
         printf 'available\t%s\t%s\n' "$RECOVERY_TOKEN" "$APP"
         exit 0
@@ -175,7 +149,7 @@ mzd_recovery_main() (
     confirmed=$3
     case "$confirmed" in ''|*[!0-9a-f]*) exit 1 ;; esac
     [ "${#confirmed}" = 32 ] || exit 1
-    mzd_require_tools df du mv mount sync date || exit 1
+    mzd_require_tools cp cmp mktemp df du mv mount sync date || exit 1
     mzd_export_mount || exit 1
     original_usb_ro=0
     case ",$EXPORT_MODE," in *,ro,*) original_usb_ro=1 ;; esac

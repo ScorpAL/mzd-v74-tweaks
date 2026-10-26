@@ -318,7 +318,11 @@
             call(["restore-check",item.id],function (error,result) {
                 if (error || view!==detailView || dialogMode!=="details" || selected!==item || operating || closing || scanning || locked) return;
                 var offer=originalRestoreOffer(result);
-                if (!offer) return;
+                if (!offer) {
+                    var reason=error || resultError(result) || "The restore check returned an invalid response.";
+                    text("dialog-description",description+"\n\nRestore original unavailable:\n"+String(reason));
+                    return;
+                }
                 show("restore-action",true); el("restore-action").disabled=false;
                 text("dialog-description",item.manifest.description+"\n\nRestore original resets ALL changes to this file.");
                 el("restore-action").onclick=function () {

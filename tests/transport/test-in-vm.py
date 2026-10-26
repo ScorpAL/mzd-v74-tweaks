@@ -18,6 +18,7 @@ EMU=WORKSPACE/'mzd-cmu-emulator'
 def main():
  parser=argparse.ArgumentParser()
  mode=parser.add_mutually_exclusive_group()
+ mode.add_argument('--recovery',action='store_true',help='Reproduce pre-persistence List Beep recovery with original CMU tools')
  mode.add_argument('--probe',action='store_true')
  mode.add_argument('--packages',action='store_true',help='Run only persistent packages with the original CMU shell')
  mode.add_argument('--transport',action='store_true',help='Run HTTP/process checks without repeating the saved-package roundtrip')
@@ -39,7 +40,7 @@ def main():
  overlay={}
  def add(name,data,mode=0o644):overlay[name]=(stat.S_IFREG|mode,data.encode() if isinstance(data,str) else data)
  for path in (REPO/'usb/lib/lua-bridge').glob('*.lua'):add('experiment/'+path.name,path.read_bytes())
- for path in [HERE/name for name in ["backend.lua", "demo.sh", "start-helper.sh", "package-test.sh"]]:
+ for path in [HERE/name for name in ["backend.lua", "demo.sh", "start-helper.sh", "package-test.sh", "recovery-test.sh"]]:
   if path.is_file():add('experiment/tests/'+path.name,path.read_bytes(),0o755 if path.suffix=='.sh' else 0o644)
  for name in ['installer.sh','lib/manifest.sh','lib/jobs.sh','lib/transport.sh','ui/transport.html']:
   target='experiment/transport.html' if name=='ui/transport.html' else 'experiment/package/'+name
@@ -79,7 +80,16 @@ progress=true
    active=True
   elif active and line[:1] in [' ','-']:lines.append(line[1:])
  add('jci/gui/common/controls/List2/js/List2Ctrl.js','\n'.join(lines)+'\n')
- for applet in ['patch','diff','awk']:
+ if args.recovery:
+  with tarfile.open(WORKSPACE/'mcu_backup_20261021_203342/02_jci_complete.tar.gz') as archive:
+   add('experiment/original-list.js',archive.extractfile('jci/gui/common/controls/List2/js/List2Ctrl.js').read())
+  add('experiment/fixed-recovery.sh',(REPO/'usb/lib/recovery.sh').read_bytes())
+  add('experiment/baseline-recovery.sh',subprocess.check_output(['git','show','f88e9db:usb/lib/recovery.sh'],cwd=REPO))
+  add('experiment/old-beep.patch',subprocess.check_output(['git','show','4682605^:usb/tweaks/list-beep/assets/change.patch'],cwd=REPO))
+ applets=['patch','diff','awk']
+ if args.recovery:
+  applets += ['readlink','md5sum','cut','cmp','mktemp']
+ for applet in applets:
   add('experiment/bin/'+applet,'#!/bin/sh\nexec /usr/bin/qemu-arm -L /cmu /cmu/lib/ld-linux.so.3 --library-path /cmu/lib:/cmu/usr/lib /cmu/bin/busybox '+applet+' "$@"\n',0o755)
  add('jci/version.ini','JCI_SW_VER="MAZ_CMU-150_74.00.324"\n')
  for path in (REPO/'usb/lib/lua-bridge').glob('*.lua'):add('experiment/package/lib/lua-bridge/'+path.name,path.read_bytes())
@@ -108,7 +118,7 @@ export INSTALLER_LOG=/tmp/lua-logs
 lua() { /usr/bin/qemu-arm -L /cmu /cmu/lib/ld-linux.so.3 --library-path /cmu/lib:/cmu/usr/lib /cmu/usr/bin/lua "$@"; }
 cmush() { /usr/bin/qemu-arm -L /cmu /cmu/lib/ld-linux.so.3 --library-path /cmu/lib:/cmu/usr/lib /cmu/bin/busybox sh "$@"; }
 echo LUA_TEST_START
-"""+('lua /probe.lua\n' if args.probe else 'cmush /experiment/tests/package-test.sh\n' if args.packages else 'cd /experiment\nlua /experiment/tests/backend.lua\n')+"""result=$?
+"""+('lua /probe.lua\n' if args.probe else 'cmush /experiment/tests/recovery-test.sh\n' if args.recovery else 'cmush /experiment/tests/package-test.sh\n' if args.packages else 'cd /experiment\nlua /experiment/tests/backend.lua\n')+"""result=$?
 echo "LUA_TEST_RESULT=$result"
 sync
 poweroff -f
