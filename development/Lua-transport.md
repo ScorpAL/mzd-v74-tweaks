@@ -14,7 +14,11 @@ requests have a 30-second deadline and their own process group, with TERM then
 KILL after two seconds. Install/uninstall/restore/Run are never timed out here.
 
 Detailed HTTP/process diagnostics require logging=debug in installer.conf.
-Normal operation records startup/shutdown and concise process errors in RAM;
+Normal operation records startup/shutdown and failed worker output in RAM,
+including early preflight/Restore refusals before a worker report exists.
+stdout/stderr diagnostics are JSON-escaped and capped at 4096 bytes per stream;
+start failures are recorded too. Successful workers with stderr also retain that
+diagnostic output. Per-request/process traces still require debug logging;
 the launcher saves session logs on Exit/failure. Off disables USB diagnostics.
 
 The transport and styled menu are separate processes. The existing installer

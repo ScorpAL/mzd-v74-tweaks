@@ -117,7 +117,9 @@ local function request(client)
         if not result.started or result.exitCode~=0 or result.signal then
             io.stderr:write("Worker failed: "..label.." exit="..tostring(result.exitCode).." signal="..tostring(result.signal).."\n")
         end
-        if debugLog and (not result.started or result.exitCode~=0 or result.signal or #result.stderr>0) then
+        -- Keep refusal reasons even when preflight ended before a worker report.
+        -- Debug still controls per-request/process traces; error output is bounded.
+        if not result.started or result.exitCode~=0 or result.signal or #result.stderr>0 then
             io.stderr:write("diagnostic stdout="..protocol.string(result.stdout:sub(1,4096))..
                 " stderr="..protocol.string(result.stderr:sub(1,4096))..
                 " startError="..protocol.string(result.startError or "").."\n")
