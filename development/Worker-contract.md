@@ -135,5 +135,6 @@ the Restart choice even if an earlier operation requested one.
 Explicit Restart sends a session event over the existing shell bridge. The
 launcher waits for work, closes its own processes, saves logs and restores USB
 mount state before invoking `reboot`. Launcher/cleanup errors suppress reboot.
-There is no SSH dependency and no persistent installation registry. In the offline
+There is no SSH dependency. The restart recommendation belongs to the current
+launcher session; installation records are described in Persistent packages. In the offline
 preview this event is simulated; it never restarts the computer.

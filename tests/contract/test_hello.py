@@ -18,8 +18,8 @@ with tempfile.TemporaryDirectory(prefix='cmu-hello-') as folder:
     (base / 'usb/lib').mkdir()
     shutil.copyfile(ROOT / 'usb/lib/manifest.sh', base / 'usb/lib/manifest.sh')
     manifest = script.parent / 'manifest.conf'
-    shutil.copyfile(ROOT / 'examples/hello/manifest.conf', manifest)
-    source = (ROOT / 'examples/hello/run.sh').read_text(encoding='utf-8')
+    shutil.copyfile(ROOT / 'development/examples/hello/manifest.conf', manifest)
+    source = (ROOT / 'development/examples/hello/run.sh').read_text(encoding='utf-8')
     script.write_text(source.replace('/jci/version.ini', bp(version)), encoding='utf-8', newline='\n')
     def run(args, code, stdout=None):
         r = subprocess.run([SHELL, bp(script)] + args, capture_output=True, text=True, timeout=10)

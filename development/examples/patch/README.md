@@ -6,7 +6,7 @@ fingerprint, lock group and dependencies are declared only in the manifest.
 Add relevant tests.
 Do not install this unchanged example under a second ID: it changes List Beep.
 The folder must live under usb/tweaks/ to resolve ../../lib/ at runtime. This example
-is not automatically discovered. See CONTRIBUTING.md and wiki/Worker-contract.md.
+is not automatically discovered. See [Contributing](../../CONTRIBUTING.md) and [Worker contract](../../Worker-contract.md).
 
 This template uses the current persistent package controller. The controller
 saves the worker and its shared helpers before installation, then uses that

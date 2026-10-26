@@ -1,28 +1,11 @@
 # No More Disclaimer
 
-Automatically acknowledges the Mazda factory startup disclaimer on firmware
-74.00.324. It does not remove the installer's own startup notice with OK / Exit.
+Automatically acknowledge the Mazda factory startup disclaimer. The installer still shows its own parked-use notice.
 
-The diff replaces only the Disclaimer context in
-`/jci/gui/apps/system/js/systemApp.js`: NoCtrlTmplt, transparent background,
-logo surfaces, and the immediate DisposeIntroVideo / Global.Yes /
-NotifyDisclaimerEnd event sequence. The existing timer functions and unrelated
-contexts remain untouched. No full replacement systemApp.js is shipped.
+Supported firmware: **74.00.324**. Select the tweak in the installer, read its
+description, and choose **Install** or **Uninstall**. Restart the CMU after changing
+this tweak; the installer offers Restart when leaving.
 
-Ported from [Piotr Mocko's v74 implementation](https://github.com/piotrmocko/mzd-v74-tweaks/blob/8b329eb9ffc7ce322786b2ad9980d37b887f4adc/jci-mods/systemApp.js),
-based on the original MZD-AIO approach. The old commented dialog block is not
-copied into the new context; runtime behavior matches the active upstream block.
-
-Use `sh run.sh status`, `install` or `uninstall` from this folder in the complete
-USB layout. Settings are read only from manifest.conf. Other tweaks touching
-systemApp.js must use the same systemApp lock group. Uninstall reverses this
-diff and preserves unrelated modifications; it never restores the whole OEM
-file over later changes. The shared library owns backup validation, write/rollback
-verification, mount/watchdog cleanup and result reporting.
-
-Restart the CMU manually after changing this JavaScript tweak. No dialogs or
-reboot commands are executed by this worker. Status inspection is read-only.
-Partial/unsupported states follow the shared four-state contract.
-
-Contract, patch-behavior and full-OEM round-trip checks are separate from a
-vehicle test. This port still needs its own physical CMU confirmation.
+Normal uninstall removes this tweak while preserving unrelated changes where
+possible. If installation is refused, read the displayed reason. Restore originals
+resets all patches on affected files, not just this tweak.

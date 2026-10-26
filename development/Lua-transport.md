@@ -19,6 +19,6 @@ the launcher saves session logs on Exit/failure. Off disables USB diagnostics.
 
 The transport and styled menu are separate processes. The existing installer
 and tweak contract remains unchanged. No permanent transport daemon is installed.
-See tests/transport/ for the original-runtime VM tests and tests/runs/ for vehicle
-evidence. This implementation was inspired by the LuaSocket example in
+See [original-runtime tests](testing/Original-runtime.md) and
+[vehicle evidence](test-runs/README.md). This implementation was inspired by the LuaSocket example in
 AutoX System Tools; it does not use that example's CGI routing.

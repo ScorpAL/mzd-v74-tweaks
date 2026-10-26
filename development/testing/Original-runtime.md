@@ -14,5 +14,5 @@ HTTP authorization, separate streams, exit/signal handling, status deadlines,
 closed stdin, output limits, disconnected clients, installer calls and jobs.
 No physical vehicle connection or device write is made.
 
-Private runtime copies, VM images and raw logs remain in ignored `.test-cache/`.
+Private runtime copies, VM images and raw logs remain in ignored `tests/transport/.test-cache/`.
 Never commit those files. No Python or emulator is required on the CMU.

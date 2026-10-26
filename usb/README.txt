@@ -19,6 +19,6 @@ must be acknowledged with OK. Vehicle confirmation of this mapping is pending.
 Current included tweaks support firmware 74.00.324. The native Lua launcher,
 persistent SSH lifecycle and selected patches have been tested on a vehicle.
 The latest status batching and layout changes still need vehicle confirmation.
-See tests/runs/ for the exact tested scope and remaining checks.
+See the repository's user guide for operation and troubleshooting.
 Launcher logs: installer-logs/. Action reports: reports/diffpatch/.
 No temporary diagnostic SSH server or notebook public key is included.

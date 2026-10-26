@@ -26,7 +26,7 @@ jobs:
       - name: Test persistent packages, versions and owned paths
         run: python tests/contract/test_packages.py
       - name: Check shell errors
-        run: shellcheck --severity=error --shell=sh usb/autorun.sh usb/installer.sh usb/lib/*.sh usb/tweaks/*/run.sh usb/tweaks/*/reset.sh examples/hello/run.sh
+        run: shellcheck --severity=error --shell=sh usb/autorun.sh usb/installer.sh usb/lib/*.sh usb/tweaks/*/run.sh usb/tweaks/*/reset.sh development/examples/hello/run.sh
       - name: Install full static BusyBox test applets
         run: |
           sudo apt-get update -qq
