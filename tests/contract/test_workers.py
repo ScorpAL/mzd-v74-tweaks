@@ -45,7 +45,7 @@ def fixture(patch, installed=False):
 checks = 0
 for id_, runner in CASES.items():
     if os.environ.get('CMU_TEST_ONLY') and id_ != os.environ['CMU_TEST_ONLY']: continue
-    if runner in ['export-command', 'restore-command']: continue
+    if runner in ['export-command', 'restore-command', 'terminal-command']: continue
     assert runner == 'shared-patch', 'Add a dedicated runner for this implementation.'
     with tempfile.TemporaryDirectory(prefix='cmu-contract-') as directory:
         base = Path(directory); usb = base / 'usb'; usb.mkdir()
