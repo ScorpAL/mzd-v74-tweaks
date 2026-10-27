@@ -2,4 +2,5 @@
 - [Getting started](Getting-started)
 - [Using the installer](Using-the-installer)
 - [Backup and restore](Backup-and-restore)
+- [Terminal](Terminal)
 - [Troubleshooting](Troubleshooting)

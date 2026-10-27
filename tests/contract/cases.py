@@ -12,5 +12,6 @@ CASES = {
     'backup-jci': 'export-command',
     'logs-collector': 'export-command',
     'restore-originals': 'restore-command',
+    'terminal': 'terminal-command',
     'ssh': 'shared-patch',
 }
