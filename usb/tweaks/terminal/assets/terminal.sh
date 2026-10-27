@@ -23,7 +23,8 @@
 #   --log       diagnostics: a line per step in FILE (the bridge log goes next to it). Off by default
 # Environment: MZD_SURFACE and MZD_RETURN_SURFACE (see below); MZD_TMP, MZD_STOCK, MZD_IVI, MZD_TERMINAL_BIN, MZD_DBUS_SEND,
 # MZD_HMI_BUS replace the system paths (tests).
-# Exit code: 0 opened (with --wait: and closed), 1 closed by the time limit, 2 could not be opened, 3 already open.
+# Exit code: 0 opened (with --wait: and closed), 1 closed by the time limit, 2 could not be opened, 3 already open,
+# 4 closed, but the launcher's screen or the keyboard focus could not be returned (with --wait).
 
 SELF=$(readlink -f "$0")
 SCRIPT_DIR=$(dirname "$SELF")
@@ -46,6 +47,8 @@ TERMINAL_FONT_SIZE=20
 TERMINAL_ALPHA=          # window transparency, 0-255, for debugging. Empty = the stock value
 TERMINAL_TIMEOUT=0       # seconds; 0 = no time limit
 TERMINAL_OPEN_WAIT=15    # seconds to wait for the Terminal to appear
+HOOK_TRIES=3             # attempts of the hook to return the screen and the focus
+HOOK_GRACE=30            # seconds the hook gets after the Terminal is gone, before it is run here (longer than its attempts)
 
 # Set by the options
 BRIDGE_SRC="$SCRIPT_DIR/mzd-kbd-bridge.lua"
@@ -56,7 +59,8 @@ LOG=""
 
 # Temporary files, all in RAM. The bridge copy keeps its name: it shows in the process list.
 # RC: commands run first in the Terminal. HOOK: run when the Terminal is gone. RESULT: why the bridge ended (written by the
-# bridge). FLAG: written by the hook; the wait loop at the end waits for it.
+# bridge). FLAG: written by the hook, the wait loop at the end waits for it: the reason, or "return-failed" and the reason
+# if the screen or the focus could not be returned.
 LOCK="$MZD_TMP/mzd-terminal.lock"
 BRIDGE="$MZD_TMP/mzd-kbd-bridge"
 RC="$MZD_TMP/mzd-terminal-rc"
@@ -168,6 +172,7 @@ write_rc() {
 }
 
 # The hook returns the focus (and the launcher's screen) when the Terminal is gone.
+# A step that fails is tried again; if it never works, FLAG says so (return-failed) instead of reporting success.
 # It is a file of its own because the bridge's janitor runs it after the Terminal, and without --wait this script, are gone.
 write_hook() {
   {
@@ -176,18 +181,35 @@ write_hook() {
     echo 'say() { [ -n "'"$LOG"'" ] && echo "[$(date +%T)] terminal hook: $1" >> "'"$LOG"'"; return 0; }'
     echo 'say start'
 
+    # Up to HOOK_TRIES attempts; a step that worked is not repeated. No surface to show: that step counts as done.
+    echo 'surface_done=1; focus_done=0; try=0'
+    [ -n "$MZD_RETURN_SURFACE" ] && echo 'surface_done=0'
+
+    echo "while [ \$try -lt $HOOK_TRIES ]"
+    echo 'do'
+    echo '  try=$((try + 1))'
+
     if [ -n "$MZD_RETURN_SURFACE" ]
     then
       show_surface="'$MZD_DBUS_SEND' --address='$MZD_HMI_BUS' --type=method_call --print-reply --reply-timeout=2000"
       show_surface="$show_surface --dest=com.jci.nativeguictrl /com/jci/nativeguictrl"
       show_surface="$show_surface com.jci.nativeguictrl.SetRequiredSurfaces 'string:$MZD_RETURN_SURFACE' int16:0"
-      echo "$show_surface > /dev/null 2>&1; say \"surface rc=\$?\""
+      echo "  if [ \$surface_done -eq 0 ]; then $show_surface > /dev/null 2>&1; surface_rc=\$?; say \"surface rc=\$surface_rc (try \$try)\"; [ \$surface_rc -eq 0 ] && surface_done=1; fi"
     fi
 
-    echo "'$MZD_IVI' -f '$MZD_SURFACE' > /dev/null 2>&1; say \"focus rc=\$?\""
-    echo 'sleep 1'
-    echo "'$MZD_IVI' -f '$MZD_SURFACE' > /dev/null 2>&1; say \"focus again rc=\$?\""
-    echo "cat '$RESULT' > '$FLAG' 2>/dev/null || echo unknown > '$FLAG'"
+    # The focus is given twice: the second time after the screen has changed. One call that works is enough.
+    echo "  '$MZD_IVI' -f '$MZD_SURFACE' > /dev/null 2>&1; focus_rc=\$?; say \"focus rc=\$focus_rc (try \$try)\""
+    echo '  [ $focus_rc -eq 0 ] && focus_done=1'
+    echo '  sleep 1'
+    echo "  '$MZD_IVI' -f '$MZD_SURFACE' > /dev/null 2>&1; focus_rc=\$?; say \"focus again rc=\$focus_rc (try \$try)\""
+    echo '  [ $focus_rc -eq 0 ] && focus_done=1'
+    echo '  [ $surface_done -eq 1 ] && [ $focus_done -eq 1 ] && break'
+    echo '  sleep 1'
+    echo 'done'
+
+    echo 'result=$(cat "'"$RESULT"'" 2>/dev/null); result=${result:-unknown}'
+    echo 'if [ $surface_done -eq 1 ] && [ $focus_done -eq 1 ]; then echo "$result"; else echo "return-failed $result"; fi > "'"$FLAG"'"'
+    echo 'say "result: $(cat "'"$FLAG"'")"'
 
     if [ "$WAIT" -eq 0 ]
     then
@@ -279,27 +301,34 @@ wait_until_open() {
 }
 
 # Waits until the Terminal is closed and the hook has run. Normally the hook writes FLAG. After the time limit the Terminal is
-# closed here (stage 1, exit code 1); if no hook has run 20 s later, the hook is run here (stage 2, exit code 2).
+# closed here. If the Terminal has been gone for HOOK_GRACE s and there is still no FLAG (the helper failed), the hook is run
+# here. An open Terminal is not limited in time. Exit 4: the hook could not return the screen or the focus, or did not finish.
 wait_until_closed() {
   wait_started=$(date +%s)
-  stage=0
+  forced=0
+  closed_at=""
+  hook_here=0
   while [ ! -f "$FLAG" ]
   do
-    if [ "$stage" -eq 0 ] && [ "$TERMINAL_TIMEOUT" -gt 0 ] && [ $(( $(date +%s) - wait_started )) -ge $((TERMINAL_TIMEOUT + 5)) ]
+    if [ "$forced" -eq 0 ] && [ "$TERMINAL_TIMEOUT" -gt 0 ] && [ $(( $(date +%s) - wait_started )) -ge $((TERMINAL_TIMEOUT + 5)) ]
     then
       log "time is up, closing it"
-      stage=1
+      forced=1
       killall -q terminal 2>/dev/null
       sleep 1
       terminal_running && killall -q -9 terminal 2>/dev/null
+    fi
+
+    if [ -z "$closed_at" ] && ! terminal_running
+    then
       closed_at=$(date +%s)
     fi
 
-    if [ "$stage" -eq 1 ] && [ $(( $(date +%s) - closed_at )) -ge 20 ]
+    if [ -n "$closed_at" ] && [ "$hook_here" -eq 0 ] && [ $(( $(date +%s) - closed_at )) -ge "$HOOK_GRACE" ]
     then
-      log "the hook did not run in 20 s, running it here"
+      log "the hook did not run in $HOOK_GRACE s, running it here"
+      hook_here=1
       sh "$HOOK"
-      stage=2
       [ -f "$FLAG" ] || break
     fi
 
@@ -310,8 +339,11 @@ wait_until_closed() {
   log "closed (reason: ${reason:-none})"
   clean
 
-  [ "$stage" -eq 2 ] && exit 2
-  [ "$stage" -eq 1 ] && exit 1
+  case "$reason" in
+    ''|return-failed*) log "the launcher's screen or the keyboard focus was not returned"; exit 4 ;;
+  esac
+
+  [ "$forced" -eq 1 ] && exit 1
   [ "$reason" = time-limit ] && exit 1
   exit 0
 }

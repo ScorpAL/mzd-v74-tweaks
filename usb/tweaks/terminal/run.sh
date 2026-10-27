@@ -109,6 +109,7 @@ run_terminal() {
         0) printf 'Terminal closed.\n' ;;
         1) printf 'Terminal was closed by its time limit.\n' >&2; exit 1 ;;
         3) printf 'A Terminal is already open.\n' >&2; exit 1 ;;
+        4) printf 'Terminal closed, but the launcher screen or the keyboard focus could not be restored.\n' >&2; exit 1 ;;
         *) printf 'The Terminal could not be opened.\n' >&2; exit 1 ;;
     esac
 }

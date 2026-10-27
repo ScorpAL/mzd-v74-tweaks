@@ -11,6 +11,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import time
 
 from cases import CASES
 
@@ -225,7 +226,7 @@ def test_run_environment_and_exit_codes(cmu):
     assert "return: \n" in record.read_text() + "\n"
 
     # Any failure of terminal.sh is code 1 with a message: code 2 would lock the launcher
-    failures = [(1, "time limit"), (2, "could not be opened"), (3, "already open"), (7, "could not be opened")]
+    failures = [(1, "time limit"), (2, "could not be opened"), (3, "already open"), (4, "could not be restored"), (7, "could not be opened")]
     for opener_code, message in failures:
         stub_opener(opener_code)
         result = cmu.run(["run"], 1, "")
@@ -294,12 +295,86 @@ def test_terminal_sh_patches_stock_script(cmu):
     assert 'ivi-shell -a "Wayland Terminal":150 > /dev/null &' in patched["own-alpha"]
 
 
+def test_terminal_sh_recovers_from_a_failed_hook(cmu):
+    """The Terminal is gone and the janitor never ran the hook (the bridge is a stub, so nobody does): terminal.sh waits a
+    grace period and runs the hook itself. Failed screen or focus calls are tried again and, if they never work, end with
+    code 4 instead of a success. A stub `ls` makes the Terminal "run" while a marker file exists; the test removes it."""
+    write(cmu.bins / "ls", '#!/bin/sh\n[ -f "$TEST_TERMINAL_UP" ] && echo "lrwxrwxrwx 1 root root 0 Jan 1 00:00 /proc/1/exe -> /usr/bin/terminal"\nexit 0\n', 0o755)
+    # fails the first TEST_FAILS calls (counted in a file), then works; TEST_FAILS=all never works
+    counted_failure = (
+        "#!/bin/sh\n"
+        '[ "$TEST_FAILS" = all ] && exit 1\n'
+        'count=$(cat "$TEST_COUNT" 2>/dev/null || echo 0); echo $((count + 1)) > "$TEST_COUNT"\n'
+        '[ "$count" -lt "${TEST_FAILS:-0}" ] && exit 1\n'
+        "exit 0\n"
+    )
+    write(cmu.bins / "ivi-shell", counted_failure, 0o755)
+    write(cmu.bins / "dbus-send", counted_failure.replace("TEST_COUNT", "TEST_DBUS_COUNT").replace("TEST_FAILS", "TEST_DBUS_FAILS"), 0o755)
+    write(cmu.bridge(), STUB_BRIDGE, 0o755)
+    write(cmu.tweak / "assets/posixcompat.lua", "")
+
+    text = cmu.opener().read_text()
+    text = re.sub(r"^HOOK_GRACE=\d+", "HOOK_GRACE=2", text, count=1, flags=re.M)
+    own_opener = cmu.tweak / "assets/terminal-short.sh"
+    write(own_opener, text, 0o755)
+
+    def start(name, ivi_fails, dbus_fails):
+        folder = cmu.base / name
+        folder.mkdir()
+        own_tmp = cmu.base / (name + "-tmp")
+        own_tmp.mkdir()
+        up = folder / "terminal-up"
+        up.write_text("")
+        process = subprocess.Popen(
+            [SHELL, shell_path(own_opener), "--wait", "--log", shell_path(folder / "log")],
+            env=dict(
+                cmu.environment,
+                MZD_TMP=shell_path(own_tmp),
+                MZD_DBUS_SEND=shell_path(cmu.bins / "dbus-send"),
+                MZD_RETURN_SURFACE="10",
+                TEST_TERMINAL_UP=shell_path(up),
+                TEST_COUNT=shell_path(folder / "ivi-count"),
+                TEST_DBUS_COUNT=shell_path(folder / "dbus-count"),
+                TEST_FAILS=ivi_fails,
+                TEST_DBUS_FAILS=dbus_fails,
+            ),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return process, folder, up, own_tmp
+
+    # name: (failing ivi-shell calls, the stock script makes the first one; expected exit code; text expected in the log)
+    cases = {
+        "all-works": ("0", 0, "the hook did not run in 2 s"),
+        "focus-works-on-retry": ("3", 0, "focus rc=0 (try 2)"),
+        "focus-never-works": ("all", 4, "was not returned"),
+    }
+    runs = {name: start(name, fails, "0") + (code, expected) for name, (fails, code, expected) in cases.items()}
+    # a surface request that never works: the stub dbus-send is replaced by one that fails
+    runs["surface-never-works"] = start("surface-never-works", "0", "all") + (4, "surface rc=1 (try 3)")
+
+    for name, (process, folder, up, own_tmp, code, expected) in runs.items():
+        for _ in range(100):
+            if (folder / "log").exists() and "terminal: open" in (folder / "log").read_text():
+                break
+            time.sleep(0.1)
+        up.unlink()
+        process.communicate(timeout=60)
+        log = (folder / "log").read_text()
+        assert process.returncode == code, (name, process.returncode, log)
+        assert expected in log, (name, log)
+        assert "running it here" in log, (name, log)
+        assert not any(own_tmp.iterdir()), (name, list(own_tmp.iterdir()))
+
+
 TESTS = [
     test_usage_and_arguments,
     test_status_unavailable,
     test_run_environment_and_exit_codes,
     test_terminal_sh_refuses,
     test_terminal_sh_patches_stock_script,
+    test_terminal_sh_recovers_from_a_failed_hook,
 ]
 
 for test in TESTS:
@@ -307,6 +382,6 @@ for test in TESTS:
         test(FakeCmu(Path(directory)))
 
 print(
-    "TERMINAL_CONTRACT_PASSED: %d groups: usage, status, refusals, environment and exit codes, patched stock script."
+    "TERMINAL_CONTRACT_PASSED: %d groups: usage, status, refusals, environment and exit codes, patched stock script, failed hook."
     % len(TESTS)
 )

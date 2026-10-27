@@ -35,6 +35,16 @@ The stock file is never changed. A copy is patched in memory and the pieces belo
    **hook** that `terminal.sh` wrote: the hook shows the launcher's screen again and gives it the keyboard focus. `terminal.sh`
    sees the hook's result, cleans up and exits, `run.sh` prints "Terminal closed." and the launcher shows the result.
 
+## When the return fails
+
+The hook tries each step (the launcher's screen, the focus) up to 3 times and writes the result to the flag file. If a step
+never works, the flag says `return-failed` instead of reporting success, `terminal.sh` exits with code 4 and `run.sh` reports
+"Terminal closed, but the launcher screen or the keyboard focus could not be restored." (exit code 1, see above).
+
+If the Terminal is gone and the flag does not appear within 30 s (the janitor or the hook failed), `terminal.sh` runs the hook
+itself, so a failed helper cannot leave Exit disabled. If that does not complete either, the result is code 4 as well. An open
+Terminal has no time limit: the wait for the flag only starts to count once the Terminal process is gone.
+
 ## The held key
 
 The `devices` service of the CMU keeps one global held key: while a key is down, the keys, touch and mouse motion of every
@@ -83,5 +93,6 @@ US layout only. The pty size is copied once at the start. Touch is disabled whil
 bridge, so a hung bridge is not closed by HOME.
 
 `tests/contract/test_terminal.py` covers `run.sh` (status, refusals, environment, exit codes) and what `terminal.sh` refuses
-or patches, with stub programs. The bridge, the pty, the Terminal window and the return of the focus and of the launcher's
+or patches, and the recovery above (a missing flag after the Terminal is gone, a failing screen or focus call, a retry that
+works), with stub programs. The bridge, the pty, the Terminal window and the return of the focus and of the launcher's
 screen need a vehicle.
