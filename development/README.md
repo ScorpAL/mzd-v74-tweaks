@@ -15,6 +15,8 @@ Runtime source remains in `usb/`, executable tests in `tests/`, and tools in `to
 - [Confirmed recovery of an unmanaged patch target](Target-recovery.md)
 - [Shared runtime](Shared-runtime.md)
 - [Native Lua transport](Lua-transport.md)
+- [CMU BusyBox: the version to target and its limits](CMU-BusyBox.md)
+  -  [CMU BusyBox applet reference](CMU-BusyBox-reference.md)
 
 ## Examples
 
