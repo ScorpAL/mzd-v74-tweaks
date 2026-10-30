@@ -29,8 +29,10 @@ Do not introduce a second legacy launcher or generated runtime tree.
    firmware, commit, actions, expected/actual results and limits. Never commit
    keys, raw dumps or personal logs.
 
-Runtime shell is POSIX sh and must work with the CMU BusyBox; notably grep has
-no `-x` and patch has no `--dry-run`. There are no checksum sidecars for project files. Keep `oem_backup_md5` in the
+Runtime shell is POSIX sh and must work with the [CMU BusyBox 1.19.2](CMU-BusyBox.md)
+and [CMU BusyBox applet reference](CMU-BusyBox-reference.md).
+`grep` has no `-x` and `patch` has no `--dry-run`. 
+There are no checksum sidecars for project files. Keep `oem_backup_md5` in the
 manifest: it identifies the original vehicle backup, not the current patched file.
 Read [the manifest format](Manifest-format.md) before adding settings.
 
