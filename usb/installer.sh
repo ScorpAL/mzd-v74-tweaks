@@ -45,6 +45,17 @@ case "${1:-}" in
       set -- $ids
     fi
     mzd_package_statuses "$HERE" "$@" ;;
+  uninstall-check)
+    [ "$#" = 2 ] && valid_id "$2" || fail 'Expected a tweak ID.'
+    . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1
+    entry="$MZD_PACKAGE_STORE/$2"
+    [ -d "$entry" ] && [ ! -L "$entry" ] || fail 'No saved uninstaller is available.'
+    [ ! -d "$MZD_PACKAGE_LOCK" ] || fail 'Another package operation or Restore is active.'
+    mzd_package_check "$entry" && mzd_package_dependents "$entry" || exit 1
+    state=$(mzd_package_state "$entry") || fail 'Saved installation state is invalid.'
+    mzd_manifest_load "$entry/package/tweaks/$2/manifest.conf" || exit 1
+    case " $ACTIONS " in *" uninstall "*) ;; *) fail 'Saved package does not support Uninstall.' ;; esac
+    printf 'available\t%s\t%s\n' "$VERSION" "$state" ;;
   package-info)
     [ "$#" = 2 ] && valid_id "$2" || fail 'Expected a tweak ID.'
     . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1

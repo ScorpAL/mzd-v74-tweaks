@@ -14,17 +14,17 @@ class Node {
   getElementsByTagName(tag){let all=[];for(const n of this.children){if(n.tagName===tag)all.push(n);all=all.concat(n.getElementsByTagName(tag));}return all;}
 }
 function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,includeSettings,includeBundle){
-  const recovery={},restoreOutcomes={},recoveryHints={},savedSettings={},preflight={};
+  const recovery={},restoreOutcomes={},recoveryHints={},savedSettings={},preflight={},savedUninstall={};
   const nodes={},jobs=[],calls=[],timers=[],intervals=[],listeners={},states={'restore-originals':'uninstalled','backup-jci':'uninstalled','logs-collector':'uninstalled',hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
   if(includeSettings)states['settings-example']='uninstalled';
   if(includeBundle)states['bundle-example']='uninstalled';
   const doc={activeElement:null,createElement(t){return new Node(t,doc);},getElementById(id){return nodes[id]||walk(nodes.app).concat(walk(nodes.overlay)).find(n=>n.id===id)||null;}};
   function walk(n){return [n].concat(n.children.flatMap(walk));}
-  for(const id of ['app','header','system-info','tabs','content','cards','empty','footer-status','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-settings','dialog-meta','dialog-output','dialog-actions','back','restore-action','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
-  for(const id of ['refresh','exit','back','restore-action','action','result-ok'])nodes[id].tagName='button';
+  for(const id of ['app','header','system-info','tabs','content','cards','empty','footer-status','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-settings','dialog-meta','dialog-output','dialog-actions','back','uninstall-action','restore-action','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
+  for(const id of ['refresh','exit','back','uninstall-action','restore-action','action','result-ok'])nodes[id].tagName='button';
   nodes.app.appendChild(nodes.header);nodes.header.appendChild(nodes.refresh);nodes.header.appendChild(nodes.exit);nodes.app.appendChild(nodes.tabs);nodes.app.appendChild(nodes.content);nodes.content.appendChild(nodes.cards);
-  nodes.overlay.appendChild(nodes.dialog);nodes.dialog.appendChild(nodes['dialog-body']);nodes['dialog-body'].appendChild(nodes['dialog-settings']);nodes.dialog.appendChild(nodes['dialog-actions']);for(const id of ['back','restore-action','action','result-ok'])nodes['dialog-actions'].appendChild(nodes[id]);
-  nodes['restore-action'].className='hidden';
+  nodes.overlay.appendChild(nodes.dialog);nodes.dialog.appendChild(nodes['dialog-body']);nodes['dialog-body'].appendChild(nodes['dialog-settings']);nodes.dialog.appendChild(nodes['dialog-actions']);for(const id of ['back','uninstall-action','restore-action','action','result-ok'])nodes['dialog-actions'].appendChild(nodes[id]);
+  nodes['restore-action'].className='hidden';nodes['uninstall-action'].className='hidden';
   nodes.overlay.className='hidden';nodes['result-ok'].className='primary hidden';
   nodes.transport.contentWindow={postMessage(job,origin){assert.equal(origin,'http://127.0.0.1:1234');jobs.push(job);}};
   const win={installerConfig:{origin:'http://127.0.0.1:1234',token:'secret'},innerWidth:800,innerHeight:480,setTimeout(fn){timers.push(fn);},setInterval(fn){intervals.push(fn);},addEventListener(n,f){listeners[n]=f;}};
@@ -36,6 +36,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,inclu
   function process(job){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
     if(a[0]==='event')return ok();
+    if(a[0]==='uninstall-check')return savedUninstall[a[1]]||ok('',1,'No saved uninstaller is available.');
     if(a[0]==='restore-check')return recovery[a[1]]?ok(recovery[a[1]]):ok('',1,'No verified original backup is available.');
     if(a[0]==='restore-original') {const code=restoreOutcomes[a[1]]||0;if(!code){states[a[1]]='uninstalled';delete recovery[a[1]];}return ok(code?'':'Original file restored. You can now retry Install.',code,code===2?'Restore cleanup failed. Do NOT reboot.':code?'Restore refused: file changed.':'');}
     if(a[0]==='preflight-info')return preflight[a[1]]||ok();
@@ -64,7 +65,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,inclu
   event({type:'shell-ready',token:'secret'});pump();
   if(!keepDisclaimer){nodes.action.onclick();pump();}
   const click=id=>{const n=doc.getElementById(id);assert(n,'missing '+id);assert(!n.disabled,'disabled '+id);n.onclick();};
-  return {nodes,doc,jobs,calls,states,outcomes,reasons,recovery,restoreOutcomes,recoveryHints,savedSettings,preflight,timers,intervals,pump,click,ok,event};
+  return {nodes,doc,jobs,calls,states,outcomes,reasons,recovery,restoreOutcomes,recoveryHints,savedSettings,preflight,savedUninstall,timers,intervals,pump,click,ok,event};
 }
 let x=boot();
 assert.equal(x.calls.filter(a=>a[0]==='statuses').length,1);
@@ -291,6 +292,40 @@ x.click('tweak-main-menu-loop');x.pump();
 assert.match(x.nodes['dialog-meta'].textContent,/0\.7\.0 installed \/ [0-9]+\.[0-9]+\.[0-9]+ on USB/);
 assert.equal(x.nodes.action.textContent,'Uninstall');
 console.log('SAVED_VERSION_UI_PASSED: installed and USB versions shown in one row, existing uninstall action retained.');
+
+// A broken receipt may still contain a verified matching uninstaller.
+function brokenSaved(reply) {
+ const y=boot();y.states.ssh='broken';y.reasons.ssh='Saved installation state: failed.';
+ if(reply)y.savedUninstall.ssh=reply;
+ y.click('refresh');y.pump();
+ assert(!y.calls.some(a=>a[0]==='uninstall-check'),'Eligibility must not slow the menu scan');
+ y.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();
+ y.click('tweak-ssh');return y;
+}
+x=brokenSaved();assert(x.nodes['uninstall-action'].className.includes('hidden'));x.pump();
+assert(x.nodes['uninstall-action'].className.includes('hidden'));assert.equal(x.nodes.action.textContent,'Retry status');
+assert.match(x.nodes['dialog-description'].textContent,/Saved uninstall unavailable:[\s\S]*No saved uninstaller/);
+x=brokenSaved();x.savedUninstall.ssh=x.ok('available\t0.8.3\tfailed\n');x.pump();
+assert(!x.nodes['uninstall-action'].className.includes('hidden'));assert.equal(x.doc.activeElement,x.nodes.back);
+assert.equal(x.nodes.action.textContent,'Retry status');assert.match(x.nodes['dialog-meta'].textContent,/0\.8\.3 saved \/ .* on USB/);
+assert(!x.calls.some(a=>a[0]==='action'&&a[2]==='uninstall'));
+controller('onkeydown',77);assert.equal(x.doc.activeElement,x.nodes['uninstall-action']);controller('onkeydown',13);
+assert(x.nodes['uninstall-action'].className.includes('hidden'));x.pump();
+assert(x.calls.some(a=>a[0]==='action'&&a[1]==='ssh'&&a[2]==='uninstall'));
+assert.equal(x.nodes['dialog-state'].textContent,'Uninstall completed');x.click('result-ok');x.pump();
+assert.equal(x.states.ssh,'uninstalled');assert(!x.calls.some(a=>a[0]==='action'&&a[2]==='install'));
+x.click('tweak-ssh');assert.equal(x.nodes.action.textContent,'Install');assert(x.nodes['uninstall-action'].className.includes('hidden'));
+for(const raw of ['available\tbad\tfailed\n','available\t0.8.3\tfailed','available\t0.8.3\tfailed\nextra\n']) {
+ x=brokenSaved();x.savedUninstall.ssh=x.ok(raw);x.pump();assert(x.nodes['uninstall-action'].className.includes('hidden'));
+}
+x=brokenSaved();x.savedUninstall.ssh=x.ok('available\t0.8.3\tfailed\n');
+const staleUninstall=x.jobs.find(j=>j.args[1]==='uninstall-check');x.jobs.splice(x.jobs.indexOf(staleUninstall),1);
+x.click('back');x.event({type:'shell-result',token:'secret',id:staleUninstall.id,result:x.savedUninstall.ssh});
+assert(x.nodes['uninstall-action'].className.includes('hidden'));
+x=brokenSaved();x.savedUninstall.ssh=x.ok('available\t0.8.3\tfailed\n');x.pump();x.outcomes.ssh=2;
+x.click('uninstall-action');x.pump();assert.match(x.nodes['dialog-description'].textContent,/Do NOT reboot/);
+x.click('result-ok');assert.equal(x.nodes.refresh.disabled,true);
+console.log('BROKEN_SAVED_UNINSTALL_UI_PASSED: detail-only eligibility, saved version, controller access, refusal/stale guards, cleanup and critical failure.');
 
 function recoveryOffer(raw='available\t'+'a'.repeat(32)+'\t/jci/test.js\n') {
   const r=boot();r.recovery['list-beep']=raw;r.states['list-beep']='broken';r.reasons['list-beep']='An existing modification was detected.';

@@ -35,7 +35,7 @@ button:focus{outline:3px solid #fff;outline-offset:-4px}button:active{background
 #dialog-output{margin:8px 0 0;font:15px/22px monospace;white-space:pre-wrap;word-wrap:break-word;color:#e5e6eb}
 #dialog-actions{position:absolute;left:24px;right:24px;bottom:18px;height:47px;border-top:1px solid #393b44;padding-top:12px}
 #dialog-actions button{width:180px;height:46px;font-size:20px}#back{float:left}#action,#result-ok{float:right}
-#restore-action{position:absolute;left:50%;top:13px;margin-left:-90px}
+#restore-action,#uninstall-action{position:absolute;left:50%;top:13px;margin-left:-90px}
 .primary{background:#a01830;border-color:#ee3e5b}.primary:disabled{background:#3e222b}
 #transport{position:absolute;left:0;top:0;width:1px;height:1px;border:0;visibility:hidden}
 

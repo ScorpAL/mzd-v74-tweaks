@@ -3,6 +3,7 @@
     "use strict";
     var frame = document.getElementById("transport"), manifests = window.previewManifests;
     var states = {"list-beep":"installed", "list-loop":"unavailable", "shorter-delay":"broken"};
+    if (window.previewBrokenUninstallDemo) states.ssh = "broken";
     if (window.previewRecoveryDemo) states["no-more-disclaimer"] = "broken";
     if (window.previewRecoveryDeniedDemo) states["list-beep"] = "unavailable";
     var jobs = {}, nextJob = 0, sample = 0;
@@ -44,6 +45,8 @@
             return ok("PREVIEW ONLY: Original file restored. You can now retry Install. No files were changed.");
         }
         if (args[0] === "package-info") return ok(states[id] === "installed" ? "0.7.0\tinstalled\n" : "");
+        if (args[0] === "uninstall-check") return (id === "shorter-delay" || (id === "ssh" && window.previewBrokenUninstallDemo)) && states[id] === "broken" ?
+            ok("available\t"+(id === "ssh" ? "0.8.3" : "0.8.1")+"\tfailed\n") : ok("",1,"No verified saved uninstaller is available.");
         if (args[0] === "preflight-info") return ok("");
         if (args[0] === "settings-info") {
             var rows=(manifests[id]||"").split("\n"),schema=[],values=[];

@@ -149,3 +149,18 @@ status verifies absence without requiring prerequisites for a fresh install.
 This avoids stranding a saved removal after a separate native module changes.
 Registered shim library bytes are immutable: another package cannot patch that
 same payload path. Independently managed loader files remain shareable patches.
+
+## Removing a failed saved installation from the menu
+
+Opening a broken tweak detail view requests `installer.sh uninstall-check ID`.
+This is read-only and checks the snapshot inventory, recorded ownership/settings,
+state, uninstall action and dependents without executing its worker. It returns
+`available<TAB>VERSION<TAB>STATE` only when a saved uninstaller can be offered.
+A refused check leaves the button hidden and explains why. It does not run during
+menu-wide status collection.
+
+The detail dialog keeps Retry status and adds Uninstall with the saved version.
+Choosing Uninstall uses the existing controller action and recorded worker;
+mutation guards run again, and unknown payloads or failures remain blocked.
+After successful verified removal, acknowledge the result, reopen the tweak and
+Install the USB version. There is no automatic reinstall or receipt deletion.

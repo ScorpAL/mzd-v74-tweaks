@@ -38,8 +38,12 @@ when the action runs. The status table below describes the deep worker result.
 
 All four are successful inspections (exit 0). unavailable and broken MUST explain
 why on stderr. Other successful states normally leave stderr empty. The launcher
-shows the reason and provides Retry status instead of install/uninstall/run for
-blocked states. Broken is not an automatic repair permission.
+shows the reason and provides Retry status instead of install/run for blocked
+states. A broken managed package may additionally offer Uninstall after the
+read-only `installer.sh uninstall-check ID` verifies its saved package, state,
+uninstall contract and dependents. This never selects the replacement USB worker;
+the normal removal action repeats its existing checks. Broken is not an automatic
+repair permission.
 
 An inspection failure (for example unreadable target, invalid manifest or missing assets, missing
 probe tool or concurrent change) returns 1, empty stdout and a reason on stderr.

@@ -87,6 +87,7 @@ esac
     def action(id_,name,code=0,output=None):return call(['action',id_,name],code,output)
     def text():return events.read_text() if events.exists() else ''
     folder,target=make('alpha')
+    call(['uninstall-check','alpha'],1)
     # No receipt means uninstalled even if a target exists. No old patch/hash
     # probing and no command worker may run during menu status collection.
     write(target,'unmanaged content\n')
@@ -150,6 +151,13 @@ esac
     r=call(['statuses','alpha']);assert 'alpha\tbroken\t' in r.stdout and 'state: failed' in r.stdout
     assert 'phase=install' in r.stdout and 'exit_code=1' in r.stdout and 'fixture installation failed: permission denied' in r.stdout
     assert 'permission denied' in (entry/'failure.log').read_text()
+    snapshot={p.relative_to(entry):p.read_bytes() for p in entry.rglob('*') if p.is_file()}
+    before=text();r=call(['uninstall-check','alpha']);assert r.stdout.startswith('available\t') and r.stdout.endswith('\tfailed\n')
+    assert text()==before and snapshot=={p.relative_to(entry):p.read_bytes() for p in entry.rglob('*') if p.is_file()}
+    saved_manifest=entry/'package/tweaks/alpha/manifest.conf';saved_manifest.write_text(saved_manifest.read_text()+'# tampered\n')
+    call(['uninstall-check','alpha'],1)
+    saved_manifest.write_bytes(snapshot[Path('package/tweaks/alpha/manifest.conf')])
+    lock.mkdir();call(['uninstall-check','alpha'],1);lock.rmdir()
     (base/'fail-install').unlink();action('alpha','uninstall')
     write(base/'fail-verification','yes');action('alpha','install',2)
     r=call(['statuses','alpha']);assert 'installed-verification' in r.stdout and 'expected state=installed' in r.stdout and 'actual state=uninstalled' in r.stdout
@@ -166,6 +174,7 @@ esac
     shared_dir=base/'shared-directory';shared_dir.mkdir()
     make('alpha',extra='create\t'+bp(shared_dir)+'\n');action('alpha','install')
     make('beta',target=shared_dir/'child');action('beta','install')
+    call(['uninstall-check','alpha'],1)
     action('alpha','uninstall',1);action('beta','uninstall');action('alpha','uninstall')
     # A new owner cannot take over a path already patched by another tweak.
     make('alpha');action('alpha','install')

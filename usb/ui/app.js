@@ -13,7 +13,7 @@
     function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
     function setDialogMode(mode) {
         dialogMode=mode;
-        if (mode!=="details") {show("restore-action",false);clear(el("dialog-settings"));}
+        if (mode!=="details") {show("restore-action",false);show("uninstall-action",false);clear(el("dialog-settings"));}
     }
     function trim(value) { return String(value || "").replace(/^\s+|\s+$/g, ""); }
     function supported(item, action) { return item.manifest.actions.indexOf(action) !== -1; }
@@ -73,6 +73,7 @@
         el("refresh").disabled = !accepted || scanning || operating || closing || locked;
         el("exit").disabled = operating || closing;
         el("restore-action").disabled = scanning || locked || operating || closing;
+        el("uninstall-action").disabled = scanning || locked || operating || closing;
         if (dialogMode === "restart") el("action").disabled = scanning || locked || operating || closing;
         var nodes = el("tabs").getElementsByTagName("button"), i;
         for (i = 0; i < nodes.length; i++) nodes[i].disabled = operating || closing;
@@ -374,7 +375,7 @@
     function openDetails(item) {
         if (operating || closing || !item) return;
         var view=++detailView;
-        show("restore-action",false);
+        show("restore-action",false); show("uninstall-action",false); item.savedRemovable=false;
         text("back","Back"); el("back").onclick=closeDialog;
         el("dialog-body").className = "bottom-info";
         selected = item; returnFocusId = "tweak-" + item.id; setDialogMode("details");
@@ -436,11 +437,31 @@
                 el("action").disabled=scanning||locked||item.invalid||!item.settingsReady||blocked||!supported(item,action);
             });
         }
+        // Offer the recorded uninstaller for a broken package, never a new USB
+        // worker or an inferred ownership claim. The action rechecks all guards.
+        if (!scanning && !locked && !item.invalid && item.state==="broken" && item.manifest.type!=="command" && supported(item,"uninstall")) {
+            call(["uninstall-check",item.id],function (error,result) {
+                if (view!==detailView || dialogMode!=="details" || selected!==item || operating || closing || scanning || locked) return;
+                var info=result && typeof result.stdout==="string" && !result.stdoutTruncated && !result.stderrTruncated && result.stdout.match(/^available\t([0-9]+\.[0-9]+\.[0-9]+)\t(installed|prepared|installing|uninstalling|restoring|failed)\n$/);
+                if (error || resultError(result) || !info) {
+                    text("dialog-description",description+"\n\nSaved uninstall unavailable:\n"+String(error || resultError(result) || "Invalid saved-uninstall response."));
+                    return;
+                }
+                item.savedRemovable=true;
+                if (versionMeta && info[1]!==item.manifest.version) versionMeta.textContent=info[1]+" saved / "+item.manifest.version+" on USB";
+                show("restore-action",false);show("uninstall-action",true);el("uninstall-action").disabled=false;
+                text("dialog-description",item.manifest.description+"\n\nRemove the saved installation (version "+info[1]+") before trying again. Its recorded uninstaller will be used. You can install the USB version after successful removal.");
+                el("uninstall-action").onclick=function () {
+                    if (el("uninstall-action").disabled || view!==detailView || dialogMode!=="details" || selected!==item || operating || closing || scanning || locked) return;
+                    perform(item,"uninstall");
+                };
+            });
+        }
         // Inspect only the opened detail view, never the whole menu. Leave it
         // visible and preserve focus; eligibility adds a button, not a dialog.
         if (!scanning && !locked && !item.invalid && item.manifest.type==="patch" && item.state!=="installed" && supported(item,"install")) {
             call(["restore-check",item.id],function (error,result) {
-                if (error || view!==detailView || dialogMode!=="details" || selected!==item || operating || closing || scanning || locked) return;
+                if (error || view!==detailView || dialogMode!=="details" || selected!==item || operating || closing || scanning || locked || item.savedRemovable) return;
                 var offer=originalRestoreOffer(result);
                 if (!offer) {
                     var reason=error || resultError(result) || "The restore check returned an invalid response.";
