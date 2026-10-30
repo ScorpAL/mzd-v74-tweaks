@@ -18,6 +18,17 @@ set, including BusyBox workers, patch combinations, SSH supervision, exports,
 Restore, restart, metrics, logging, Lua syntax and disclaimer behavior. Run checks
 appropriate to the change; a green check does not replace review or vehicle tests.
 
+## BusyBox worker fixtures
+
+The container job mounts a full static BusyBox at `/usr/local/bin/busybox`.
+Alpine's default build does not include every required applet, including `patch`.
+When `CMU_TEST_BUSYBOX=1` is set, every dedicated worker fixture must expose the
+mounted binary through applet symlinks in its private command directory. Keep
+mock mount, watchdog and service commands separate; never replace those guards.
+The cluster-language fixture follows the same setup as the shared patch workers.
+A modern BusyBox CI pass supplements the original CMU tool checks; it does not
+prove compatibility with every option on the vehicle's older BusyBox.
+
 ## Offline styling preview on Windows
 
 Open `tools/preview.cmd` to rebuild and open a disposable local HTML preview.

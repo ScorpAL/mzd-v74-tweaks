@@ -42,6 +42,14 @@ with tempfile.TemporaryDirectory(prefix='cmu-cluster-') as temporary:
         write(p,s)
     write(version,'JCI_SW_VER="MAZ_CMU-150_74.00.324"\n');write(gpio,'0\n')
     write(mounts,f'/dev/root {bp(internal)} relfs ro 0 0\n/dev/data {bp(persist)} relfs rw 0 0\n/dev/usb {bp(usb)} vfat rw 0 0\n')
+    # The minimal CI image omits patch/diff; use the mounted full BusyBox,
+    # just like the other worker fixtures, without replacing mutation guards.
+    if os.environ.get('CMU_TEST_BUSYBOX'):
+        busybox=shutil.which('busybox')
+        assert busybox, 'BusyBox requested but missing.'
+        for name in ['awk','patch','diff','cp','cmp','md5sum','cut','readlink','dirname',
+                     'mktemp','mkdir','rm','cat','grep','od','dd']:
+            os.symlink(busybox,bins/name)
     write(bins/'sync','#!/bin/sh\nexit 0\n')
     write(bins/'df','#!/bin/sh\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted\\nfixture 1000000 1 900000 1%% internal\\n"\n')
     write(bins/'mount','#!/bin/sh\nexit 0\n')
