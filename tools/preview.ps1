@@ -1,5 +1,6 @@
-param([switch]$NoOpen)
+param([switch]$NoOpen, [switch]$Settings, [switch]$Restore, [switch]$RestoreDenied)
 $ErrorActionPreference = 'Stop'
+if ($Settings -and ($Restore -or $RestoreDenied)) { throw 'Choose either -Settings or -Restore.' }
 $repo = Split-Path $PSScriptRoot -Parent
 $ui = Join-Path $repo 'usb/ui'
 $manifests = @{}
@@ -9,6 +10,8 @@ Get-ChildItem (Join-Path $repo 'usb/tweaks') -Directory | ForEach-Object {
         $manifests[$_.Name] = [System.IO.File]::ReadAllText($manifest)
     }
 }
+$exampleManifest = Join-Path $repo 'development/examples/settings/manifest.conf'
+$manifests['settings-example'] = [System.IO.File]::ReadAllText($exampleManifest)
 # Embed the real UI and manifests in a disposable, offline browser preview.
 $json = ConvertTo-Json -InputObject $manifests -Compress
 $json = $json.Replace('<', '\u003c')
@@ -16,10 +19,14 @@ $html = [System.IO.File]::ReadAllText((Join-Path $ui 'index-template.html'))
 $css = [System.IO.File]::ReadAllText((Join-Path $ui 'style.css'))
 $app = [System.IO.File]::ReadAllText((Join-Path $ui 'app.js'))
 $mock = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot 'preview-bridge.js'))
+$settingsScript = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot 'preview-navigation.js'))
+$settingsDemo = if ($Settings) { 'true' } else { 'false' }
+$recoveryDeniedDemo = if ($RestoreDenied) { 'true' } else { 'false' }
+$recoveryDemo = if ($Restore -or $RestoreDenied) { 'true' } else { 'false' }
 $html = $html.Replace('<link rel="stylesheet" href="style.css">', "<style>$css</style>")
 $html = $html.Replace('@ORIGIN@', 'preview').Replace('@TOKEN@', 'preview')
-$html = $html.Replace('<script src="app.js"></script>', "<script>window.previewManifests=$json;</script><script>$mock</script><script>$app</script>")
-$html = $html.Replace('<title>CMU Tweaks</title>', '<title>CMU Tweaks - OFFLINE PREVIEW</title>')
+$html = $html.Replace('<script src="app.js"></script>', "<script>window.previewManifests=$json;window.previewSettingsDemo=$settingsDemo;window.previewRecoveryDemo=$recoveryDemo;window.previewRecoveryDeniedDemo=$recoveryDeniedDemo;</script><script>$settingsScript</script><script>$mock</script><script>$app</script>")
+$html = $html.Replace('<title>MZD Tweaks</title>', '<title>MZD Tweaks - OFFLINE PREVIEW</title>')
 $previewPath = Join-Path ([System.IO.Path]::GetTempPath()) 'cmu-tweaks-preview.html'
 [System.IO.File]::WriteAllText($previewPath, $html, (New-Object System.Text.UTF8Encoding($false)))
 Write-Output $previewPath

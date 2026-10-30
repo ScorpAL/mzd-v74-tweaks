@@ -4,10 +4,27 @@ mzd_restore_catalog() (
     while IFS= read -r manifest; do
         mzd_manifest_load "$manifest" || exit 1
         [ "$FIRMWARE" = "$RESTORE_FIRMWARE" ] || continue
-        if [ "$TYPE" != command ]; then
+        if [ -n "${COMPONENTS:-}" ]; then
+            mzd_components catalog || exit 1
+        elif [ "$TYPE" != command ]; then
             printf '%s\t%s\t%s\n' "$APP" "$ORIGINAL" "$LOCK"
+            if [ -n "${SHIM_PATH:-}" ]; then
+                for pair in $SHIM_EXTRA_TARGETS; do printf '%s\t%s\t%s\n' "${pair%:*}" "${pair##*:}" "$LOCK"; done
+            fi
         fi
     done < "$MZD_REPORT/manifests"
+)
+# Hooks use their own saved schema/configuration, never new USB defaults.
+mzd_restore_run_hook() (
+    hook=$1; action=$2
+    unset MZD_SETTINGS_FILE
+    config="${hook%/tweaks/*}/settings.conf"
+    if [ -f "$config" ] || [ -L "$config" ]; then
+        . "${hook%/tweaks/*}/lib/settings.sh" || exit 1
+        mzd_settings_check "${hook%/*}/manifest.conf" "$config" || exit 1
+        MZD_SETTINGS_FILE=$config; export MZD_SETTINGS_FILE
+    fi
+    sh "$hook" "$action"
 )
 mzd_restore_hooks() (
     while IFS= read -r manifest; do
@@ -98,7 +115,7 @@ mzd_restore_run() {
         mzd_system_lock "$lock" || exit 1
     done < "$MZD_REPORT/target-locks"
     while IFS= read -r hook; do
-        sh "$hook" check || mzd_fail 'A managed tweak cannot be safely reset; see the report.'
+        mzd_restore_run_hook "$hook" check || mzd_fail 'A managed tweak cannot be safely reset; see the report.'
     done < "$MZD_REPORT/hooks"
     mzd_export_progress 0 0 'Finding internal .org backups'
     # USB/navigation FAT filesystems and RAM/pseudo mounts are never scanned.
@@ -174,7 +191,7 @@ mzd_restore_run() {
         hook_id=$(basename "$(dirname "$hook")")
         MZD_RESET_DIR="$MZD_REPORT/reset-hooks/$hook_id"; export MZD_RESET_DIR
         mkdir "$MZD_RESET_DIR" || exit 1
-        sh "$hook" prepare; hook_code=$?
+        mzd_restore_run_hook "$hook" prepare; hook_code=$?
         [ "$hook_code" != 2 ] || mzd_fatal 'Managed-service cleanup is incomplete. Do NOT reboot; backups were retained.'
         [ "$hook_code" = 0 ] || mzd_fail 'Managed-service preparation failed. Backups were retained.'
     done < "$MZD_REPORT/hooks"
@@ -200,7 +217,7 @@ mzd_restore_run() {
     while IFS= read -r hook; do
         hook_id=$(basename "$(dirname "$hook")")
         MZD_RESET_DIR="$MZD_REPORT/reset-hooks/$hook_id"; export MZD_RESET_DIR
-        sh "$hook" finish; hook_code=$?
+        mzd_restore_run_hook "$hook" finish; hook_code=$?
         [ "$hook_code" != 2 ] || mzd_fatal 'Files restored, but service cleanup is incomplete. Do NOT reboot; backups were retained.'
         [ "$hook_code" = 0 ] || mzd_fail 'Files restored, but managed-tweak cleanup failed. Remaining .org backups were retained; rerun Restore originals.'
     done < "$MZD_REPORT/hooks"

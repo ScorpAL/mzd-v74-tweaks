@@ -63,7 +63,7 @@ PATCH_FILE="$HERE/assets/change.patch"
 # --- SSH payload preparation ------------------------------------------------
 # SSH owns a resources directory in addition to its patched startup hook.
 # Keep service provisioning separate from the generic file-patching workflow.
-SERVICE=/tmp/mnt/resources/mzd-v74-tweaks/ssh
+SERVICE=/tmp/mnt/resources/mzd-tweaks/ssh
 PAYLOAD="$HERE/assets"
 PATCH_MODE=additive
 
@@ -74,7 +74,7 @@ resources_rw() {
 # The additive hook must occur exactly once, as an adjacent marker/command pair.
 # Some patch versions otherwise accept inserting the same block a second time.
 ssh_hook_ok() {
-    awk -v command='sh /tmp/mnt/resources/mzd-v74-tweaks/ssh/service.sh boot >/dev/null 2>&1 &' '
+    awk -v command='sh /tmp/mnt/resources/mzd-tweaks/ssh/service.sh boot >/dev/null 2>&1 &' '
       $0 == "# MZD v74 SSH" {markers++; adjacent=1; next}
       $0 == command {commands++; if (adjacent) pairs++}
       {adjacent=0}
@@ -93,7 +93,7 @@ mzd_worker_patch() {
         awk '$0=="# MZD v74 SSH" {getline; next} {print}' "$APP" > "$hook_dir/off" || exit 1
     else
         cp "$APP" "$hook_dir/off" || exit 1
-        awk 'NR==1 {print; print "# MZD v74 SSH"; print "sh /tmp/mnt/resources/mzd-v74-tweaks/ssh/service.sh boot >/dev/null 2>&1 &"; next} {print}' "$APP" > "$hook_dir/on" || exit 1
+        awk 'NR==1 {print; print "# MZD v74 SSH"; print "sh /tmp/mnt/resources/mzd-tweaks/ssh/service.sh boot >/dev/null 2>&1 &"; next} {print}' "$APP" > "$hook_dir/on" || exit 1
     fi
     diff -u "$hook_dir/off" "$hook_dir/on" > "$hook_dir/raw.patch"
     diff_code=$?
@@ -140,7 +140,7 @@ mzd_status_target_missing() {
 }
 
 mzd_check_status() {
-    if [ "$1" = uninstalled ] && { grep -qF '# MZD v74 SSH' "$APP" || grep -qF '/mzd-v74-tweaks/ssh/service.sh' "$APP"; }; then
+    if [ "$1" = uninstalled ] && { grep -qF '# MZD v74 SSH' "$APP" || grep -qF '/mzd-tweaks/ssh/service.sh' "$APP"; }; then
         mzd_status_emit broken 'The SSH startup hook is duplicated or incomplete.'
     elif [ "$1" = uninstalled ] && ! awk 'NR==1 {valid=($0=="#!/bin/sh")} END {exit !valid}' "$APP"; then
         # The insertion-only patch has little context. Some host patch tools

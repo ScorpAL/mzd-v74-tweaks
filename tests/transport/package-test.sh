@@ -7,17 +7,27 @@ cp -R /experiment/package/lib "$BASE/usb/lib"
 sed -e 's|^id=.*|id=fixture|' -e 's|^version=.*|version=1.0.0|' \
     -e "s|^target=.*|target=$BASE/target|" \
     /experiment/package/tweaks/list-beep/manifest.conf > "$BASE/usb/tweaks/fixture/manifest.conf"
+cat >> "$BASE/usb/tweaks/fixture/manifest.conf" <<'SETTINGS'
+settings=limit
+setting.limit.type=number
+setting.limit.label=Limit
+setting.limit.default=20
+setting.limit.min=5
+setting.limit.max=100
+setting.limit.step=5
+SETTINGS
 cat > "$BASE/usb/tweaks/fixture/run.sh" <<'WORKER'
 #!/bin/sh
 set -eu
 HERE=$(CDPATH= cd "$(dirname "$0")" && pwd)
 ROOT=$(CDPATH= cd "$HERE/../.." && pwd)
 . "$ROOT/lib/fixture.sh"
+. "$ROOT/lib/settings.sh"
 TARGET=/tmp/original-shell-packages/target
 case "$1" in
 status) if [ ! -e "$TARGET" ]; then echo uninstalled; elif [ "$(cat "$TARGET")" = "$VALUE" ]; then echo installed; else echo broken; fi ;;
-install) printf '%s\n' "$VALUE" > "$TARGET" ;;
-uninstall) [ "$(cat "$TARGET")" = "$VALUE" ]; rm "$TARGET" ;;
+install) printf '%s\n' "$VALUE" > "$TARGET"; mzd_setting limit > "$TARGET.options" ;;
+uninstall) [ "$(cat "$TARGET")" = "$VALUE" ]; [ "$(cat "$TARGET.options")" = "$(mzd_setting limit)" ]; rm "$TARGET" "$TARGET.options" ;;
 *) exit 1 ;;
 esac
 WORKER
@@ -38,7 +48,8 @@ chmod 700 "$BASE/bin/df" "$BASE/bin/sync"
 PATH="$BASE/bin:$PATH"; export PATH
 . "$BASE/usb/lib/manifest.sh"
 . "$BASE/usb/lib/packages.sh"
-mzd_package_action "$BASE/usb" fixture install
+mzd_package_action "$BASE/usb" fixture install limit=35
+[ "$(cat "$BASE/target.options")" = 35 ]
 [ "$(cat "$BASE/target")" = original ]
 [ "$(mzd_package_action "$BASE/usb" fixture status)" = installed ]
 # If an uninstall accidentally sourced the replacement USB helper, it would fail.

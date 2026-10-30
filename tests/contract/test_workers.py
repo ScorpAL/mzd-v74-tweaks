@@ -12,6 +12,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import sys
 from cases import CASES
 
 ROOT = Path(__file__).resolve().parents[2] / 'usb'
@@ -45,6 +46,9 @@ def fixture(patch, installed=False):
 checks = 0
 for id_, runner in CASES.items():
     if os.environ.get('CMU_TEST_ONLY') and id_ != os.environ['CMU_TEST_ONLY']: continue
+    if runner == 'component-bundle':
+        subprocess.run([sys.executable,str(Path(__file__).with_name('test_cluster_language.py'))],check=True)
+        continue
     if runner in ['export-command', 'restore-command']: continue
     assert runner == 'shared-patch', 'Add a dedicated runner for this implementation.'
     with tempfile.TemporaryDirectory(prefix='cmu-contract-') as directory:
@@ -288,11 +292,11 @@ esac
             persist=base/'persist';persist.mkdir()
             mounts.write_text(mounts.read_text()+'mock '+bp(persist)+' relfs rw 0 0\n',encoding='utf-8',newline='\n')
             package_lib=usb/'lib/packages.sh'
-            package_source=package_lib.read_text().replace('MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-v74-tweaks/installed','MZD_PACKAGE_STORE='+shlex.quote(bp(persist/'installed'))).replace('MZD_PACKAGE_MOUNT=/tmp/mnt/data_persist','MZD_PACKAGE_MOUNT='+shlex.quote(bp(persist))).replace('MZD_PACKAGE_LOCK=/tmp/mzd-packages.lock','MZD_PACKAGE_LOCK='+shlex.quote(bp(base/'packages.lock')))
+            package_source=package_lib.read_text().replace('MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-tweaks/installed','MZD_PACKAGE_STORE='+shlex.quote(bp(persist/'installed'))).replace('MZD_PACKAGE_MOUNT=/tmp/mnt/data_persist','MZD_PACKAGE_MOUNT='+shlex.quote(bp(persist))).replace('MZD_PACKAGE_LOCK=/tmp/mzd-packages.lock','MZD_PACKAGE_LOCK='+shlex.quote(bp(base/'packages.lock')))
             write(package_lib,package_source)
             if id_=='ssh':
                 paths=worker/'managed-paths.tsv'
-                write(paths,paths.read_text().replace('/tmp/mnt/resources/mzd-v74-tweaks/ssh',bp(service)))
+                write(paths,paths.read_text().replace('/tmp/mnt/resources/mzd-tweaks/ssh',bp(service)))
             adapter=usb/'installer.sh'
             write(adapter,(ROOT/'installer.sh').read_text().replace('#!/bin/sh\n','#!/bin/sh\nPATH='+shlex.quote(bp(bins)+':/usr/bin:/bin')+'\nexport PATH\n',1))
             def managed(action, expected=None):

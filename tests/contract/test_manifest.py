@@ -47,6 +47,14 @@ with tempfile.TemporaryDirectory(prefix='cmu-manifest-') as temporary:
         ('bad OEM hash', original.replace('oem_backup_md5=', 'oem_backup_md5=bad'), False),
         ('control character', original + '# tab\t\n', False),
     ]
+    shim=(ROOT/'development/examples/shim/manifest.conf').read_text()
+    cases += [('shim metadata',shim,True),
+              ('partial shim',original+'shim_asset=assets/a.so\n',False),
+              ('shim path traversal',shim.replace('shim_asset=assets/shim-example.so','shim_asset=assets/../bad.so'),False),
+              ('wrong shim owner',shim.replace('/shims/shim-example/','/shims/other/'),False),
+              ('bad shim service',shim.replace('shim_service=jciMMUI','shim_service=jciMMUI;reboot'),False),
+              ('bad extra hash',shim.replace(':030e918f5d6edcd62d196ee37b86fe99',':bad'),False),
+              ('duplicate shim target',shim.replace('shim_extra_targets=', 'shim_extra_targets=/jci/sm/sm.conf:74d9fc389b74fb01d0cfc2615a82c782 '),False)]
     for label, data, valid in cases:
         file.write_bytes(data.encode('utf-8'))
         try:

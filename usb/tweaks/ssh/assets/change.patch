@@ -3,5 +3,5 @@
 @@ -1,2 +1,4 @@
  #!/bin/sh
 +# MZD v74 SSH
-+sh /tmp/mnt/resources/mzd-v74-tweaks/ssh/service.sh boot >/dev/null 2>&1 &
++sh /tmp/mnt/resources/mzd-tweaks/ssh/service.sh boot >/dev/null 2>&1 &
  

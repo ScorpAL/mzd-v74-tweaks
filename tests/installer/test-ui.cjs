@@ -13,20 +13,22 @@ class Node {
   focus(){this.doc.activeElement=this;}
   getElementsByTagName(tag){let all=[];for(const n of this.children){if(n.tagName===tag)all.push(n);all=all.concat(n.getElementsByTagName(tag));}return all;}
 }
-function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
-  const recovery={},restoreOutcomes={},recoveryHints={};
+function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,includeSettings,includeBundle){
+  const recovery={},restoreOutcomes={},recoveryHints={},savedSettings={},preflight={};
   const nodes={},jobs=[],calls=[],timers=[],intervals=[],listeners={},states={'restore-originals':'uninstalled','backup-jci':'uninstalled','logs-collector':'uninstalled',hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
+  if(includeSettings)states['settings-example']='uninstalled';
+  if(includeBundle)states['bundle-example']='uninstalled';
   const doc={activeElement:null,createElement(t){return new Node(t,doc);},getElementById(id){return nodes[id]||walk(nodes.app).concat(walk(nodes.overlay)).find(n=>n.id===id)||null;}};
   function walk(n){return [n].concat(n.children.flatMap(walk));}
-  for(const id of ['app','header','system-info','tabs','content','cards','empty','footer-status','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-meta','dialog-output','dialog-actions','back','restore-action','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
+  for(const id of ['app','header','system-info','tabs','content','cards','empty','footer-status','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-settings','dialog-meta','dialog-output','dialog-actions','back','restore-action','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
   for(const id of ['refresh','exit','back','restore-action','action','result-ok'])nodes[id].tagName='button';
   nodes.app.appendChild(nodes.header);nodes.header.appendChild(nodes.refresh);nodes.header.appendChild(nodes.exit);nodes.app.appendChild(nodes.tabs);nodes.app.appendChild(nodes.content);nodes.content.appendChild(nodes.cards);
-  nodes.overlay.appendChild(nodes.dialog);nodes.dialog.appendChild(nodes['dialog-actions']);for(const id of ['back','restore-action','action','result-ok'])nodes['dialog-actions'].appendChild(nodes[id]);
+  nodes.overlay.appendChild(nodes.dialog);nodes.dialog.appendChild(nodes['dialog-body']);nodes['dialog-body'].appendChild(nodes['dialog-settings']);nodes.dialog.appendChild(nodes['dialog-actions']);for(const id of ['back','restore-action','action','result-ok'])nodes['dialog-actions'].appendChild(nodes[id]);
   nodes['restore-action'].className='hidden';
   nodes.overlay.className='hidden';nodes['result-ok'].className='primary hidden';
   nodes.transport.contentWindow={postMessage(job,origin){assert.equal(origin,'http://127.0.0.1:1234');jobs.push(job);}};
   const win={installerConfig:{origin:'http://127.0.0.1:1234',token:'secret'},innerWidth:800,innerHeight:480,setTimeout(fn){timers.push(fn);},setInterval(fn){intervals.push(fn);},addEventListener(n,f){listeners[n]=f;}};
-  const ctx={window:win,document:doc,escape,decodeURIComponent,WaylandManager:function(){this.SetRequiredSurfaces=(...a)=>calls.push(['visible',...a]);this.SetKeyboardFocus=(...a)=>calls.push(['focus',...a]);}};
+  const ctx={window:win,document:doc,escape,unescape,encodeURIComponent,decodeURIComponent,WaylandManager:function(){this.SetRequiredSurfaces=(...a)=>calls.push(['visible',...a]);this.SetKeyboardFocus=(...a)=>calls.push(['focus',...a]);}};
   vm.runInNewContext(fs.readFileSync(path.join(ROOT,'ui/app.js'),'utf8'),ctx);
   function event(data,origin='http://127.0.0.1:1234',source=nodes.transport.contentWindow){listeners.message({source,origin,data});}
   function ok(stdout='',code=0,stderr=''){return {started:true,exitCode:code,signal:null,stdout,stderr,startError:'',stdoutTruncated:false,stderrTruncated:false};}
@@ -36,13 +38,21 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
     if(a[0]==='event')return ok();
     if(a[0]==='restore-check')return recovery[a[1]]?ok(recovery[a[1]]):ok('',1,'No verified original backup is available.');
     if(a[0]==='restore-original') {const code=restoreOutcomes[a[1]]||0;if(!code){states[a[1]]='uninstalled';delete recovery[a[1]];}return ok(code?'':'Original file restored. You can now retry Install.',code,code===2?'Restore cleanup failed. Do NOT reboot.':code?'Restore refused: file changed.':'');}
+    if(a[0]==='preflight-info')return preflight[a[1]]||ok();
+    if(a[0]==='settings-info') {
+      if(a[1]==='bundle-example'){const text=fs.readFileSync(path.join(ROOT,'../development/examples/bundle/manifest.conf'),'utf8');return ok('settings_saved='+(states[a[1]]==='installed'?'true':'false')+'\n'+text.slice(text.indexOf('settings='))+'value.hud_display_language=off\n');}
+      if(a[1]!=='settings-example')return ok('settings_saved=true\nsettings=\n');
+      const text=fs.readFileSync(path.join(ROOT,'../development/examples/settings/manifest.conf'),'utf8');
+      const defs=text.slice(text.indexOf('settings='));
+      return ok('settings_saved='+(savedSettings[a[1]]?'true':'false')+'\n'+defs+'value.log_limit_mb='+(savedSettings[a[1]]||'20')+'\nvalue.compress=true\nvalue.profile=stock\n');
+    }
     if(a[0]==='package-info')return ok(states[a[1]]==='installed'?'0.7.0\tinstalled\n':'');
     if(a[0]==='metrics')return ok('cpu\t1000\t700\t'+(a[1]==='0'?'-':'30')+'\ndisk\t/\t42\ndisk\t/tmp/mnt/resources\t18\ndisk\t/tmp/mnt/sdb1\t80\n');
     if(a[0]==='start-run'){background=a[1];polls=0;return ok('job.test01\n');}
     if(a[0]==='job-status'){polls++;return ok(polls===1?'running\n0\n0\nCreating archive\n':polls===2?'running\n5\n10\nCopying files\n':'done\n'+(outcomes[background]||0)+'\n');}
     if(a[0]==='job-output')return ok(a[2]==='stdout'?'Saved to USB: /mnt/sdb1/exports/'+background:'');
-    if(a[0]==='list')return ok('list-beep\nmain-menu-loop\nssh\nbroken\n'+(includeCommand?'hello\n':'')+(includeExports?'backup-jci\nlogs-collector\nrestore-originals\n':''));
-    if(a[0]==='manifest'){if(a[1]==='broken')return ok('{broken');let m=fs.readFileSync(a[1]==='hello'?path.join(ROOT,'../development/examples/hello/manifest.conf'):path.join(ROOT,'tweaks',a[1],'manifest.conf'),'utf8');if(manifestVersion)m=m.replace(/^contract_version=.*$/m,'contract_version='+manifestVersion);return ok(m);}
+    if(a[0]==='list')return ok((includeBundle?'bundle-example\n':'')+(includeSettings?'settings-example\n':'')+'list-beep\nmain-menu-loop\nssh\nbroken\n'+(includeCommand?'hello\n':'')+(includeExports?'backup-jci\nlogs-collector\nrestore-originals\n':''));
+    if(a[0]==='manifest'){if(a[1]==='bundle-example')return ok(fs.readFileSync(path.join(ROOT,'../development/examples/bundle/manifest.conf'),'utf8'));if(a[1]==='settings-example')return ok(fs.readFileSync(path.join(ROOT,'../development/examples/settings/manifest.conf'),'utf8'));if(a[1]==='broken')return ok('{broken');let m=fs.readFileSync(a[1]==='hello'?path.join(ROOT,'../development/examples/hello/manifest.conf'):path.join(ROOT,'tweaks',a[1],'manifest.conf'),'utf8');if(manifestVersion)m=m.replace(/^contract_version=.*$/m,'contract_version='+manifestVersion);return ok(m);}
     if(a[0]==='statuses')return ok(a[1].split(' ').map(id=>id+'\t'+(states[id]==='error'?'error':states[id])+'\t'+(states[id]==='error'?'Patch state is ambiguous.':['unavailable','broken'].includes(states[id])?(reasons[id]||''):'' )+'\n').join(''));
     if(a[2]==='status')return states[a[1]]==='error'?ok('',1,'Patch state is ambiguous.'):ok(states[a[1]]+'\n',0,['unavailable','broken'].includes(states[a[1]])?(reasons[a[1]]||''):'');
     const code=outcomes[a[1]]||0;
@@ -54,7 +64,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports){
   event({type:'shell-ready',token:'secret'});pump();
   if(!keepDisclaimer){nodes.action.onclick();pump();}
   const click=id=>{const n=doc.getElementById(id);assert(n,'missing '+id);assert(!n.disabled,'disabled '+id);n.onclick();};
-  return {nodes,doc,jobs,calls,states,outcomes,reasons,recovery,restoreOutcomes,recoveryHints,timers,intervals,pump,click,ok,event};
+  return {nodes,doc,jobs,calls,states,outcomes,reasons,recovery,restoreOutcomes,recoveryHints,savedSettings,preflight,timers,intervals,pump,click,ok,event};
 }
 let x=boot();
 assert.equal(x.calls.filter(a=>a[0]==='statuses').length,1);
@@ -145,7 +155,7 @@ console.log('MULTICONTROLLER_PASSED: rotate, tilt up/down, Back on release, brow
 
 // Exercise the production manifest parser directly with literal text values.
 const appSource=fs.readFileSync(path.join(ROOT,'ui/app.js'),'utf8');
-const manifestFunction=appSource.slice(appSource.indexOf('    function parseManifest('),appSource.indexOf('    function discover('));
+const manifestFunction=appSource.slice(appSource.indexOf('    function settingDefinitions('),appSource.indexOf('    function discover('));
 const parseConf=vm.runInNewContext('(function(){function trim(v){return String(v||" ").replace(/^\\s+|\\s+$/g,"");}'+manifestFunction+';return parseManifest;}())');
 const rawConf=fs.readFileSync(path.join(ROOT,'tweaks/list-beep/manifest.conf'),'utf8');
 const literal='Text = # "quotes" $(not_a_command) `not_a_command`';
@@ -329,3 +339,51 @@ assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');x.click('re
 assert.equal(x.nodes['dialog-title'].textContent,'No List Beep');assert(!x.nodes['restore-action'].className.includes('hidden'));
 assert(!x.calls.some(a=>a[0]==='restore-original'));
 console.log('TARGET_RECOVERY_UI_PASSED: conditional detail button, preserved focus, no attempted install, explicit confirmation, stale-view guards and critical failures.');
+
+// Generic controls use real manifest declarations, not a preview-only widget.
+x=boot(null,false,false,false,true);
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();
+x.click('tweak-settings-example');assert(x.nodes.action.disabled);x.pump();
+assert.match(x.nodes['dialog-settings'].textContent,/Log storage limit/);
+x.click('setting-log_limit_mb-plus');x.click('setting-compress-toggle');x.click('setting-profile-choice');
+x.click('action');x.pump();
+assert.deepEqual(Array.from(x.calls.find(a=>a[0]==='start-run')),['start-run','settings-example','log_limit_mb=25','compress=false','profile=medium']);
+x=boot(null,false,false,false,true);x.states['settings-example']='installed';x.savedSettings['settings-example']='35';x.click('refresh');x.pump();
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();x.click('tweak-settings-example');x.pump();
+assert.match(x.nodes['dialog-settings'].textContent,/INSTALLED SETTINGS/);assert.match(x.nodes['dialog-settings'].textContent,/35 MB/);
+assert.equal(x.nodes['dialog-settings'].getElementsByTagName('button').length,0);
+// Closing/reopening discards a draft; stale replies cannot populate another dialog.
+x=boot(null,false,false,false,true);x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();
+x.click('tweak-settings-example');x.pump();x.click('setting-log_limit_mb-minus');x.click('back');x.click('tweak-settings-example');x.pump();
+assert.match(x.nodes['dialog-settings'].textContent,/20 MB/);
+controller('onkeydown',78);assert(x.doc.activeElement.id.indexOf('setting-')===0);
+console.log('SETTINGS_UI_PASSED: generic fields, parameter arrays, saved read-only values, draft cancellation and controller access.');
+
+assert.equal(parseConf('shim-example',fs.readFileSync(path.join(ROOT,'../development/examples/shim/manifest.conf'),'utf8')).shim_service,'jciMMUI');
+
+// Compatibility belongs to details, not the fast scan; warnings remain actionable.
+x=boot(null,false,false,false,false,true);
+assert(!x.calls.some(a=>a[0]==='preflight-info'));
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();
+x.preflight['bundle-example']=x.ok('block\tNo compatible HUD.\n',1);
+x.click('tweak-bundle-example');assert(x.nodes.action.disabled);x.pump();
+assert(x.nodes.action.disabled);assert.match(x.nodes['dialog-description'].textContent,/Cannot install: No compatible HUD/);
+x.click('back');x.preflight['bundle-example']=x.ok('warning\tNo extra function in this region.\n');
+x.click('tweak-bundle-example');x.pump();assert(!x.nodes.action.disabled);
+assert.match(x.nodes['dialog-description'].textContent,/Note: No extra function/);
+// A stale blocked result must not lock the newly opened view.
+x.click('back');x.click('tweak-bundle-example');const stale=x.jobs.splice(0);x.click('back');
+x.click('tweak-bundle-example');for(const job of stale)x.event({type:'shell-result',token:'secret',id:job.id,result:x.ok('block\tStale HUD failure.\n',1)});
+x.pump();assert(!x.nodes.action.disabled);assert.doesNotMatch(x.nodes['dialog-description'].textContent,/Stale HUD/);
+x.click('back');x.states['bundle-example']='installed';x.click('refresh');x.pump();
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();
+const before=x.calls.filter(a=>a[0]==='preflight-info').length;
+x.click('tweak-bundle-example');x.pump();assert.equal(x.nodes.action.textContent,'Uninstall');assert(!x.nodes.action.disabled);
+assert.equal(x.calls.filter(a=>a[0]==='preflight-info').length,before,'Hardware failure must not block saved uninstall');
+console.log('COMPATIBILITY_UI_PASSED: detail-only bounded queries, hard block, soft warning, stale replies and unrestricted saved uninstall.');
+
+const clusterManifest=parseConf('cluster-language',fs.readFileSync(path.join(ROOT,'tweaks/cluster-language/manifest.conf'),'utf8'));
+assert.equal(clusterManifest.settingDefs[0].key,'hud_display_language');
+assert.equal(clusterManifest.settingDefs[0].default,'english');
+assert.equal(clusterManifest.components,'components.tsv');
+console.log('CLUSTER_MANIFEST_UI_PASSED: real test tweak defaults and generic settings schema.');

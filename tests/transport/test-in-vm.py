@@ -18,6 +18,9 @@ EMU=WORKSPACE/'mzd-cmu-emulator'
 def main():
  parser=argparse.ArgumentParser()
  mode=parser.add_mutually_exclusive_group()
+ mode.add_argument('--cluster',action='store_true',help='Install/remove the real cluster-language package using original CMU workers/tools on isolated targets')
+ mode.add_argument('--shims',action='store_true',help='Exercise shim loader/ELF guards with original CMU tools')
+ mode.add_argument('--settings',action='store_true',help='Run only settings validation with the original CMU shell/awk')
  mode.add_argument('--recovery',action='store_true',help='Reproduce pre-persistence List Beep recovery with original CMU tools')
  mode.add_argument('--probe',action='store_true')
  mode.add_argument('--packages',action='store_true',help='Run only persistent packages with the original CMU shell')
@@ -40,7 +43,7 @@ def main():
  overlay={}
  def add(name,data,mode=0o644):overlay[name]=(stat.S_IFREG|mode,data.encode() if isinstance(data,str) else data)
  for path in (REPO/'usb/lib/lua-bridge').glob('*.lua'):add('experiment/'+path.name,path.read_bytes())
- for path in [HERE/name for name in ["backend.lua", "demo.sh", "start-helper.sh", "package-test.sh", "recovery-test.sh"]]:
+ for path in [HERE/name for name in ["backend.lua", "demo.sh", "start-helper.sh", "package-test.sh", "recovery-test.sh", "settings-test.sh", "shim-test.sh", "cluster-test.sh"]]:
   if path.is_file():add('experiment/tests/'+path.name,path.read_bytes(),0o755 if path.suffix=='.sh' else 0o644)
  for name in ['installer.sh','lib/manifest.sh','lib/jobs.sh','lib/transport.sh','ui/transport.html']:
   target='experiment/transport.html' if name=='ui/transport.html' else 'experiment/package/'+name
@@ -65,6 +68,12 @@ progress=true
  import tarfile
  with tarfile.open(WORKSPACE/'mcu_backup_20261021_203342/03_root_system.tar.gz') as archive:
   add('cmu/bin/busybox',archive.extractfile('bin/busybox').read(),0o755)
+ for path in (REPO/'development/examples/settings').rglob('*'):
+  if path.is_file():add('experiment/package/tweaks/settings-example/'+path.relative_to(REPO/'development/examples/settings').as_posix(),path.read_bytes(),0o755 if path.suffix=='.sh' else 0o644)
+ for path in (REPO/'development/examples/shim').rglob('*'):
+  if path.is_file():add('experiment/package/tweaks/shim-example/'+path.relative_to(REPO/'development/examples/shim').as_posix(),path.read_bytes(),0o755 if path.suffix=='.sh' else 0o644)
+ for path in (REPO/'development/examples/bundle').rglob('*'):
+  if path.is_file():add('experiment/package/tweaks/bundle-example/'+path.relative_to(REPO/'development/examples/bundle').as_posix(),path.read_bytes(),0o755 if path.suffix=='.sh' else 0o644)
  for name in ['lib/export.sh','tweaks/backup-jci/run.sh','tweaks/backup-jci/manifest.conf']:
   add('experiment/package/'+name,(REPO/'usb'/name).read_bytes(),0o755 if name.endswith('.sh') else 0o644)
  for folder in ['lib','tweaks']:
@@ -86,7 +95,40 @@ progress=true
   add('experiment/fixed-recovery.sh',(REPO/'usb/lib/recovery.sh').read_bytes())
   add('experiment/baseline-recovery.sh',subprocess.check_output(['git','show','f88e9db:usb/lib/recovery.sh'],cwd=REPO))
   add('experiment/old-beep.patch',subprocess.check_output(['git','show','4682605^:usb/tweaks/list-beep/assets/change.patch'],cwd=REPO))
+ if args.shims:
+  with tarfile.open(WORKSPACE/'mcu_backup_20261021_203342/02_jci_complete.tar.gz') as a:
+   for name in ['sm.conf','sm_WCP.conf']:add('experiment/oem-'+name,a.extractfile('jci/sm/'+name).read())
+  header=bytearray(52);header[:7]=b'\x7fELF\x01\x01\x01';header[16:20]=b'\x03\x00\x28\x00';header[37]=2;header[39]=5
+  add('experiment/fixture-arm.so',bytes(header))
+ if args.cluster:
+  import hashlib
+  stock='<services>\n<service name="jciMMUI" path="/jci/mmui/example.so">\n<dependency value="other"/>\n</service>\n<service name="jciBLMSettings" path="/jci/settings/svcjciblmsettings.so">\n<dependency value="other"/>\n</service>\n</services>\n'
+  with tarfile.open(WORKSPACE/'mcu_backup_20261021_203342/02_jci_complete.tar.gz') as a:
+   configs={n:a.extractfile('jci/sm/'+n).read() for n in ['sm.conf','sm_WCP.conf']}
+  digests={n:hashlib.md5(data).hexdigest() for n,data in configs.items()}
+  replacements={'/tmp/mnt/data_persist':'/fixture/persist','/proc/mounts':'/fixture/mounts','/jci/version.ini':'/fixture/version','/sys/class/gpio/Watchdog\\ Disable/value':'/fixture/watchdog','/jci/sm/sm.conf':'/fixture/internal/sm.conf','/jci/sm/sm_WCP.conf':'/fixture/internal/sm_WCP.conf','74d9fc389b74fb01d0cfc2615a82c782':digests['sm.conf'],'030e918f5d6edcd62d196ee37b86fe99':digests['sm_WCP.conf'],'/jci/settings/svcjciblmsettings.so':'/fixture/internal/settings.so','/jci/lib/libjcivbssettingsclient.so':'/fixture/internal/client.so','44c28a25cfdf2e26777e497aa6a84f80':hashlib.md5(b'settings fixture\n').hexdigest(),'66dc19a8be330a8a50f919dc36f6245e':hashlib.md5(b'client fixture\n').hexdigest(),'MZD_SHIM_ROOT=/':'MZD_SHIM_ROOT=/fixture/internal'}
+  for path in (REPO/'usb/lib').glob('*'):
+   if not path.is_file():continue
+   data=path.read_text()
+   for old,new in replacements.items():data=data.replace(old,new)
+   add('fixture/usb/lib/'+path.name,data,0o755 if path.suffix=='.sh' else 0o644)
+  for path in (REPO/'usb/tweaks/cluster-language').rglob('*'):
+   if not path.is_file():continue
+   data=path.read_bytes()
+   if path.suffix in ('.conf','.tsv','.sh'):
+    data=data.decode()
+    for old,new in replacements.items():data=data.replace(old,new)
+   add('fixture/usb/tweaks/cluster-language/'+path.relative_to(REPO/'usb/tweaks/cluster-language').as_posix(),data,0o755 if path.suffix=='.sh' else 0o644)
+  for name,data in configs.items():
+   add('fixture/internal/'+name,data);add('fixture/original-'+name,data)
+  add('fixture/internal/settings.so','settings fixture\n');add('fixture/internal/client.so','client fixture\n')
+  add('fixture/version','JCI_SW_VER="MAZ_CMU-150_74.00.324"\n');add('fixture/watchdog','0\n')
+  add('fixture/mounts','mock /fixture/internal relfs ro 0 0\nmock /fixture/persist relfs rw 0 0\nmock /fixture/usb vfat rw 0 0\n')
+  add('fixture/bin/mount','#!/bin/sh\nexit 0\n',0o755)
+  add('fixture/bin/dbus-send','#!/bin/sh\ncase "$*" in *byte:13*) printf "   byte 1\\n" ;; *byte:26*) printf "   byte 2\\n" ;; *) exit 1 ;; esac\n',0o755)
  applets=['patch','diff','awk']
+ if args.shims or args.cluster:applets += ['od','dd']
+ if args.cluster:applets += ['sh','cat','cp','cmp','chmod','md5sum','cut','mktemp','readlink','dirname','rm','grep','mkdir','mv','rmdir','sync','date','du','df','sort','tr','find']
  if args.recovery:
   applets += ['readlink','md5sum','cut','cmp','mktemp']
  for applet in applets:
@@ -118,7 +160,7 @@ export INSTALLER_LOG=/tmp/lua-logs
 lua() { /usr/bin/qemu-arm -L /cmu /cmu/lib/ld-linux.so.3 --library-path /cmu/lib:/cmu/usr/lib /cmu/usr/bin/lua "$@"; }
 cmush() { /usr/bin/qemu-arm -L /cmu /cmu/lib/ld-linux.so.3 --library-path /cmu/lib:/cmu/usr/lib /cmu/bin/busybox sh "$@"; }
 echo LUA_TEST_START
-"""+('lua /probe.lua\n' if args.probe else 'cmush /experiment/tests/recovery-test.sh\n' if args.recovery else 'cmush /experiment/tests/package-test.sh\n' if args.packages else 'cd /experiment\nlua /experiment/tests/backend.lua\n')+"""result=$?
+"""+('lua /probe.lua\n' if args.probe else 'cmush /experiment/tests/cluster-test.sh\n' if args.cluster else 'cmush /experiment/tests/shim-test.sh\n' if args.shims else 'cmush -x /experiment/tests/settings-test.sh\n' if args.settings else 'cmush /experiment/tests/recovery-test.sh\n' if args.recovery else 'cmush /experiment/tests/package-test.sh\n' if args.packages else 'cd /experiment\nlua /experiment/tests/backend.lua\n')+"""result=$?
 echo "LUA_TEST_RESULT=$result"
 sync
 poweroff -f
@@ -128,7 +170,7 @@ poweroff -f
  command=[str(EMU/'runtime/qemu/qemu-system-x86_64.exe'),'-machine','q35','-accel','tcg,thread=multi','-m','512','-smp','1','-display','none','-monitor','none','-no-reboot','-kernel',str(EMU/'cache/vmlinuz-virt'),'-initrd',str(run/'test.cpio.gz'),'-append','console=ttyS0 quiet noapic pci=nomsi panic=-1 rdinit=/init','-serial','file:'+str(run/'test.log'),'-nic','none']
  # The host emulates an x86 VM which itself emulates ARM. This overall budget
  # is independent of the production worker deadlines asserted by backend.lua.
- result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=600,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+ result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=1800 if args.cluster else 600,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
  log=(run/'test.log').read_text(errors='replace');shutil.copyfile(run/'test.log',CACHE/'test.log');print(log[-12000:])
  assert result.returncode==0 and 'LUA_TEST_RESULT=0' in log,(result.returncode,result.stdout)
 if __name__=='__main__':main()

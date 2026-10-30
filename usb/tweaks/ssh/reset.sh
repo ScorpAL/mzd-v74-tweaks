@@ -4,7 +4,7 @@ set -u
 SELF=$(readlink -f "$0") || exit 1
 HERE=$(dirname "$SELF")
 ROOT=$(CDPATH= cd "$HERE/../.." && pwd) || exit 1
-SERVICE=/tmp/mnt/resources/mzd-v74-tweaks/ssh
+SERVICE=/tmp/mnt/resources/mzd-tweaks/ssh
 RAM=/tmp/mzd-aio-ssh
 TARGET=/jci/scripts/stage_wifi.sh
 fail() { printf 'SSH reset: %s\n' "$*" >&2; exit 1; }

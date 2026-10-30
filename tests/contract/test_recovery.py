@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory(prefix='cmu-recovery-') as directory:
         text=text.replace('/sys/class/gpio/Watchdog\\ Disable/value',shlex.quote(bp(gpio)))
         text=text.replace('/tmp/mnt/sd[a-z][0-9]*|/mnt/sd[a-z][0-9]*',shlex.quote(bp(usb)))
         text=text.replace('LOCK="/tmp/mzd-$LOCK_GROUP-tweak.lock"','LOCK="'+bp(locks)+'/$LOCK_GROUP.lock"')
-        text=text.replace('MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-v74-tweaks/installed','MZD_PACKAGE_STORE='+shlex.quote(bp(store)))
+        text=text.replace('MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-tweaks/installed','MZD_PACKAGE_STORE='+shlex.quote(bp(store)))
         text=text.replace('MZD_PACKAGE_MOUNT=/tmp/mnt/data_persist','MZD_PACKAGE_MOUNT='+shlex.quote(bp(persist)))
         text=text.replace('/tmp/mzd-packages.lock',bp(locks/'packages.lock')).replace('/tmp/mzd-restore-originals.lock',bp(locks/'restore.lock'))
         text=text.replace('MZD_RECOVERY_ROOT=/','MZD_RECOVERY_ROOT='+shlex.quote(bp(internal)))

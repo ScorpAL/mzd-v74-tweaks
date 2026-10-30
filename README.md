@@ -2,6 +2,56 @@
 
 A collection of tweaks and modifications for the Mazda infotainment system (CMU - Connectivity Master Unit) running firmware version 74.00.324. These mods allow you to customize your Mazda Connect experience with additional features and improvements.
 
+## Tweaks, tools and contributors
+
+The tables below credit the v74 implementation and its contributors. Ports of
+community tweaks retain their original credits in the linked documentation.
+Optional sponsor links can be placed directly after the contributor's name.
+
+### Included in the development USB package
+
+| Tweak / component | Author / maintainer |
+| --- | --- |
+| [Installer, GUI and native Lua shell bridge](usb/) | [@softwarecrash](https://github.com/softwarecrash) |
+| [Persistent packages, version handling and saved uninstallers](development/Persistent-packages.md) | [@softwarecrash](https://github.com/softwarecrash) |
+| [No List Beep](usb/tweaks/list-beep/) | v74 port: [@softwarecrash](https://github.com/softwarecrash); based on MZD-AIO |
+| [Shorter List Delay](usb/tweaks/shorter-delay/) | v74 port: [@softwarecrash](https://github.com/softwarecrash); based on MZD-AIO |
+| [List Loop](usb/tweaks/list-loop/) | v74 port: [@softwarecrash](https://github.com/softwarecrash); based on MZD-AIO |
+| [Main Menu Loop](usb/tweaks/main-menu-loop/) | v74 port: [@softwarecrash](https://github.com/softwarecrash); based on MZD-AIO |
+| [No More Disclaimer](usb/tweaks/no-more-disclaimer/) | v74 implementation: [@piotrmocko](https://github.com/piotrmocko); patch port: [@softwarecrash](https://github.com/softwarecrash) |
+| [Instrument Cluster / HUD Language (test release)](usb/tweaks/cluster-language/) | shim: [@patrikguth](https://github.com/patrikguth); release: [@piotrmocko](https://github.com/piotrmocko); launcher integration: [@softwarecrash](https://github.com/softwarecrash) |
+| [SSH Access, including automatic Wi-Fi activation](usb/tweaks/ssh/) | [@softwarecrash](https://github.com/softwarecrash) |
+| [Backup JCI](usb/tweaks/backup-jci/) | launcher implementation: [@softwarecrash](https://github.com/softwarecrash); earlier v74 script: [@piotrmocko](https://github.com/piotrmocko) |
+| [Log Collector](usb/tweaks/logs-collector/) | launcher implementation: [@softwarecrash](https://github.com/softwarecrash); earlier v74 script: [@piotrmocko](https://github.com/piotrmocko) |
+| [Restore originals](usb/tweaks/restore-originals/) | [@softwarecrash](https://github.com/softwarecrash) |
+| [Single-file Restore from tweak details](development/Target-recovery.md) | [@softwarecrash](https://github.com/softwarecrash) |
+
+### Upstream features and tools
+
+These entries belong to the original v74 project or external projects. Their
+presence here does not mean they are already included in the development USB
+package above.
+
+| Tweak / component | Author / maintainer |
+| --- | --- |
+| Original v74 project and launcher | [@piotrmocko](https://github.com/piotrmocko) |
+| HUD Settings Europe Region | [@piotrmocko](https://github.com/piotrmocko) |
+| Fuel Consumption: bar values | [@patrikguth](https://github.com/patrikguth) |
+| Fuel Consumption: ending screen | [@patrikguth](https://github.com/patrikguth) |
+| Fuel Consumption: ending data / MMUI shim | [@patrikguth](https://github.com/patrikguth) |
+| [OEM Android Auto Mods](https://github.com/VitaliyKurokhtin/oem-aa-mod) | mods: [@VitaliyKurokhtin](https://github.com/VitaliyKurokhtin); installer basis: [@Bijan-A](https://github.com/Bijan-A/oem-aa-mod-installer); v74 integration: [@piotrmocko](https://github.com/piotrmocko) |
+| Running log rotation size | [@piotrmocko](https://github.com/piotrmocko) |
+| Touchscreen Enabled | [@piotrmocko](https://github.com/piotrmocko) |
+| Revert AIO base tweaks | [@piotrmocko](https://github.com/piotrmocko) |
+| Original launcher entries: Terminal and Built-in MZD Scripts | [@ScorpAL](https://github.com/ScorpAL) |
+| [MZD UI emulator](https://github.com/ScorpAL/mzd-emu) | [@ScorpAL](https://github.com/ScorpAL) |
+
+### Proposed additions
+
+| Tweak / component | Author / maintainer |
+| --- | --- |
+| [Terminal with USB keyboard support - PR #1, not yet merged](https://github.com/softwarecrash/mzd-v74-tweaks/pull/1) | [@ScorpAL](https://github.com/ScorpAL) |
+
 ## System Requirements
 
 - **Infotainment System**: MZD Connect (CMU firmware version **74.00.324 only**)

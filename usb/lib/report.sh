@@ -90,6 +90,10 @@ mzd_begin() {
   mkdir -p "$MZD_USB/reports/diffpatch" || exit 1
   # CMU clocks and PIDs can repeat across boots. Never reuse stale rollback state.
   MZD_REPORT=$(mktemp -d "$MZD_USB/reports/diffpatch/$2-$(date +%Y%m%d-%H%M%S)-XXXXXX") || exit 1
+  if [ -n "${MZD_SETTINGS_FILE:-}" ]; then
+    [ -f "$MZD_SETTINGS_FILE" ] && [ ! -L "$MZD_SETTINGS_FILE" ] || exit 1
+    cp "$MZD_SETTINGS_FILE" "$MZD_REPORT/settings.conf" && cmp -s "$MZD_SETTINGS_FILE" "$MZD_REPORT/settings.conf" || exit 1
+  fi
   : > "$MZD_REPORT/run.log" || exit 1
   exec 3>&1
   exec 4>&2

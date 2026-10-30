@@ -27,3 +27,23 @@ packages.sh: persistent per-tweak code/runtime snapshots, versioned receipts,
 fast registered status, selective removal dispatch and cross-tweak path guards.
 Each installed package owns its helper snapshot; new USB helpers are never
 sourced by an old worker. See [Persistent packages](Persistent-packages.md).
+
+settings.sh and settings.awk: literal typed schemas, normalized effective values,
+saved configuration validation and `mzd_setting` for workers. They do not source
+configuration or evaluate values. The GUI, shell and developer validator share
+the contract in [Manifest format](Manifest-format.md#optional-tweak-settings).
+
+shim.sh and shim-preload.awk: shared .so/LD_PRELOAD state inspection, verified
+payload placement, multi-loader configuration edits, rollback and reset hooks.
+No native shim is executed by these helpers and no service is restarted.
+
+components.sh/components.awk: data-only component plans, derived ownership and
+OEM catalogs. config-map.awk: configuration keys mapped to normalized manifest
+settings, without duplicate defaults or evaluation.
+
+bundle.sh: mixed payload/loader/patch transactions, saved-configuration removal,
+rollback journal, reset hooks and read-only compatibility messages. See the
+[component example](examples/bundle/README.md) for the supported scope and limits.
+
+vehicle.sh: bounded read-only VBS control/HUD queries. It reports facts and
+unknown values; feature-specific compatibility policy belongs to each worker.

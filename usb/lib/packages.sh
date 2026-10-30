@@ -1,6 +1,6 @@
 #!/bin/sh
 # Persistent package format 1. All paths and state are data, never evaluated.
-MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-v74-tweaks/installed
+MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-tweaks/installed
 MZD_PACKAGE_MOUNT=/tmp/mnt/data_persist
 MZD_PACKAGE_MOUNTS=/proc/mounts
 MZD_PACKAGE_LOCK=/tmp/mzd-packages.lock
@@ -53,6 +53,10 @@ mzd_package_check() (
     }
     mzd_manifest_load "$entry/package/tweaks/${entry##*/}/manifest.conf" || exit 1
     [ "$ID" = "${entry##*/}" ] || exit 1
+    if [ -n "${SETTINGS:-}" ] || [ -e "$entry/package/settings.conf" ]; then
+        . "$entry/package/lib/settings.sh" || exit 1
+        mzd_settings_check "$entry/package/tweaks/$ID/manifest.conf" "$entry/package/settings.conf" || exit 1
+    fi
     mzd_package_paths "$entry/package/tweaks/$ID" > "$temp" && cmp -s "$temp" "$entry/paths.tsv" || {
         mzd_package_error 'Saved ownership record differs from its package.'; exit 1;
     }
@@ -98,11 +102,16 @@ mzd_package_storage() (
 )
 mzd_package_paths() (
     mzd_manifest_load "$1/manifest.conf" || exit 1
+    if [ -n "${COMPONENTS:-}" ]; then mzd_components paths; exit $?; fi
     if [ -f "$1/managed-paths.tsv" ]; then
         cat "$1/managed-paths.tsv" || exit 1
-        awk -F "$(printf '\t')" -v target="$APP" '$2==target {found=1} END {exit !found}' "$1/managed-paths.tsv" && exit 0
+        awk -F "$(printf '\t')" -v target="$APP" '$2==target {found=1} END {exit !found}' "$1/managed-paths.tsv" && [ -z "${SHIM_PATH:-}" ] && exit 0
     fi
     printf 'patch\t%s\n' "$APP"
+    if [ -n "${SHIM_PATH:-}" ]; then
+        for pair in $SHIM_EXTRA_TARGETS; do printf 'patch\t%s\n' "${pair%:*}"; done
+        printf 'shim\t%s\ncreate\t%s\n' "$SHIM_PATH" "${SHIM_PATH%/*}"
+    fi
 )
 mzd_package_paths_ok() {
     awk -F "$(printf '\t')" 'NF!=2 || $1!~/^(patch|create|shim)$/ || $2!~/^\// || $2~/[[:cntrl:]]/ || $2~/\/\.\.?($|\/)/ || seen[$2]++ {bad=1} END {exit bad}' "$1"
@@ -116,7 +125,7 @@ mzd_package_install_paths() (
         state=$(mzd_package_state "$other") || state=invalid
         [ "$state" = installed ] || { mzd_package_error "Incomplete installation needs attention first: ${other##*/}"; exit 1; }
         [ -f "$other/paths.tsv" ] && mzd_package_paths_ok "$other/paths.tsv" || exit 1
-        awk -F "$(printf '\t')" 'NR==FNR {used[$2]=1; next} $1=="create" || $1=="shim" {for(p in used) if(p==$2 || index(p,$2 "/")==1) bad=1} END {exit bad}' "$other/paths.tsv" "$incoming" || {
+        awk -F "$(printf '\t')" 'NR==FNR {used[$2]=1; kind[$2]=$1; next} {if(kind[$2]=="shim")bad=1; if($1=="create" || $1=="shim")for(p in used) if(p==$2 || index(p,$2 "/")==1) bad=1} END {exit bad}' "$other/paths.tsv" "$incoming" || {
             mzd_package_error "A managed file is already used by installed tweak: ${other##*/}"; exit 1;
         }
     done
@@ -159,6 +168,15 @@ mzd_package_worker() (
     # A remembered package layout keeps worker-relative library paths unchanged.
     worker="$1/package/tweaks/${1##*/}/run.sh"
     MZD_WORKER_DIRECT=1; export MZD_WORKER_DIRECT MZD_ORIGIN_USB
+    MZD_PACKAGE_STATE=$(mzd_package_state "$1") || exit 1
+    export MZD_PACKAGE_STATE
+    unset MZD_SETTINGS_FILE
+    mzd_manifest_load "${worker%/*}/manifest.conf" || exit 1
+    if [ -n "${SETTINGS:-}" ] || [ -e "$1/package/settings.conf" ]; then
+        . "$1/package/lib/settings.sh" || exit 1
+        mzd_settings_check "${worker%/*}/manifest.conf" "$1/package/settings.conf" || exit 1
+        MZD_SETTINGS_FILE="$1/package/settings.conf"; export MZD_SETTINGS_FILE
+    fi
     sh "$worker" "$2"
 )
 mzd_package_remove() {
@@ -194,11 +212,17 @@ mzd_package_stage() (
     [ "$ID" = "$id" ] || { mzd_package_error 'Copied package ID differs from its folder.'; exit 1; }
     [ -z "${4:-}" ] || [ "$VERSION" = "$4" ] || { mzd_package_error 'USB version changed while staging.'; exit 1; }
     mzd_package_paths "$stage/package/tweaks/$id" > "$stage/paths.tsv" && mzd_package_paths_ok "$stage/paths.tsv" || exit 1
+    if [ -n "${SETTINGS:-}${COMPONENTS:-}" ]; then
+        . "$stage/package/lib/settings.sh" || exit 1
+        mzd_settings_check "$stage/package/tweaks/$id/manifest.conf" "${MZD_SETTINGS_FILE:-}" || exit 1
+        cp "$MZD_SETTINGS_FILE" "$stage/package/settings.conf" && cmp -s "$MZD_SETTINGS_FILE" "$stage/package/settings.conf" || exit 1
+    fi
     mzd_package_inventory "$stage" > "$stage/package.files" || exit 1
     mzd_package_set_state "$stage" prepared
 )
 mzd_package_action() (
-    source=$1; id=$2; action=$3
+    source=$1; id=$2; action=$3; shift 3
+    unset MZD_PACKAGE_STATE
     MZD_WORKER_DIRECT=1; export MZD_WORKER_DIRECT
     mzd_manifest_id "$id" || exit 1
     case "$action" in install|uninstall|status) ;; *) mzd_package_error 'Unsupported package action.'; exit 1 ;; esac
@@ -207,11 +231,21 @@ mzd_package_action() (
         if [ -e "$entry" ] || [ -L "$entry" ]; then mzd_package_status "$id"; exit $?; fi
         printf 'uninstalled\n'; exit 0
     fi
+    [ "$action" = install ] || [ "$#" = 0 ] || { mzd_package_error 'Settings are accepted only for Install.'; exit 1; }
+    settings_tmp=''
+    if [ "$action" = install ]; then
+        . "$source/lib/settings.sh" || exit 1
+        mzd_manifest_load "$source/tweaks/$id/manifest.conf" || exit 1
+        settings_tmp=$(mktemp /tmp/mzd-install-settings.XXXXXX) || exit 1
+        mzd_settings_normalize "$source/tweaks/$id/manifest.conf" "$@" > "$settings_tmp" || { rm -f "$settings_tmp"; exit 1; }
+        MZD_SETTINGS_FILE=$settings_tmp; export MZD_SETTINGS_FILE
+    fi
+    trap '[ -z "$settings_tmp" ] || rm -f "$settings_tmp"' 0
     mzd_package_storage || exit 1
     mkdir -p "$MZD_PACKAGE_STORE" || exit 1
     mkdir "$MZD_PACKAGE_LOCK" 2>/dev/null || { mzd_package_error 'Another package operation or Restore is active.'; exit 1; }
     stage=''
-    trap 'code=$?; [ -z "$stage" ] || rm -rf "$stage"; rmdir "$MZD_PACKAGE_LOCK" 2>/dev/null || :; exit "$code"' 0
+    trap 'code=$?; [ -z "$settings_tmp" ] || rm -f "$settings_tmp"; [ -z "$stage" ] || rm -rf "$stage"; rmdir "$MZD_PACKAGE_LOCK" 2>/dev/null || :; exit "$code"' 0
     trap 'exit 2' INT TERM
     MZD_ORIGIN_USB=$source; export MZD_ORIGIN_USB
     # Preserve the actual USB mount for workers executing from persistent storage.
@@ -228,6 +262,16 @@ mzd_package_action() (
         awk -v expected="JCI_SW_VER=\"MAZ_CMU-150_$FIRMWARE\"" '$0==expected {found=1} END {exit !found}' /jci/version.ini || {
             mzd_package_error 'USB package does not support the current firmware; existing installation unchanged.'; exit 1;
         }
+        if [ -n "${SHIM_ASSET:-}" ]; then
+            # Reject an incompatible replacement before removing an old version.
+            . "$source/lib/report.sh" && . "$source/lib/shim.sh" || exit 1
+            mzd_asset_readable "$source/tweaks/$id/$SHIM_ASSET" && mzd_shim_elf "$source/tweaks/$id/$SHIM_ASSET" || { mzd_package_error 'Unsupported or missing shim asset.'; exit 1; }
+            mzd_shim_compat || exit 1
+        fi
+        if [ -n "${COMPONENTS:-}" ]; then
+            # Validate replacement payloads/configuration and hardware before old removal.
+            sh "$source/tweaks/$id/run.sh" validate-install || exit 1
+        fi
         mzd_package_requirements "$source/tweaks/$id" || exit 1
     fi
     if [ -e "$entry" ] || [ -L "$entry" ]; then
@@ -237,6 +281,8 @@ mzd_package_action() (
             [ "$state" = installed ] || { mzd_package_error 'Incomplete installation; use Uninstall or Restore before installing.'; exit 1; }
             mzd_manifest_load "$entry/package/tweaks/$id/manifest.conf" || exit 1
             if [ "$VERSION" = "$requested" ]; then
+                previous="$entry/package/settings.conf"; [ -f "$previous" ] || previous=/dev/null
+                cmp -s "$settings_tmp" "$previous" || { mzd_package_error 'Settings differ. Uninstall the saved version before installing new settings.'; exit 1; }
                 result=$(mzd_package_worker "$entry" status)
                 [ "$result" = installed ] || { mzd_package_error 'Registered installation failed its target check.'; exit 1; }
                 printf 'Version %s is already installed.\n' "$VERSION"; exit 0

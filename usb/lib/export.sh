@@ -84,6 +84,9 @@ mzd_export_main() {
     EXPORT_PARTIAL=$(mktemp -d "$ROOT/exports/$ID/$(date +%Y%m%d-%H%M%S)-XXXXXX") || return 1
     EXPORT_OUTPUT="$EXPORT_PARTIAL-complete"
     printf 'Export source: %s\nOriginating USB: %s\n' "$APP" "$EXPORT_MOUNT" > "$EXPORT_PARTIAL/run.log"
+    if [ -n "${MZD_SETTINGS_FILE:-}" ] && [ -s "$MZD_SETTINGS_FILE" ]; then
+        [ ! -L "$MZD_SETTINGS_FILE" ] && cp "$MZD_SETTINGS_FILE" "$EXPORT_PARTIAL/settings.conf" && cmp -s "$MZD_SETTINGS_FILE" "$EXPORT_PARTIAL/settings.conf" || return 1
+    fi
     : > "$EXPORT_PARTIAL/.incomplete"
     mzd_export_progress 0 0 'Preparing export'
     mzd_export_run || return 1

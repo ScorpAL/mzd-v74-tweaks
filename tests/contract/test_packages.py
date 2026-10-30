@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory(prefix='cmu-packages-') as directory:
     shutil.copytree(ROOT/'usb/lib',usb/'lib')
     write(usb/'installer.sh',(ROOT/'usb/installer.sh').read_text().replace('#!/bin/sh\n','#!/bin/sh\nPATH='+shlex.quote(bp(bins)+':/usr/bin:/bin')+'\nexport PATH\n',1))
     pkg=usb/'lib/packages.sh'
-    source=pkg.read_text().replace('MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-v74-tweaks/installed','MZD_PACKAGE_STORE='+shlex.quote(bp(store))).replace('MZD_PACKAGE_MOUNT=/tmp/mnt/data_persist','MZD_PACKAGE_MOUNT='+shlex.quote(bp(persist))).replace('MZD_PACKAGE_MOUNTS=/proc/mounts','MZD_PACKAGE_MOUNTS='+shlex.quote(bp(mounts))).replace('MZD_PACKAGE_LOCK=/tmp/mzd-packages.lock','MZD_PACKAGE_LOCK='+shlex.quote(bp(lock)))
+    source=pkg.read_text().replace('MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-tweaks/installed','MZD_PACKAGE_STORE='+shlex.quote(bp(store))).replace('MZD_PACKAGE_MOUNT=/tmp/mnt/data_persist','MZD_PACKAGE_MOUNT='+shlex.quote(bp(persist))).replace('MZD_PACKAGE_MOUNTS=/proc/mounts','MZD_PACKAGE_MOUNTS='+shlex.quote(bp(mounts))).replace('MZD_PACKAGE_LOCK=/tmp/mzd-packages.lock','MZD_PACKAGE_LOCK='+shlex.quote(bp(lock)))
     write(pkg,source.replace('/jci/version.ini',bp(version)))
     write(mounts,f'/dev/mmcblk0p2 {bp(persist)} relfs rw 0 0\n/dev/sdb1 {bp(usb)} vfat rw 0 0\n')
     write(bins/'sync','#!/bin/sh\nexit 0\n')

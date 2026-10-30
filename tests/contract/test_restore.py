@@ -52,7 +52,7 @@ for scenario in ['success','invalid-path','hook-stop-failure','bad-oem','unknown
     for name in ['service.sh','sshd_config','password.hash']:shutil.copyfile(assets/name,service/name)
     write(service/'enabled','enabled\n');write(runtime/'owned','fixture\n')
     shutil.copyfile(assets/'usb-log-marker.txt',usb/'diffpatch-ssh-log-marker.txt')
-    write(hook,hook.read_text().replace('SERVICE=/tmp/mnt/resources/mzd-v74-tweaks/ssh','SERVICE='+shlex.quote(bp(service))).replace('RAM=/tmp/mzd-aio-ssh','RAM='+shlex.quote(bp(runtime))).replace('TARGET=/jci/scripts/stage_wifi.sh','TARGET='+shlex.quote(bp(second))).replace('mzd_system_remount_rw /tmp/mnt/resources','mzd_system_remount_rw '+shlex.quote(bp(resources))))
+    write(hook,hook.read_text().replace('SERVICE=/tmp/mnt/resources/mzd-tweaks/ssh','SERVICE='+shlex.quote(bp(service))).replace('RAM=/tmp/mzd-aio-ssh','RAM='+shlex.quote(bp(runtime))).replace('TARGET=/jci/scripts/stage_wifi.sh','TARGET='+shlex.quote(bp(second))).replace('mzd_system_remount_rw /tmp/mnt/resources','mzd_system_remount_rw '+shlex.quote(bp(resources))))
     manifest=usb/'tweaks/restore-originals/manifest.conf';write(manifest,manifest.read_text().replace('target=/jci','target='+bp(internal)))
     for lib in (usb/'lib').glob('*.sh'):
       text=lib.read_text().replace('/jci/version.ini',bp(version)).replace('/proc/mounts',bp(mounts)).replace('/sys/class/gpio/Watchdog\\ Disable/value',shlex.quote(bp(gpio)))
@@ -98,7 +98,7 @@ esac
     if managed:
       store=internal/'package-records'
       package_lib=usb/'lib/packages.sh'
-      write(package_lib,package_lib.read_text().replace('MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-v74-tweaks/installed','MZD_PACKAGE_STORE='+shlex.quote(bp(store))))
+      write(package_lib,package_lib.read_text().replace('MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-tweaks/installed','MZD_PACKAGE_STORE='+shlex.quote(bp(store))))
       # Represent a completed saved version. The actual SSH worker itself is
       # covered separately; here its reset hook and the real Restore execute.
       write(usb/'tweaks/ssh/run.sh','#!/bin/sh\n[ "$1" = status ] || exit 1\nif grep -qF "# MZD v74 SSH" '+shlex.quote(bp(second))+'; then echo installed; else echo uninstalled; fi\n')

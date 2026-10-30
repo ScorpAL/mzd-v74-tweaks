@@ -67,3 +67,102 @@ The launcher calls `installer.sh start-run <id>`, polls `job-status <token>`, an
 - `reset_entrypoint`: optional fixed value `reset.sh`. Required by repository
   validation for service/files workers owning persistent extras. The reset hook
   must be a regular local file, not a link.
+
+## Optional tweak settings
+
+Settings are defined in this same manifest. The launcher renders them in the
+Install/Run detail dialog; no tweak-specific GUI code is needed. See the
+[runnable settings example](examples/settings/README.md). Its log-storage
+numbers illustrate the UI and are not approved logrotate limits.
+
+```ini
+settings=log_limit_mb compress profile
+setting.log_limit_mb.type=number
+setting.log_limit_mb.label=Log storage limit
+setting.log_limit_mb.unit=MB
+setting.log_limit_mb.default=20
+setting.log_limit_mb.min=5
+setting.log_limit_mb.max=100
+setting.log_limit_mb.step=5
+setting.compress.type=boolean
+setting.compress.label=Compress old logs
+setting.compress.default=true
+setting.profile.type=choice
+setting.profile.label=Profile
+setting.profile.default=stock
+setting.profile.options=stock medium large
+```
+
+- Up to 16 unique setting names: lowercase letter, then lowercase letters,
+  digits or underscores; at most 32 characters. Order follows `settings=`.
+- Each needs `type`, `label` and `default`. Optional `help` explains the field.
+  Individual declaration values are limited to 256 UTF-8 bytes.
+- `number`: canonical nonnegative integer, `min`, `max`, positive `step`, optional
+  `unit`. Values must be in range and `(value-min)` divisible by step. Numeric
+  fields are limited to 2147483647; leading zeros and floating-point values are
+  refused. Defaults must satisfy the same rules.
+- `boolean`: exactly `true` or `false`; no numeric fields or options.
+- `choice`: `options` is a single-space-separated list of at most 16 unique
+  tokens, each 1-32 lowercase letters/digits/underscore/hyphen, starting with a
+  letter or digit. The default must be an option. No numeric fields.
+- Undeclared/duplicate keys, unknown declaration fields, invalid defaults,
+  control characters and multiline supplied values fail validation.
+- There is no free-form text/path setting in this initial contract. Definitions
+  and values are always literal data, never sourced or evaluated.
+
+The controller accepts separate `key=value` arguments for Install/Run. Missing
+values use defaults. Values are checked again in the shell before staging or
+starting a worker; the UI is not a security or correctness boundary.
+
+```sh
+sh installer.sh action example install log_limit_mb=30 compress=false profile=medium
+sh installer.sh action settings-example run log_limit_mb=30
+sh installer.sh start-run settings-example log_limit_mb=30
+```
+
+`settings-info ID` returns the effective schema, `settings_saved=true|false`,
+and `value.NAME=VALUE` lines. Installed packages use their saved schema and
+values, even if the USB contains a newer manifest. The menu scan never calls
+this detail-only interface. Existing manifests without settings are unchanged.
+
+## Optional shared shim installation
+
+A `files` tweak can use `mzd_shim_main` with `reset_entrypoint=reset.sh` and
+`reboot_required=true`. The primary `target`/`oem_backup_md5` describe its first
+sm.conf loader file. The additional fields are literal data:
+
+```ini
+shim_service=jciMMUI
+shim_asset=assets/example.so
+shim_path=/tmp/mnt/data_persist/mzd-tweaks/shims/example/example.so
+shim_extra_targets=/jci/sm/sm_WCP.conf:030e918f5d6edcd62d196ee37b86fe99
+shim_checks=
+```
+
+Use the actual tweak ID in the destination directory. The destination is one
+regular `.so` directly inside that ID's persistent shim directory; relative,
+nested, symlink and control-bearing paths are refused. Service names contain
+only letters, digits, underscore, dot or hyphen. Assets live below assets/.
+
+`shim_extra_targets` is a space-separated list of additional absolute loader
+paths and known OEM MD5 values, separated by a colon. At most eight distinct
+loader targets are supported including the primary. `shim_checks` uses the
+same path:MD5 syntax for native module compatibility checks before a fresh
+installation. It does not modify those native module files.
+
+The shared helper supports the stock single-line service/environ_var layout,
+one LD_PRELOAD variable per service, and space/colon-separated preload paths.
+It preserves other tokens and refuses ambiguous/unsupported layouts. ELF header
+checks require ARM ELF32 little-endian ET_DYN/EABI5 without the hard-float flag;
+this is not proof that arbitrary library code is compatible with a CMU module.
+The helper never loads a library to test it. Real shim authors remain responsible
+for matching toolchain, dependency/symbol compatibility and vehicle validation.
+See [the shim example](examples/shim/README.md).
+
+## Optional component bundles
+
+`components=components.tsv` declares a mixed files/configuration/shims/patches
+transaction. It requires `type=files`, `reset_entrypoint=reset.sh`,
+`reboot_required=true` and `lock_group=sm-config`. It cannot be combined with
+single-shim manifest fields. Component/config-map grammar and lifecycle are
+documented in the [bundle example](examples/bundle/README.md).

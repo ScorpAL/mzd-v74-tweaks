@@ -21,7 +21,9 @@ Runtime source remains in `usb/`, executable tests in `tests/`, and tools in `to
 Copy a complete example into `usb/tweaks/<id>/` before running it:
 
 - [Hello command](examples/hello/README.md)
+- [Settings command: number, toggle and choice](examples/settings/README.md)
 - [Patch worker](examples/patch/README.md)
+- [Shared shim loader and inert C example](examples/shim/README.md)
 
 The example folders are templates, not extra runtime tweaks. Their workers retain
 the paths used after copying into the USB layout.
@@ -36,3 +38,5 @@ the paths used after copying into the USB layout.
 - [Reviewed test runs and template](test-runs/README.md)
 - [Wiki publishing](Wiki-publishing.md)
 - [Tweak implementation notes](tweaks/)
+
+Component bundles: [multiple shims, configuration and patches](examples/bundle/README.md).

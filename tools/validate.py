@@ -31,7 +31,7 @@ for folder in sorted((USB / 'tweaks').iterdir()):
     if m['type'] in ['service', 'files']:
         require(m.get('reset_entrypoint') == 'reset.sh', 'Managed persistent extras require a reset hook: ' + folder.name)
     source = (folder / 'run.sh').read_text(encoding='utf-8')
-    require(('mzd_manifest_load "$HERE/manifest.conf"' in source or (CASES[m['id']] == 'export-command' and 'mzd_export_main "$@"' in source)), 'Worker must load its manifest: ' + folder.name)
+    require(('mzd_manifest_load "$HERE/manifest.conf"' in source or (CASES[m['id']] == 'export-command' and 'mzd_export_main "$@"' in source) or (m.get('shim_asset') and 'mzd_shim_main "$@"' in source) or (m.get('components') and 'mzd_bundle_main "$@"' in source)), 'Worker must load its manifest: ' + folder.name)
     require(not re.search(r'^(ID|FIRMWARE|APP|ORIGINAL|LOCK|REQUIRES|CONFLICTS)=', source, re.M),
             'Do not duplicate manifest configuration in run.sh: ' + folder.name)
     require(not re.search(r'(^|\n|;)\s*(/jci/tools/)?(reboot|jci-dialog)(?=\s|$)', '\n'.join(line for line in source.splitlines() if not line.lstrip().startswith('#'))),

@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=800, initial-scale=1">
-<title>CMU Tweaks</title><link rel="stylesheet" href="style.css"></head>
+<title>MZD Tweaks</title><link rel="stylesheet" href="style.css"></head>
 <body>
 <div id="app">
-  <div id="header"><div id="wordmark">CMU <span>TWEAKS</span></div><div id="subtitle">PERSONALIZE YOUR DRIVE</div><div id="system-info" role="status">CPU: -- | Free space: reading...</div><button id="refresh" class="small">Refresh</button><button id="exit" class="small">Exit</button></div>
+  <div id="header"><div id="wordmark">MZD <span>Tweaks</span></div><div id="subtitle">PERSONALIZE YOUR DRIVE</div><div id="system-info" role="status">CPU: -- | Free space: reading...</div><button id="refresh" class="small">Refresh</button><button id="exit" class="small">Exit</button></div>
   <div id="tabs" role="tablist"></div>
   <div id="content"><div id="cards"></div><div id="empty">Reading tweaks from USB...</div></div>
   <div id="footer"><span id="footer-status">Connecting to shell bridge...</span></div>
@@ -13,12 +13,41 @@
     <div id="dialog-heading"><i id="dialog-dot" class="dot"></i><span id="dialog-title"></span></div>
     <div id="dialog-body"><div id="dialog-layout">
       <div id="dialog-status-row"><div id="dialog-state"></div></div>
-      <div id="dialog-info-row"><div id="dialog-info"><div id="dialog-description"></div><div id="dialog-meta"></div><pre id="dialog-output"></pre></div></div>
+      <div id="dialog-info-row"><div id="dialog-info"><div id="dialog-description"></div><div id="dialog-settings"></div><div id="dialog-meta"></div><pre id="dialog-output"></pre></div></div>
     </div></div>
     <div id="dialog-actions"><button id="back">Back</button><button id="restore-action" class="hidden">Restore original</button><button id="action" class="primary">Install</button><button id="result-ok" class="primary hidden">OK</button></div>
   </div>
 </div>
 <iframe id="transport" title="Shell transport"></iframe>
 <script>window.installerConfig = {origin:"@ORIGIN@",token:"@TOKEN@"};</script>
+<script>
+/* Runs before app.js: even a parse error must reach the normal USB log. */
+(function () {
+    var config=window.installerConfig, frame=document.getElementById("transport");
+    var ready=false, errors=[], nextId=-1, previous=window.onerror, sent=0;
+    function flush() {
+        while(ready && errors.length) {
+            frame.contentWindow.postMessage({type:"shell-exec",token:config.token,id:nextId--,
+                program:"/bin/sh",args:["./installer.sh","event","ui-error",errors.shift()]},config.origin);
+        }
+    }
+    window.addEventListener("message",function(event) {
+        if(event.source!==frame.contentWindow || event.origin!==config.origin)return;
+        var data=event.data;
+        if(!data || data.token!==config.token || data.type!=="shell-ready")return;
+        ready=true;flush();
+    },false);
+    window.onerror=function(message,url,line) {
+        if(sent++<5) {
+            errors.push(String(message).substring(0,512)+"; source="+String(url||"app.js").split("#")[0].substring(0,256)+"; line="+String(line||0));
+            /* A rejected app.js cannot initialize its transport iframe. */
+            if(!frame.src || frame.src==="about:blank")frame.src=config.origin+"/#"+config.token;
+            flush();
+        }
+        if(typeof previous==="function")return previous.apply(window,arguments);
+        return false;
+    };
+}());
+</script>
 <script src="app.js"></script>
 </body></html>

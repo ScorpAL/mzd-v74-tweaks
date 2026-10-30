@@ -12,6 +12,8 @@ mzd_manifest_load() {
     LC_ALL=C awk '{sub(/\r$/, ""); if ($0 ~ /[[:cntrl:]]/) bad=1} END {exit bad}' "$mzd_manifest_file" || {
         mzd_manifest_error 'Control characters are not allowed.'; return 1;
     }
+    COMPONENTS=; SHIM_SERVICE=; SHIM_ASSET=; SHIM_PATH=; SHIM_EXTRA_TARGETS=; SHIM_CHECKS=
+    SETTINGS=; MZD_MANIFEST_FILE=$mzd_manifest_file; mzd_manifest_settings=0
     CONTRACT_VERSION=; ID=; NAME=; DESCRIPTION=; VERSION=; TYPE=; GROUP=
     FIRMWARE=; ENTRYPOINT=; ACTIONS=; APP=; ORIGINAL=; LOCK_GROUP=
     STATUS_SCOPE=; REBOOT_REQUIRED=; REQUIRES=; CONFLICTS=; PROGRESS=false; CONFIRMATION=; REFRESH_ALL=false; RESET_ENTRYPOINT=
@@ -24,12 +26,20 @@ mzd_manifest_load() {
         mzd_manifest_key=${mzd_manifest_line%%=*}
         mzd_manifest_value=${mzd_manifest_line#*=}
         case "$mzd_manifest_key" in
-            contract_version|id|name|description|version|type|group|firmware|entrypoint|actions|target|oem_backup_md5|lock_group|status_scope|reboot_required|requires|conflicts|progress|confirmation|refresh_all|reset_entrypoint) ;;
+            contract_version|id|name|description|version|type|group|firmware|entrypoint|actions|target|oem_backup_md5|lock_group|status_scope|reboot_required|requires|conflicts|progress|confirmation|refresh_all|reset_entrypoint|settings|setting.*|shim_service|shim_asset|shim_path|shim_extra_targets|shim_checks|components) ;;
             *) mzd_manifest_error "Unknown field: $mzd_manifest_key"; return 1 ;;
         esac
         case "$mzd_manifest_seen" in *" $mzd_manifest_key "*) mzd_manifest_error "Duplicate field: $mzd_manifest_key"; return 1 ;; esac
         mzd_manifest_seen="$mzd_manifest_seen$mzd_manifest_key "
         case "$mzd_manifest_key" in
+            components) COMPONENTS=$mzd_manifest_value ;;
+            shim_service) SHIM_SERVICE=$mzd_manifest_value ;;
+            shim_asset) SHIM_ASSET=$mzd_manifest_value ;;
+            shim_path) SHIM_PATH=$mzd_manifest_value ;;
+            shim_extra_targets) SHIM_EXTRA_TARGETS=$mzd_manifest_value ;;
+            shim_checks) SHIM_CHECKS=$mzd_manifest_value ;;
+            settings) SETTINGS=$mzd_manifest_value; mzd_manifest_settings=1 ;;
+            setting.*) mzd_manifest_settings=1 ;;
             contract_version) CONTRACT_VERSION=$mzd_manifest_value ;;
             id) ID=$mzd_manifest_value ;;
             name) NAME=$mzd_manifest_value ;;
@@ -85,6 +95,35 @@ mzd_manifest_load() {
     case "$PROGRESS" in true|false) ;; *) mzd_manifest_error 'Expected true or false for progress.'; return 1 ;; esac
     case "$REFRESH_ALL" in true|false) ;; *) mzd_manifest_error 'Expected true or false for refresh_all.'; return 1 ;; esac
     case "$RESET_ENTRYPOINT" in ''|reset.sh) ;; *) mzd_manifest_error 'Reset entrypoint must be reset.sh.'; return 1 ;; esac
+    if [ "$mzd_manifest_settings" = 1 ]; then
+        mzd_manifest_schema="${mzd_manifest_file%/*}/../../lib/settings.awk"
+        [ -f "$mzd_manifest_schema" ] && [ ! -L "$mzd_manifest_schema" ] || { mzd_manifest_error 'Settings schema reader is missing.'; return 1; }
+        mzd_manifest_settings_error=$(awk -v mode=validate -f "$mzd_manifest_schema" "$mzd_manifest_file") || {
+            printf '%s\n' "${mzd_manifest_settings_error:-Manifest: Settings cannot be validated.}" >&2; return 1;
+        }
+    fi
+    if [ -n "$SHIM_ASSET$SHIM_PATH$SHIM_SERVICE$SHIM_EXTRA_TARGETS$SHIM_CHECKS" ]; then
+        [ "$TYPE:$RESET_ENTRYPOINT:$REBOOT_REQUIRED" = files:reset.sh:true ] || { mzd_manifest_error 'Shims require files, reset.sh and reboot_required=true.'; return 1; }
+        printf '%s\n' "$SHIM_SERVICE" | awk '!/^[A-Za-z0-9_.-]+$/ {exit 1}' || { mzd_manifest_error 'Invalid shim service name.'; return 1; }
+        case "$SHIM_ASSET" in assets/*.so) ;; *) mzd_manifest_error 'Shim asset must be an assets/*.so file.'; return 1 ;; esac
+        printf '%s\n' "$SHIM_ASSET" "$SHIM_PATH" | awk '!/^[A-Za-z0-9_.\/-]+$/ || /(^|\/)\.\.?($|\/)/ {bad=1} END {exit bad}' || { mzd_manifest_error 'Unsupported shim path.'; return 1; }
+        case "$SHIM_PATH" in /tmp/mnt/data_persist/mzd-tweaks/shims/"$ID"/*.so) ;;
+            *) mzd_manifest_error 'Shim destination must be inside this tweak persistent shim folder.'; return 1 ;;
+        esac
+        case "${SHIM_PATH##*/}" in ''|.*) mzd_manifest_error 'Invalid shim filename.'; return 1 ;; esac
+        case "${SHIM_PATH%/*}" in */shims/"$ID") ;; *) mzd_manifest_error 'Nested shim directories are unsupported.'; return 1 ;; esac
+        printf '%s\n' "$SHIM_EXTRA_TARGETS" "$SHIM_CHECKS" | awk -v primary="$APP" '
+          {
+            n=split($0,records," "); if((NR==1 && n>7) || (NR==2 && n>16))bad=1
+            for(i=1;i<=n;i++) {
+              if(split(records[i],pair,":")!=2 || pair[1]!~/^\/[A-Za-z0-9_.\/-]+$/ || pair[1]~/\/\.\.?($|\/)/ || pair[2]!~/^[0-9a-f]+$/ || length(pair[2])!=32 || seen[NR,pair[1]]++)bad=1
+              if(NR==1 && pair[1]==primary)bad=1
+            }
+          }
+          END {exit bad}
+        ' || { mzd_manifest_error 'Invalid, duplicate or excessive shim path:OEM-MD5 records.'; return 1; }
+        printf '%s\n' "$APP" | awk '!/^\/[A-Za-z0-9_.\/-]+$/ || /\/\.\.?($|\/)/ {exit 1}' || { mzd_manifest_error 'Unsupported shim loader target.'; return 1; }
+    fi
     LOCK=
     if [ "$TYPE" != command ]; then
         case "$APP" in /*) ;; *) mzd_manifest_error 'An absolute target is required.'; return 1 ;; esac
@@ -92,5 +131,11 @@ mzd_manifest_load() {
         [ "${#ORIGINAL}" = 32 ] || { mzd_manifest_error 'Expected a 32-character OEM backup checksum.'; return 1; }
         case "$LOCK_GROUP" in ''|*[!A-Za-z0-9_-]*) mzd_manifest_error 'Invalid lock group.'; return 1 ;; esac
         LOCK="/tmp/mzd-$LOCK_GROUP-tweak.lock"
+    fi
+    if [ -n "$COMPONENTS" ]; then
+        [ "$COMPONENTS:$TYPE:$RESET_ENTRYPOINT:$REBOOT_REQUIRED:$LOCK_GROUP" = components.tsv:files:reset.sh:true:sm-config ] || { mzd_manifest_error 'Components require components.tsv, files, reset.sh, restart and sm-config lock.'; return 1; }
+        [ -z "$SHIM_ASSET$SHIM_PATH$SHIM_SERVICE$SHIM_EXTRA_TARGETS$SHIM_CHECKS" ] || { mzd_manifest_error 'Use either components or single-shim metadata.'; return 1; }
+        . "${mzd_manifest_file%/*}/../../lib/components.sh" || return 1
+        mzd_components validate || return 1
     fi
 }

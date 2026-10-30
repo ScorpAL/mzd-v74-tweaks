@@ -12,6 +12,9 @@ if os.getenv("CMU_TRANSPORT_ONLY")~="1" then
     print("ORIGINAL_SHELL_PACKAGES",protocol.result(packages));io.stdout:flush()
     check(packages.exitCode==0 and packages.stdout:find("ORIGINAL_SHELL_PACKAGES_PASSED",1,true),"persistent install/uninstall with original CMU shell")
 end
+local settings=process.run("/usr/bin/qemu-arm",{"-L","/cmu","/cmu/lib/ld-linux.so.3","--library-path","/cmu/lib:/cmu/usr/lib","/cmu/bin/busybox","sh","/experiment/tests/settings-test.sh"})
+print("ORIGINAL_SHELL_SETTINGS",protocol.result(settings));io.stdout:flush()
+check(settings.exitCode==0 and settings.stdout:find("ORIGINAL_SETTINGS_PASSED",1,true),"settings schema and values with original CMU BusyBox")
 local originalShell=process.run("/usr/bin/qemu-arm",{"-L","/cmu","/cmu/lib/ld-linux.so.3","--library-path","/cmu/lib:/cmu/usr/lib","/cmu/bin/busybox","sh","/experiment/package/tweaks/backup-jci/run.sh","status"})
 print("ORIGINAL_SHELL_BACKUP_STATUS",protocol.result(originalShell))
 check(originalShell.exitCode==0 and originalShell.stdout=="unavailable\n","actual CMU shell must inspect without critical exit")

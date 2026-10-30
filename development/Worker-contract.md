@@ -144,3 +144,36 @@ mount state before invoking `reboot`. Launcher/cleanup errors suppress reboot.
 There is no SSH dependency. The restart recommendation belongs to the current
 launcher session; installation records are described in Persistent packages. In the offline
 preview this event is simulated; it never restarts the computer.
+
+## Effective settings
+
+A worker still receives one action argument. The controller accepts optional
+literal `key=value` arguments for Install/Run and exports a private, normalized
+`MZD_SETTINGS_FILE` after schema validation. Load the matching shared
+`settings.sh`, optionally verify with `mzd_settings_check manifest.conf FILE`,
+and read a value with `mzd_setting name`. Never source/eval that file or read
+values from a new USB during saved removal/reset.
+
+The controller preserves settings through the saved package lifecycle; see
+[Manifest format](Manifest-format.md#optional-tweak-settings) and
+[Persistent packages](Persistent-packages.md#effective-tweak-settings).
+Shared `mzd_begin` copies effective settings into the USB action report when a
+worker opens one. Validation refusals are captured by normal diagnostics.
+The settings example is non-destructive and reports its values on stdout.
+
+## Component workers and compatibility details
+
+Workers with `components=components.tsv` delegate to bundle.sh. Their extra
+read-only `preflight` action returns `block<TAB>reason` and/or
+`warning<TAB>reason`, at most 16 lines of 512 characters. A completed inspection
+with a block returns 1; warnings alone return 0. The GUI calls this through
+`installer.sh preflight-info ID` only for an opened uninstalled detail view.
+It waits for the result before enabling Install. No new persistent status enum
+is introduced, and compatibility never blocks saved Uninstall.
+
+The internal `validate-install` action validates replacement assets, generated
+configuration, firmware, native module checks and compatibility before the
+controller removes an old version. It is not a mutation action. Install repeats
+its compatibility check under the shared lock. A worker callback returns plain
+records only: no dialogs, mounts or writes. See the
+[bundle example](examples/bundle/README.md) for transaction and upgrade limits.

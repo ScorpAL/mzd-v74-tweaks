@@ -1,10 +1,11 @@
 """Developer-side reader for the same data-only manifest.conf grammar as sh/JS."""
 import re
+from settings_schema import definitions
 
 FIELDS = ('contract_version id name description version type group firmware '
           'entrypoint actions target oem_backup_md5 lock_group status_scope '
-          'reboot_required requires conflicts progress confirmation refresh_all reset_entrypoint').split()
-REQUIRED = set(FIELDS) - {'target', 'oem_backup_md5', 'lock_group', 'progress', 'confirmation', 'refresh_all', 'reset_entrypoint'}
+          'reboot_required requires conflicts progress confirmation refresh_all reset_entrypoint settings shim_service shim_asset shim_path shim_extra_targets shim_checks components').split()
+REQUIRED = set(FIELDS) - {'target', 'oem_backup_md5', 'lock_group', 'progress', 'confirmation', 'refresh_all', 'reset_entrypoint', 'settings', 'shim_service', 'shim_asset', 'shim_path', 'shim_extra_targets', 'shim_checks', 'components'}
 ID = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
 VERSION = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+$')
 
@@ -19,7 +20,7 @@ def parse(text):
         if '=' not in line:
             raise ValueError('Expected KEY=VALUE.')
         key, value = line.split('=', 1)
-        if key not in FIELDS:
+        if key not in FIELDS and not key.startswith('setting.'):
             raise ValueError('Unknown manifest field: ' + key)
         if key in values:
             raise ValueError('Duplicate manifest field: ' + key)
@@ -59,7 +60,39 @@ def parse(text):
         raise ValueError('Expected true/false for refresh_all.')
     if values.get('reset_entrypoint', '') not in ['', 'reset.sh']:
         raise ValueError('Reset entrypoint must be reset.sh.')
+    if any(values.get(k) for k in ('shim_service', 'shim_asset', 'shim_path', 'shim_extra_targets', 'shim_checks')):
+        if values['type'] != 'files' or values.get('reset_entrypoint') != 'reset.sh' or values['reboot_required'] != 'true':
+            raise ValueError('Shims require files, reset.sh and reboot_required=true.')
+        if not re.fullmatch('[A-Za-z0-9_.-]+', values.get('shim_service', '')):
+            raise ValueError('Invalid shim service.')
+        asset = values.get('shim_asset', '')
+        dest = values.get('shim_path', '')
+        for path in [asset, dest, values.get('target', '')]:
+            if not re.fullmatch('[A-Za-z0-9_./-]+', path) or any(x in ('.', '..') for x in path.split('/')):
+                raise ValueError('Unsupported shim path.')
+        if not asset.startswith('assets/') or not asset.endswith('.so'):
+            raise ValueError('Shim asset must be an assets/*.so file.')
+        prefix = '/tmp/mnt/data_persist/mzd-tweaks/shims/'+values['id']+'/'
+        if not dest.startswith(prefix) or '/' in dest[len(prefix):] or not dest.endswith('.so') or dest[len(prefix):].startswith('.'):
+            raise ValueError('Invalid persistent shim destination.')
+        for field in ('shim_extra_targets', 'shim_checks'):
+            records = values.get(field, '').split()
+            paths = [pair.split(':')[0] for pair in records]
+            if len(records) > (7 if field == 'shim_extra_targets' else 16) or len(set(paths)) != len(paths) or (field == 'shim_extra_targets' and values['target'] in paths):
+                raise ValueError('Duplicate or excessive shim records.')
+            for pair in records:
+                if not re.fullmatch(r'/[A-Za-z0-9_./-]+:[0-9a-f]{32}', pair) or any(x in ('.', '..') for x in pair.split(':')[0].split('/')):
+                    raise ValueError('Invalid shim path:OEM-MD5 record.')
+    if values.get('components'):
+        if (values['components'] != 'components.tsv' or values['type'] != 'files'
+                or values.get('reset_entrypoint') != 'reset.sh' or values['reboot_required'] != 'true'
+                or values.get('lock_group') != 'sm-config'):
+            raise ValueError('Invalid component bundle metadata.')
+        if any(values.get(k) for k in ('shim_service', 'shim_asset', 'shim_path', 'shim_extra_targets', 'shim_checks')):
+            raise ValueError('Use either components or single-shim metadata.')
+    schema = definitions(values)
     result = dict(values)
+    result['setting_definitions'] = schema
     result['refresh_all'] = values.get('refresh_all', 'false') == 'true'
     result['progress'] = values.get('progress', 'false') == 'true'
     result['contract_version'] = 1
@@ -69,4 +102,8 @@ def parse(text):
     return result
 
 def read(path):
-    return parse(path.read_text(encoding='utf-8'))
+    result = parse(path.read_text(encoding='utf-8'))
+    if result.get('components'):
+        from component_schema import read as read_components
+        read_components(path, result)
+    return result

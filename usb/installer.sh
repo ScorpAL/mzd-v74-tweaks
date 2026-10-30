@@ -11,6 +11,29 @@ case "${1:-}" in
     ROOT=$HERE
     . "$ROOT/lib/recovery.sh" || exit 1
     mzd_recovery_main "$@" ;;
+  preflight-info)
+    [ "$#" = 2 ] && valid_id "$2" || fail 'Expected a tweak ID.'
+    . "$HERE/lib/manifest.sh" || exit 1
+    mzd_manifest_load "$HERE/tweaks/$2/manifest.conf" && [ "$ID" = "$2" ] || exit 1
+    [ -n "${COMPONENTS:-}" ] || exit 0
+    /bin/sh "$HERE/tweaks/$2/run.sh" preflight ;;
+  settings-info)
+    [ "$#" = 2 ] && valid_id "$2" || fail 'Expected a tweak ID.'
+    . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" && . "$HERE/lib/settings.sh" || exit 1
+    entry="$MZD_PACKAGE_STORE/$2"
+    if [ -e "$entry" ] || [ -L "$entry" ]; then
+      mzd_package_check "$entry" || exit 1
+      printf 'settings_saved=true\n'
+      manifest="$entry/package/tweaks/$2/manifest.conf"
+      if [ -f "$entry/package/settings.conf" ]; then
+        mzd_settings_process "$manifest" info 1 "$entry/package/settings.conf"
+      else mzd_settings_process "$manifest" info 0 /dev/null; fi
+    else
+      manifest="$HERE/tweaks/$2/manifest.conf"
+      mzd_manifest_load "$manifest" && [ "$ID" = "$2" ] || exit 1
+      printf 'settings_saved=false\n'
+      mzd_settings_process "$manifest" info 0 /dev/null
+    fi ;;
   statuses)
     shift
     . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1
@@ -60,7 +83,8 @@ case "${1:-}" in
       case "$3" in uninstall|status)
         . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1
         if [ -e "$MZD_PACKAGE_STORE/$2" ] || [ -L "$MZD_PACKAGE_STORE/$2" ]; then
-          mzd_package_action "$HERE" "$2" "$3"
+          shift
+          mzd_package_action "$HERE" "$@"
           exit $?
         fi ;;
       esac
@@ -79,16 +103,18 @@ case "${1:-}" in
       [ "$ID" = "$2" ] || fail 'Manifest ID does not match its folder.'
       cat "$TWEAK/manifest.conf"
     else
-      [ "$#" = 3 ] || fail 'Expected tweak and action.'
+      [ "$#" -ge 3 ] || fail 'Expected tweak and action.'
       case "$3" in install|uninstall|status|run) ;; *) fail 'Unsupported action.' ;; esac
       [ -f "$TWEAK/run.sh" ] && [ ! -L "$TWEAK/run.sh" ] || fail 'Tweak run.sh is missing or is a symbolic link.'
+      case "$3" in install|run) ;; *) [ "$#" = 3 ] || fail 'Settings are accepted only for Install or Run.' ;; esac
       # No string evaluation or shell command concatenation. Preserve the
       # worker's stdout, stderr and exit code, including critical exit code 2.
       if [ "$3" != run ]; then
         . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1
         mzd_manifest_load "$TWEAK/manifest.conf" || exit 1
         if [ "$TYPE" != command ]; then
-          mzd_package_action "$HERE" "$2" "$3"
+          shift
+          mzd_package_action "$HERE" "$@"
           exit $?
         elif [ "$3" = status ]; then
           # Command readiness is checked by Run, not by the menu refresh.
@@ -96,13 +122,24 @@ case "${1:-}" in
           exit 0
         fi
       fi
+      if [ "$3" = run ]; then
+        . "$HERE/lib/manifest.sh" && . "$HERE/lib/settings.sh" || exit 1
+        mzd_manifest_load "$TWEAK/manifest.conf" && [ "$ID" = "$2" ] || exit 1
+        settings_action=$3; shift 3
+        settings_temp=$(mktemp /tmp/mzd-run-settings.XXXXXX) || exit 1
+        trap 'rm -f "$settings_temp"' 0
+        mzd_settings_normalize "$TWEAK/manifest.conf" "$@" > "$settings_temp" || exit 1
+        MZD_SETTINGS_FILE=$settings_temp; export MZD_SETTINGS_FILE
+        cd "$TWEAK" || exit 1
+        /bin/sh "$TWEAK/run.sh" "$settings_action"; exit $?
+      fi
       cd "$TWEAK" || exit 1
       exec /bin/sh "$TWEAK/run.sh" "$3"
     fi ;;
   start-run|job-status|job-output|job-execute)
     . "$HERE/lib/jobs.sh" || exit 1
     case "$1" in
-      start-run) [ "$#" = 2 ] || fail 'Expected a tweak ID.'; mzd_job_start "$2" ;;
+      start-run) [ "$#" -ge 2 ] || fail 'Expected a tweak ID.'; shift; mzd_job_start "$@" ;;
       job-status) [ "$#" = 2 ] || fail 'Expected a job ID.'; mzd_job_status "$2" ;;
       job-execute) [ "$#" = 3 ] || exit 1; mzd_job_execute "$2" "$3" ;;
       job-output)
@@ -115,6 +152,7 @@ case "${1:-}" in
     [ -n "${INSTALLER_STATE:-}" ] && [ -d "$INSTALLER_STATE" ] || fail 'Installer session is missing.'
     case "${2:-}" in
       ready) : > "$INSTALLER_STATE/ui-ready" ;;
+      ui-error) : ;; # Early browser diagnostics do not declare the UI ready.
       close) : > "$INSTALLER_STATE/ui-close" ;;
       restart)
         [ ! -d "$INSTALLER_STATE/active-job" ] || fail 'A background operation is still running.'

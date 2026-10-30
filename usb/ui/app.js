@@ -13,7 +13,7 @@
     function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
     function setDialogMode(mode) {
         dialogMode=mode;
-        if (mode!=="details") show("restore-action",false);
+        if (mode!=="details") {show("restore-action",false);clear(el("dialog-settings"));}
     }
     function trim(value) { return String(value || "").replace(/^\s+|\s+$/g, ""); }
     function supported(item, action) { return item.manifest.actions.indexOf(action) !== -1; }
@@ -133,14 +133,116 @@
         }
         el("content").scrollTop = 0; controls();
     }
+    function settingDefinitions(raw) {
+        var names=raw.settings ? raw.settings.split(" ") : [], defs=[], known={}, key, parts, i, d, n;
+        function integer(v) {return /^(0|[1-9][0-9]*)$/.test(v || "") && String(v).length<=10 && Number(v)<=2147483647;}
+        if(names.length>16)throw new Error("Too many settings.");
+        for(i=0;i<names.length;i++) {
+            key=names[i]; if(!/^[a-z][a-z0-9_]{0,31}$/.test(key) || known["$"+key])throw new Error("Invalid settings list.");
+            d={key:key};known["$"+key]=d;defs.push(d);
+        }
+        for(key in raw)if(Object.prototype.hasOwnProperty.call(raw,key) && key.indexOf("setting.")===0) {
+            parts=key.split(".");d=known["$"+parts[1]];
+            if(parts.length!==3 || !d || "type label default min max step unit help options".split(" ").indexOf(parts[2])===-1 || unescape(encodeURIComponent(raw[key])).length>256)throw new Error("Invalid setting field: "+key);
+            d[parts[2]]=raw[key];
+        }
+        for(i=0;i<defs.length;i++) {
+            d=defs[i]; if(["number","boolean","choice"].indexOf(d.type)===-1 || !d.label || d.default===undefined)throw new Error("Incomplete setting: "+d.key);
+            if(d.type==="number") {
+                if(!integer(d.min) || !integer(d.max) || !integer(d.step) || Number(d.step)===0 || Number(d.min)>Number(d.max))throw new Error("Invalid numeric bounds.");
+            } else if(d.min!==undefined || d.max!==undefined || d.step!==undefined || d.unit!==undefined)throw new Error("Unexpected numeric fields.");
+            if(d.type==="choice") {
+                d.choices=(d.options || "").split(" ");known={};
+                if(d.choices.length>16)throw new Error("Too many choices.");
+                for(n=0;n<d.choices.length;n++) {
+                    key=d.choices[n];if(!/^[a-z0-9][a-z0-9_-]{0,31}$/.test(key) || known["$"+key])throw new Error("Invalid choices.");known["$"+key]=true;
+                }
+            } else if(d.options!==undefined)throw new Error("Unexpected options.");
+            if(!settingValid(d,d.default))throw new Error("Invalid default: "+d.key);
+        }
+        return defs;
+    }
+    function settingValid(d,value) {
+        if(d.type==="boolean")return value==="true" || value==="false";
+        if(d.type==="choice")return d.choices.indexOf(value)!==-1;
+        var n=Number(value);
+        return /^(0|[1-9][0-9]*)$/.test(value) && String(value).length<=10 && n<=2147483647 && n>=Number(d.min) && n<=Number(d.max) && (n-Number(d.min))%Number(d.step)===0;
+    }
+    function settingArguments(item) {
+        var args=[],defs=item.settingDefs||[],values=item.settingValues||{},i;
+        for(i=0;i<defs.length;i++) {
+            if(!settingValid(defs[i],values[defs[i].key]))throw new Error("Invalid setting: "+defs[i].label);
+            args.push(defs[i].key+"="+values[defs[i].key]);
+        }
+        return args;
+    }
+    function renderSettings(item) {
+        var area=el("dialog-settings"),defs=item.settingDefs||[],readOnly=item.settingsSaved,i;
+        clear(area);
+        if(!defs.length)return;
+        var heading=document.createElement("div");heading.className="settings-heading";heading.textContent=readOnly?"INSTALLED SETTINGS":"SETTINGS";area.appendChild(heading);
+        for(i=0;i<defs.length;i++)(function(d) {
+            var row=document.createElement("div"),label=document.createElement("div"),controls=document.createElement("div"),value=document.createElement("span");
+            row.className="setting-row";label.className="setting-label";label.textContent=d.label;row.appendChild(label);
+            if(d.help){var help=document.createElement("div");help.className="setting-help";help.textContent=d.help;row.appendChild(help);}
+            controls.className="setting-controls";row.appendChild(controls);area.appendChild(row);
+            function button(suffix,title,handler) {
+                var b=document.createElement("button");b.id="setting-"+d.key+"-"+suffix;b.textContent=title;b.setAttribute("aria-label",d.label+": "+title);b.onclick=handler;controls.appendChild(b);return b;
+            }
+            function save(v) {item.settingValues[d.key]=v;item.settingDraft[d.key]=v;}
+            if(readOnly){value.textContent=(d.type==="boolean"?(item.settingValues[d.key]==="true"?"On":"Off"):item.settingValues[d.key])+(d.unit?" "+d.unit:"");controls.appendChild(value);return;}
+            if(d.type==="number") {
+                var minus=button("minus","-",function(){save(String(Number(item.settingValues[d.key])-Number(d.step)));update();});
+                value.className="setting-value";controls.appendChild(value);
+                var plus=button("plus","+",function(){save(String(Number(item.settingValues[d.key])+Number(d.step)));update();});
+                var update=function(){value.textContent=item.settingValues[d.key]+(d.unit?" "+d.unit:"");minus.disabled=Number(item.settingValues[d.key])-Number(d.step)<Number(d.min);plus.disabled=Number(item.settingValues[d.key])+Number(d.step)>Number(d.max);};
+                update();
+            } else if(d.type==="boolean") {
+                var toggle=button("toggle","",function(){save(item.settingValues[d.key]==="true"?"false":"true");updateToggle();});
+                var updateToggle=function(){var on=item.settingValues[d.key]==="true";toggle.textContent=on?"On":"Off";toggle.className="setting-toggle"+(on?" on":"");toggle.setAttribute("aria-checked",on?"true":"false");};
+                toggle.setAttribute("role","switch");updateToggle();
+            } else {
+                var choice=button("choice",item.settingValues[d.key],function(){var at=d.choices.indexOf(item.settingValues[d.key]);save(d.choices[(at+1)%d.choices.length]);choice.textContent=item.settingValues[d.key];});
+            }
+        }(defs[i]));
+        if(readOnly){var note=document.createElement("div");note.className="setting-help";note.textContent="To change settings, uninstall this version first, then install again.";area.appendChild(note);}
+    }
+    function loadSettings(item,view) {
+        item.settingDefs=item.manifest.settingDefs||[];item.settingValues={};item.settingDraft=item.settingDraft||{};item.settingsSaved=false;
+        if(!item.settingDefs.length && item.state!=="installed") {item.settingsReady=true;return;}
+        item.settingsReady=!item.settingDefs.length;
+        if(!item.settingsReady)el("action").disabled=true;
+        call(["settings-info",item.id],function(error,result) {
+            if(view!==detailView || dialogMode!=="details" || selected!==item || operating || closing)return;
+            try {
+                var problem=error||resultError(result);if(problem)throw new Error(String(problem));
+                if(result.stdoutTruncated || result.stderrTruncated)throw new Error("Settings response was truncated.");
+                var raw={},lines=result.stdout.split("\n"),i,at,k;
+                for(i=0;i<lines.length;i++)if(lines[i]) {
+                    at=lines[i].indexOf("=");k=lines[i].substring(0,at);
+                    if(at<0 || /[\x00-\x1f\x7f]/.test(lines[i]) || Object.prototype.hasOwnProperty.call(raw,k))throw new Error("Invalid settings response.");
+                    raw[k]=lines[i].substring(at+1);
+                }
+                if(raw.settings_saved!=="true" && raw.settings_saved!=="false")throw new Error("Missing settings origin.");
+                item.settingsSaved=raw.settings_saved==="true";item.settingDefs=settingDefinitions(raw);
+                for(i=0;i<item.settingDefs.length;i++) {
+                    var d=item.settingDefs[i],v=raw["value."+d.key];
+                    if(!settingValid(d,v))throw new Error("Invalid saved value: "+d.key);
+                    item.settingValues[d.key]=!item.settingsSaved && settingValid(d,item.settingDraft[d.key])?item.settingDraft[d.key]:v;
+                }
+                item.settingsReady=true;renderSettings(item);
+                el("action").disabled=scanning||locked||item.invalid||item.settingsSaved&&item.state!=="installed"||item.compatibilityPending||item.compatibilityBlocked;
+            } catch(e){item.settingsReady=false;el("action").disabled=true;text("dialog-description",item.manifest.description+"\n\nSettings unavailable: "+String(e));}
+        });
+    }
     function parseManifest(id, raw) {
-        var m = {}, lines = raw.split("\n"), fields = "contract_version id name description version type group firmware entrypoint actions target oem_backup_md5 lock_group status_scope reboot_required requires conflicts progress confirmation refresh_all reset_entrypoint".split(" ");
+        var m = {}, lines = raw.split("\n"), fields = "contract_version id name description version type group firmware entrypoint actions target oem_backup_md5 lock_group status_scope reboot_required requires conflicts progress confirmation refresh_all reset_entrypoint settings shim_service shim_asset shim_path shim_extra_targets shim_checks components".split(" ");
         for (var n = 0; n < lines.length; n++) {
             var line = lines[n].replace(/\r$/, "");
             if (/[\x00-\x1f\x7f]/.test(line)) throw new Error("Manifest contains control characters.");
             if (!trim(line) || line.charAt(0) === "#") continue;
             var at = line.indexOf("="), key = line.substring(0, at);
-            if (at < 0 || fields.indexOf(key) === -1) throw new Error("Invalid manifest field.");
+            if (at < 0 || (fields.indexOf(key) === -1 && key.indexOf("setting.")!==0)) throw new Error("Invalid manifest field.");
             if (Object.prototype.hasOwnProperty.call(m,key)) throw new Error("Duplicate manifest field: " + key);
             m[key] = line.substring(at + 1);
         }
@@ -159,6 +261,7 @@
         for (var l = 0; l < lists.length; l++) m[lists[l]] = trim(m[lists[l]]) ? trim(m[lists[l]]).split(/ +/) : [];
         if (!m || m.contract_version !== 1 || m.id !== id || typeof m.name !== "string" || !trim(m.name) || typeof m.description !== "string" || !Array.isArray(m.actions) || m.entrypoint !== "run.sh") throw new Error("Invalid manifest: expected contract version 1, matching id, name, description, actions and entrypoint run.sh.");
         if (m.group !== undefined && (typeof m.group !== "string" || !trim(m.group))) throw new Error("Invalid manifest group.");
+        m.settingDefs=settingDefinitions(m);
         return m;
     }
     function discover() {
@@ -282,7 +385,7 @@
             if (item.state === "broken" || (item.state === "unavailable" && /target|patch|file|content|incompatible/i.test(item.error || ""))) description += "\n\nUse System > Restore originals, then retry.\nThis resets ALL patches on affected files.";
         }
         text("dialog-description", description);
-        clear(el("dialog-meta")); text("dialog-output", "");
+        clear(el("dialog-settings")); clear(el("dialog-meta")); text("dialog-output", "");
         // Present the manifest information needed to choose an action. Patch
         // hashes, lock names and internal file paths remain worker concerns.
         var versionMeta = item.manifest.version !== undefined ? addMeta("Version",item.manifest.version) : null;
@@ -305,13 +408,34 @@
         el("action").disabled = scanning || locked || item.invalid || !supported(item,action);
         el("back").disabled = false; el("back").focus();
         el("action").onclick = function () {
-            if (el("action").disabled) return;
+            if (el("action").disabled || !item.settingsReady || item.compatibilityPending || item.compatibilityBlocked) return;
             if (action === "status") {
                 scanning = true; controls(); el("action").disabled = true;
                 checkStatus(item,function () {scanning=false;controls();openDetails(item);});
             } else if (action === "run" && item.manifest.confirmation) confirmRun(item);
             else perform(item,action);
         };
+        item.compatibilityPending=false; item.compatibilityBlocked=false;
+        loadSettings(item,view);
+        if(item.manifest.components && item.state!=="installed" && !item.invalid) {
+            item.compatibilityPending=true;el("action").disabled=true;
+            call(["preflight-info",item.id],function(error,result) {
+                if(view!==detailView || dialogMode!=="details" || selected!==item || operating || closing)return;
+                item.compatibilityPending=false;
+                var lines=result && result.stdout?trim(result.stdout).split("\n"):[],messages=[],blocked=false;
+                for(var i=0;i<lines.length;i++) {
+                    if(!lines[i])continue;
+                    var parts=lines[i].split("\t");
+                    if(parts.length!==2 || (parts[0]!=="block" && parts[0]!=="warning") || !parts[1] || /[\x00-\x1f\x7f]/.test(parts[1])) {blocked=true;messages.push("Invalid compatibility response.");break;}
+                    if(parts[0]==="block")blocked=true;
+                    messages.push((parts[0]==="block"?"Cannot install: ":"Note: ")+parts[1]);
+                }
+                if(error || resultError(result)) {blocked=true;if(!messages.length)messages.push(String(error||resultError(result)));}
+                item.compatibilityBlocked=blocked;
+                text("dialog-description",description+(messages.length?"\n\n"+messages.join("\n"):""));
+                el("action").disabled=scanning||locked||item.invalid||!item.settingsReady||blocked||!supported(item,action);
+            });
+        }
         // Inspect only the opened detail view, never the whole menu. Leave it
         // visible and preserve focus; eligibility adds a button, not a dialog.
         if (!scanning && !locked && !item.invalid && item.manifest.type==="patch" && item.state!=="installed" && supported(item,"install")) {
@@ -343,6 +467,7 @@
         el("action").onclick = function () {text("back","Back");el("back").onclick=closeDialog;perform(item,"run");};
     }
     function closeDialog() {
+        if(selected)selected.settingDraft=null;
         show("overlay",false); setDialogMode(""); el("dialog-state").className=""; el("dialog-body").className="";
         var button = document.getElementById(returnFocusId); if (button) button.focus();
     }
@@ -379,8 +504,11 @@
     }
     function executeAction(item, action, callback, restoreHash) {
         if(action==="restore-original") {call(["restore-original",item.id,restoreHash],callback);return;}
-        if(action!=="run" || !item.manifest.progress) {call(["action",item.id,action],callback);return;}
-        call(["start-run",item.id],function(error,result) {
+        var options;
+        try {options=(action==="install" || action==="run")?settingArguments(item):[];}
+        catch(e){callback(null,{started:false,startError:String(e),exitCode:null,signal:null,stdout:"",stderr:""});return;}
+        if(action!=="run" || !item.manifest.progress) {call(["action",item.id,action].concat(options),callback);return;}
+        call(["start-run",item.id].concat(options),function(error,result) {
             if(error || resultError(result)) {callback(error,result);return;}
             var job=trim(result.stdout), started=new Date().getTime();
             if(!/^job\.[A-Za-z0-9]+$/.test(job)) {callback("Invalid background job response.",result);return;}
@@ -527,14 +655,15 @@
             if (dialogMode==="restore-confirm") el("back").onclick(); else if (dialogMode==="restart") leaveInstaller(false); else if (dialogMode==="confirm") openDetails(selected); else if (dialogMode==="details") closeDialog(); else if (dialogMode==="disclaimer" || !dialogMode) exit(); else return;
         } else if (key===38 || key===40 || key===37 || key===39) {
             // Up/down scroll detail text; left/right selects its action buttons.
-            if (dialogMode && (key===38 || key===40)) el("dialog-body").scrollTop += key===38 ? -70 : 70;
+            if (dialogMode && !(dialogMode==="details" && selected && selected.settingDefs && selected.settingDefs.length) && (key===38 || key===40)) el("dialog-body").scrollTop += key===38 ? -70 : 70;
             else {
-                nodes=(dialogMode ? el("dialog-actions") : el("app")).getElementsByTagName("button");
+                nodes=(dialogMode ? el("dialog") : el("app")).getElementsByTagName("button");
                 for(i=0;i<nodes.length;i++) if(!nodes[i].disabled && nodes[i].className.indexOf("hidden")===-1) buttons.push(nodes[i]);
                 for(i=0;i<buttons.length;i++) if(buttons[i]===document.activeElement) index=i;
                 if(buttons.length) {
                     index=(index+(key===37||key===38?-1:1)+buttons.length)%buttons.length;
                     buttons[index].focus();
+                    if(dialogMode==="details" && buttons[index].id && buttons[index].id.indexOf("setting-")===0 && buttons[index].scrollIntoView)buttons[index].scrollIntoView(false);
                     if (!dialogMode && buttons[index].className==="tweak") {
                         var card=buttons[index],area=el("content");
                         if(card.offsetTop<area.scrollTop)area.scrollTop=card.offsetTop;

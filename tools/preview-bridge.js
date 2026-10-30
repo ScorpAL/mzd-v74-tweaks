@@ -44,6 +44,18 @@
             return ok("PREVIEW ONLY: Original file restored. You can now retry Install. No files were changed.");
         }
         if (args[0] === "package-info") return ok(states[id] === "installed" ? "0.7.0\tinstalled\n" : "");
+        if (args[0] === "preflight-info") return ok("");
+        if (args[0] === "settings-info") {
+            var rows=(manifests[id]||"").split("\n"),schema=[],values=[];
+            for(var n=0;n<rows.length;n++) {
+                var line=rows[n].replace(/\r$/,"");
+                if(line.indexOf("settings=")===0 || line.indexOf("setting.")===0)schema.push(line);
+                var def=/^setting\.([a-z][a-z0-9_]*)\.default=(.*)$/.exec(line);
+                if(def)values.push("value."+def[1]+"="+def[2]);
+            }
+            if(!schema.length)schema.push("settings=");
+            return ok("settings_saved="+(states[id]==="installed"?"true":"false")+"\n"+schema.join("\n")+"\n"+values.join("\n")+"\n");
+        }
         if (args[0] === "manifest") return manifests[id] ? ok(manifests[id]) : ok("",1,"Missing preview manifest.");
         if (args[0] === "statuses") return ok(args[1].split(" ").map(function (entry) {
             var value = states[entry] || "uninstalled";
@@ -65,13 +77,13 @@
             return ok("PREVIEW ONLY: " + action + " completed. No files were changed.");
         }
         if (args[0] === "start-run") {
-            raw = "job.preview" + (++nextJob); jobs[raw] = 0; return ok(raw+"\n");
+            raw = "job.preview" + (++nextJob); jobs[raw] = {polls:0,tweak:id,values:args.slice(2)}; return ok(raw+"\n");
         }
         if (args[0] === "job-status") {
-            job = ++jobs[id];
+            job = ++jobs[id].polls;
             return ok(job < 4 ? "running\n"+job+"\n4\nSimulating export (preview only)\n" : "done\n0\n");
         }
-        if (args[0] === "job-output") return ok(action === "stdout" ? "PREVIEW ONLY: Export completed. Nothing was written to USB." : "");
+        if (args[0] === "job-output") return ok(action === "stdout" ? (jobs[id].tweak==="settings-example"?"PREVIEW ONLY: Selected values\n"+jobs[id].values.join("\n"):"PREVIEW ONLY: Export completed. Nothing was written to USB.") : "");
         return ok("",1,"Unsupported preview request.");
     }
     // Keep the real app unchanged. Replace only this preview iframe's transport.

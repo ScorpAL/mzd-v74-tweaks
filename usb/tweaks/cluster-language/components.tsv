@@ -1,0 +1,7 @@
+# kind	target	source	service	oem-md5
+loader	/jci/sm/sm.conf	-	-	74d9fc389b74fb01d0cfc2615a82c782
+loader	/jci/sm/sm_WCP.conf	-	-	030e918f5d6edcd62d196ee37b86fe99
+shim	/tmp/mnt/data_persist/mzd-tweaks/shims/cluster-language/libpatch-svcjciblmsettings.so	assets/libpatch-svcjciblmsettings.so	jciBLMSettings	-
+config	/tmp/mnt/data_persist/mzd-tweaks/shims/cluster-language/libpatch.conf	assets/libpatch.map	-	-
+check	/jci/settings/svcjciblmsettings.so	-	-	44c28a25cfdf2e26777e497aa6a84f80
+check	/jci/lib/libjcivbssettingsclient.so	-	-	66dc19a8be330a8a50f919dc36f6245e

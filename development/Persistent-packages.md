@@ -2,8 +2,16 @@
 
 The installer snapshots every patch/service/files tweak before installation.
 Command tweaks such as backup, log export and Restore remain USB operations.
-The permanent root is `/tmp/mnt/data_persist/mzd-v74-tweaks/installed/` on the
+The permanent root is `/tmp/mnt/data_persist/mzd-tweaks/installed/` on the
 existing persistent read-write partition, not the `/tmp` RAM filesystem.
+
+The namespace is now `mzd-tweaks`. For installations made under the former
+`mzd-v74-tweaks` name, uninstall with the matching previous USB package before
+installing with the renamed namespace. Do not simply rename the directory:
+saved helpers/manifests and shim loader entries can contain absolute old paths,
+while saved code is protected by its recorded inventory. Editing those snapshots
+invalidates their integrity checks. No automatic migration or compatibility
+alias is provided. Keep the old USB package available until removal is complete.
 
 ```text
 installed/<id>/
@@ -11,6 +19,7 @@ installed/<id>/
     package.files
     paths.tsv
     package/
+        settings.conf      # Effective settings, only when declared
         tweaks/<id>/       # Manifest, worker, assets and reset hook
         lib/               # This version's complete shared runtime snapshot
 ```
@@ -98,3 +107,45 @@ There is intentionally no adoption or recovery table for pre-receipt versions.
 Uninstall the existing test tweaks (especially SSH) with their matching previous
 USB package before switching to this layout. Do not overwrite the USB package
 first. For the recorded physical test scope, see [test evidence](test-runs/2026-10-25-persistent-packages.md).
+
+## Effective tweak settings
+
+Before Install the controller validates supplied values against the USB schema.
+The normalized effective configuration is copied into `package/settings.conf`
+and covered by `package.files`, along with the matching manifest, worker and
+helpers. Invalid settings are refused before persistent staging or target writes.
+
+The saved worker receives `MZD_SETTINGS_FILE` pointing to that saved file for
+install/deep status/uninstall. Reset hooks use the same saved configuration and
+helper. Missing required values or a changed configuration block execution;
+there is no fallback to defaults from a new USB. Packages created before settings
+support continue using their own saved runtime and have no new configuration.
+
+The detail dialog shows saved settings read-only. To change settings, uninstall
+then install with new values. Repeating Install for the same version succeeds
+only with the same effective values; different values are refused. New-version
+staging carries the new values while the old uninstaller still uses the old ones.
+Menu status retains its fast receipt/presence check.
+
+Command settings live in a private RAM file for synchronous Run, or inside the
+RAM job directory for a background Run. They remain until the job finishes;
+commands are not registered as persistent installed packages.
+
+## Shim payloads and shared loader files
+
+For a declared `shim_path`, ownership additionally includes its per-tweak
+persistent directory and all `shim_extra_targets`. The snapshot contains the
+matching original library asset and helpers. Normal uninstall removes only this
+library's preload token, preserving other shims in the service's LD_PRELOAD list.
+System Restore adds all declared loader/OEM pairs to its catalog and runs the
+saved reset hook before forgetting the package. Unknown payload bytes or a
+remaining loader reference prevent deletion. A configured shim is not evidence
+that the running process has loaded it; restart is required for changes.
+
+The controller checks new shim assets and declared native module fingerprints
+before removing an older package. Saved workers receive the internal receipt
+state as `MZD_PACKAGE_STATE`. During uninstalling/restoring, the shared shim
+status verifies absence without requiring prerequisites for a fresh install.
+This avoids stranding a saved removal after a separate native module changes.
+Registered shim library bytes are immutable: another package cannot patch that
+same payload path. Independently managed loader files remain shareable patches.
