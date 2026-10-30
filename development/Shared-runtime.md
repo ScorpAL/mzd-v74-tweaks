@@ -47,3 +47,41 @@ rollback journal, reset hooks and read-only compatibility messages. See the
 
 vehicle.sh: bounded read-only VBS control/HUD queries. It reports facts and
 unknown values; feature-specific compatibility policy belongs to each worker.
+
+## Blocked status diagnostics
+
+During development, `logging=debug` is the shipped default and also the fallback
+when installer.conf is absent or contains no logging entry. Explicit normal/off
+settings remain supported.
+
+The Lua transport records each `broken`, `unavailable` or `error` row from a
+successful batch status request, including the tweak ID and the returned reason.
+This is enabled in normal logging as well as debug logging. Single-status and
+refused-action stderr is also retained with its request label. Healthy rows and
+routine metrics do not add diagnostic output.
+
+The launcher buffers these diagnostics in RAM and saves `http.log` under the
+session's USB `installer-logs/` directory on Exit, following the existing logging
+setting. `logging=off` disables USB snapshots. Status workers still make no writes.
+A saved `state=failed` explains why a new install is blocked, but is not a fresh
+failure of the replacement USB version: inspect the original action report for
+the earlier operation's error. No new install is attempted by Retry status.
+
+## Saved operation failures and SSH startup
+
+Failed saved-worker Install/Uninstall calls retain `failure.log` next to
+`state.conf`. It records the phase, exit code, saved worker path/version and bounded
+stderr/stdout excerpts (4096 characters per stream). Failed post-action
+verification records expected/actual state and the status command's exit code.
+The record is mutable diagnostics outside the immutable package inventory;
+package checks allow only its named files. Saved status reads it without writes,
+so later GUI scans and transport logs retain the earlier failure explanation.
+Older failed receipts without this record explicitly say that the original
+details were not recorded; a new USB cannot reconstruct them.
+
+SSH Access 0.8.5 records startup phases and stderr in `ssh-start.log` inside its
+USB action report. On startup failure the worker forwards those diagnostics to
+the controller before cleanup, including the supervisor's last sshd runtime
+messages when available. Successful startup closes the supervisor's startup
+streams; existing runtime logging remains separate. This does not change the
+two-second readiness check or automatically repair a failed receipt.

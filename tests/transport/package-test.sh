@@ -26,7 +26,7 @@ ROOT=$(CDPATH= cd "$HERE/../.." && pwd)
 TARGET=/tmp/original-shell-packages/target
 case "$1" in
 status) if [ ! -e "$TARGET" ]; then echo uninstalled; elif [ "$(cat "$TARGET")" = "$VALUE" ]; then echo installed; else echo broken; fi ;;
-install) printf '%s\n' "$VALUE" > "$TARGET"; mzd_setting limit > "$TARGET.options" ;;
+install) if [ -f "$TARGET.fail" ]; then printf 'fixture install failure: configuration refused\n' >&2; exit 1; fi; printf '%s\n' "$VALUE" > "$TARGET"; mzd_setting limit > "$TARGET.options" ;;
 uninstall) [ "$(cat "$TARGET")" = "$VALUE" ]; [ "$(cat "$TARGET.options")" = "$(mzd_setting limit)" ]; rm "$TARGET" "$TARGET.options" ;;
 *) exit 1 ;;
 esac
@@ -59,4 +59,15 @@ mzd_package_action "$BASE/usb" fixture uninstall
 [ ! -e "$BASE/target" ]
 [ ! -e "$BASE/persist/installed/fixture" ]
 [ ! -e "$BASE/lock" ]
+# A later status must retain the actual failure, using only factory commands.
+printf 'VALUE=original\n' > "$BASE/usb/lib/fixture.sh"
+: > "$BASE/target.fail"
+if mzd_package_action "$BASE/usb" fixture install; then exit 1; else [ "$?" = 1 ]; fi
+[ -f "$BASE/persist/installed/fixture/failure.log" ]
+[ "$(mzd_package_action "$BASE/usb" fixture status 2> "$BASE/reason")" = broken ]
+grep -q 'phase=install' "$BASE/reason"
+grep -q 'exit_code=1' "$BASE/reason"
+grep -q 'fixture install failure: configuration refused' "$BASE/reason"
+[ ! -e "$BASE/lock" ]
+echo ORIGINAL_FAILURE_DIAGNOSTICS_PASSED
 echo ORIGINAL_SHELL_PACKAGES_PASSED

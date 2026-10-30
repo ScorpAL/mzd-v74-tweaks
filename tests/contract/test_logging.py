@@ -20,7 +20,10 @@ with tempfile.TemporaryDirectory(prefix='cmu-logging-') as directory:
         return subprocess.run([SHELL, '-c', 'HERE=' + shlex.quote(bp(base)) +
             '; . ' + helper + '; mzd_logging_config || exit 1; printf "%s" "$MZD_LOG_LEVEL"'],
             capture_output=True, text=True, timeout=10)
-    assert parse().stdout == 'normal'
+    assert parse().stdout == 'debug'
+    config.write_text('# No explicit logging level\n')
+    assert parse().stdout == 'debug'
+    assert 'logging=debug' in (ROOT / 'usb/installer.conf').read_text()
     for mode in ['normal', 'debug', 'off']:
         config.write_bytes(('# comment\r\nlogging=' + mode + '\r\n').encode())
         result = parse()

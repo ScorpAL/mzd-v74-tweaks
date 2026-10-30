@@ -117,10 +117,21 @@ local function request(client)
         if not result.started or result.exitCode~=0 or result.signal then
             io.stderr:write("Worker failed: "..label.." exit="..tostring(result.exitCode).." signal="..tostring(result.signal).."\n")
         end
+        -- Batch status inspections succeed even when individual tweaks are broken.
+        -- Keep those reasons in normal logs too, without writing from status workers.
+        if program=="/bin/sh" and args[1]=="./installer.sh" and args[2]=="statuses" then
+            for row in result.stdout:gmatch("[^\n]+") do
+                local id,state,reason=row:match("^([%w_-]+)\t([%w_-]+)\t(.*)$")
+                if state=="broken" or state=="unavailable" or state=="error" then
+                    io.stderr:write("Tweak status: "..id.." state="..state..
+                        " reason="..protocol.string(reason:sub(1,4096)).."\n")
+                end
+            end
+        end
         -- Keep refusal reasons even when preflight ended before a worker report.
         -- Debug still controls per-request/process traces; error output is bounded.
         if not result.started or result.exitCode~=0 or result.signal or #result.stderr>0 then
-            io.stderr:write("diagnostic stdout="..protocol.string(result.stdout:sub(1,4096))..
+            io.stderr:write("diagnostic "..label.." stdout="..protocol.string(result.stdout:sub(1,4096))..
                 " stderr="..protocol.string(result.stderr:sub(1,4096))..
                 " startError="..protocol.string(result.startError or "").."\n")
         end

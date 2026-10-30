@@ -124,6 +124,20 @@ check(r.exitCode==1 and r.stderr:find("A readable target and original .org backu
 local refusalLog=read("/tmp/lua-server.log")
 check(refusalLog:find("Worker failed: installer restore-check list-beep",1,true) and
     refusalLog:find("A readable target and original .org backup are required.",1,true),"normal log includes early refusal reason before any worker report")
+-- Successful batch inspections must log per-tweak failures in normal mode.
+for _,path in ipairs({"/tmp/mnt","/tmp/mnt/data_persist","/tmp/mnt/data_persist/mzd-tweaks",
+    "/tmp/mnt/data_persist/mzd-tweaks/installed","/tmp/mnt/data_persist/mzd-tweaks/installed/status-fixture"}) do
+    p.mkdir(path,"rwx------")
+end
+local failedState="/tmp/mnt/data_persist/mzd-tweaks/installed/status-fixture/state.conf"
+write(failedState,"format=1\nstate=failed\n")
+r=exec({"./installer.sh","statuses","status-fixture demo"})
+check(r.exitCode==0 and r.stderr=="" and r.stdout:find("status-fixture\tbroken\t",1,true),"batch broken state is a successful inspection")
+local statusLog=read("/tmp/lua-server.log")
+check(statusLog:find("Tweak status: status-fixture state=broken",1,true) and
+    statusLog:find("Saved installation state: failed",1,true),"normal log records failed saved state without an install attempt")
+check(not statusLog:find("Tweak status: demo",1,true),"healthy status is not logged")
+os.remove(failedState);p.rmdir("/tmp/mnt/data_persist/mzd-tweaks/installed/status-fixture")
 r=exec({"./installer.sh","list"});check(r.exitCode==0 and r.stdout:find("demo\n",1,true),"actual discovery")
 r=exec({"./installer.sh","manifest","demo"});check(r.exitCode==0 and r.stdout:find("id=demo",1,true),"actual manifest reader")
 r=exec({"./installer.sh","action","demo","status"});check(r.exitCode==0 and r.stdout=="uninstalled\n","worker status")

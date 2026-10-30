@@ -62,10 +62,10 @@ case "$1" in
 status)
     # Event proves that registered menu status does not execute worker probes.
     printf 'probe {id_} {version}\\n' >> "$EVENTS"
-    if [ -e "$TARGET" ]; then printf 'installed\\n'; else printf 'uninstalled\\n'; fi ;;
+    if [ -e "$TARGET" ] && [ ! -f {shlex.quote(bp(base/"fail-verification"))} ]; then printf 'installed\\n'; else printf 'uninstalled\\n'; fi ;;
 install)
     printf 'install {id_} {version} %s %s\\n' "$HELPER" "$ROOT" >> "$EVENTS"
-    [ ! -f {shlex.quote(bp(base/'fail-install'))} ] || exit 1
+    [ ! -f {shlex.quote(bp(base/'fail-install'))} ] || {{ printf 'fixture installation failed: permission denied\\n' >&2; exit 1; }}
     printf '{version}\\n' > "$TARGET" ;;
 uninstall)
     printf 'uninstall {id_} {version} %s\\n' "$HELPER" >> "$EVENTS"
@@ -138,14 +138,22 @@ esac
     write(entry/'state.conf','format=1\nstate=installed\n')
     saved=entry/'package/lib/test-helper.sh';original=saved.read_text();write(saved,'HELPER=tampered\n')
     before=text();action('alpha','uninstall',1);assert text()==before
-    saved.unlink();action('alpha','status',output='broken\n')
+    saved.unlink();r=action('alpha','status',output='broken\n');assert bp(saved) in r.stderr
+    rows=call(['statuses','alpha']).stdout
+    assert 'alpha\tbroken\t' in rows and bp(saved) in rows
     write(saved,original);action('alpha','uninstall')
     # Copy failure/space failure occurs before changing the target.
     write(base/'no-space','yes');action('alpha','install',1)
     assert not entry.exists() and not target.exists();(base/'no-space').unlink()
     write(base/'fail-install','yes');action('alpha','install',1)
     assert entry.exists() and 'state=failed' in (entry/'state.conf').read_text()
+    r=call(['statuses','alpha']);assert 'alpha\tbroken\t' in r.stdout and 'state: failed' in r.stdout
+    assert 'phase=install' in r.stdout and 'exit_code=1' in r.stdout and 'fixture installation failed: permission denied' in r.stdout
+    assert 'permission denied' in (entry/'failure.log').read_text()
     (base/'fail-install').unlink();action('alpha','uninstall')
+    write(base/'fail-verification','yes');action('alpha','install',2)
+    r=call(['statuses','alpha']);assert 'installed-verification' in r.stdout and 'expected state=installed' in r.stdout and 'actual state=uninstalled' in r.stdout
+    (base/'fail-verification').unlink();action('alpha','uninstall')
     # Generic path ownership: consumer of another tweak's created file blocks removal.
     shared=base/'shared'
     make('alpha',extra='create\t'+bp(shared)+'\n');action('alpha','install')

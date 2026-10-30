@@ -8,7 +8,7 @@ STATE=$(mktemp -d /tmp/cmu-installer.XXXXXX) || exit 1
 INSTALLER_STATE=$STATE; export INSTALLER_STATE
 LOG_DIR="$HERE/installer-logs/$(date +%Y%m%d-%H%M%S)-$$"
 INSTALLER_LOG=$STATE; export INSTALLER_LOG
-MZD_LOG_LEVEL=normal
+MZD_LOG_LEVEL=debug
 HTTP_PID=''; OPERA_PID=''; ACTIVE=0; USB_CHANGED=0; USB_MOUNT=''
 checkpoint() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" >> "$STATE/launcher.log"; }
 save_logs() {

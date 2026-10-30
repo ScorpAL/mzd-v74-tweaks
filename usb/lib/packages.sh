@@ -42,7 +42,7 @@ mzd_package_check() (
     mzd_package_tree_ok "$entry" || { mzd_package_error 'Saved package contains unsupported files.'; exit 1; }
     for path in "$entry"/* "$entry"/.[!.]* "$entry"/..?*; do
         [ -e "$path" ] || continue
-        case "${path##*/}" in package|package.files|paths.tsv|state.conf|state.next) ;;
+        case "${path##*/}" in package|package.files|paths.tsv|state.conf|state.next|failure.log|failure.next) ;;
             *) mzd_package_error 'Unexpected files in saved installation; nothing deleted.'; exit 1 ;;
         esac
     done
@@ -63,18 +63,19 @@ mzd_package_check() (
 )
 mzd_package_presence() (
     entry=$1
-    [ -s "$entry/package.files" ] && [ -s "$entry/paths.tsv" ] || exit 1
+    [ -s "$entry/package.files" ] || { mzd_package_error "Saved inventory is missing or empty: $entry/package.files"; exit 1; }
+    [ -s "$entry/paths.tsv" ] || { mzd_package_error "Saved ownership record is missing or empty: $entry/paths.tsv"; exit 1; }
     tab=$(printf '\t')
     while IFS="$tab" read -r hash file; do
         case "$hash" in ''|*[!0-9a-f]*) exit 1 ;; esac
         [ "${#hash}" = 32 ] || exit 1
         case "$file" in package/*) ;; *) exit 1 ;; esac
         case "/$file/" in *'/../'*|*'/./'*) exit 1 ;; esac
-        [ -f "$entry/$file" ] && [ ! -L "$entry/$file" ] || exit 1
+        [ -f "$entry/$file" ] && [ ! -L "$entry/$file" ] || { mzd_package_error "Saved package file is missing or invalid: $entry/$file"; exit 1; }
     done < "$entry/package.files"
     mzd_package_paths_ok "$entry/paths.tsv" || exit 1
     while IFS="$tab" read -r kind path; do
-        [ -e "$path" ] || [ -L "$path" ] || exit 1
+        [ -e "$path" ] || [ -L "$path" ] || { mzd_package_error "Registered target is missing: $path"; exit 1; }
     done < "$entry/paths.tsv"
 )
 mzd_package_status() (
@@ -82,7 +83,12 @@ mzd_package_status() (
     [ -d "$entry" ] && [ ! -L "$entry" ] || { printf 'broken\n'; mzd_package_error 'Saved package path is invalid.'; exit 0; }
     state=$(mzd_package_state "$entry") || state=invalid
     if [ "$state" != installed ]; then
-        printf 'broken\n'; mzd_package_error "Saved installation state: $state. Use Restore originals or inspect the saved package."; exit 0
+        printf 'broken\n'; mzd_package_error "Saved installation state: $state."
+        if [ -f "$entry/failure.log" ] && [ ! -L "$entry/failure.log" ]; then
+            printf 'Previous worker failure (%s/failure.log):\n' "$entry" >&2
+            awk 'BEGIN {left=4096} left>0 {s=substr($0,1,left-1); print s; left-=length(s)+1}' "$entry/failure.log" >&2
+        else printf 'Original failure details were not recorded by that installer version; inspect its USB action report.\n' >&2; fi
+        exit 0
     fi
     for file in state.conf package.files paths.tsv package/tweaks/"$1"/run.sh package/tweaks/"$1"/manifest.conf package/lib/manifest.sh package/lib/report.sh package/lib/system.sh package/lib/patch.sh package/lib/status.sh; do
         [ -f "$entry/$file" ] && [ ! -L "$entry/$file" ] || {
@@ -164,7 +170,7 @@ mzd_package_dependents() (
         fi
     done
 )
-mzd_package_worker() (
+mzd_package_worker_raw() (
     # A remembered package layout keeps worker-relative library paths unchanged.
     worker="$1/package/tweaks/${1##*/}/run.sh"
     MZD_WORKER_DIRECT=1; export MZD_WORKER_DIRECT MZD_ORIGIN_USB
@@ -179,12 +185,44 @@ mzd_package_worker() (
     fi
     sh "$worker" "$2"
 )
+# Persist the last failed modifying worker outside its immutable inventory.
+# Status only reads this record; it never opens reports or changes the package.
+mzd_package_worker() (
+    if [ "$2" = status ] && [ "$#" = 2 ]; then mzd_package_worker_raw "$@"; exit $?; fi
+    capture=$(mktemp -d /tmp/mzd-worker-result.XXXXXX) || exit 1
+    trap 'rm -rf "$capture"' 0
+    mzd_package_worker_raw "$1" "$2" > "$capture/stdout" 2> "$capture/stderr"; worker_code=$?
+    worker_phase=$2
+    if [ "$#" = 3 ]; then
+        worker_phase="$3-verification"
+        actual_state=$(cat "$capture/stdout")
+        if [ "$worker_code" != 0 ] || [ "$actual_state" != "$3" ]; then
+            printf 'Verification expected state=%s; actual state=%s; status exit=%s.\n' "$3" "$actual_state" "$worker_code" >> "$capture/stderr"
+            worker_code=2
+        fi
+    fi
+    if [ "$worker_code" != 0 ]; then
+        if {
+            printf 'phase=%s\nexit_code=%s\nworker=%s/package/tweaks/%s/run.sh\n' "$worker_phase" "$worker_code" "$1" "${1##*/}"
+            printf 'saved_version='
+            awk -F= '$1=="version" {print substr($0,9); exit}' "$1/package/tweaks/${1##*/}/manifest.conf"
+            printf 'stderr:\n'
+            awk 'BEGIN {left=4096} left>0 {s=substr($0,1,left-1); print s; left-=length(s)+1}' "$capture/stderr"
+            printf 'stdout:\n'
+            awk 'BEGIN {left=4096} left>0 {s=substr($0,1,left-1); print s; left-=length(s)+1}' "$capture/stdout"
+        } > "$1/failure.next" && mv "$1/failure.next" "$1/failure.log"; then :
+        else printf 'Packages: Could not persist worker failure diagnostics.\n' >&2; fi
+    fi
+    cat "$capture/stdout"
+    cat "$capture/stderr" >&2
+    exit "$worker_code"
+)
 mzd_package_remove() {
     mzd_package_check "$1" && mzd_package_dependents "$1" || return 1
     mzd_package_set_state "$1" uninstalling || return 1
     mzd_package_worker "$1" uninstall; code=$?
     if [ "$code" != 0 ]; then mzd_package_set_state "$1" failed || :; return "$code"; fi
-    result=$(mzd_package_worker "$1" status); code=$?
+    result=$(mzd_package_worker "$1" status uninstalled); code=$?
     if [ "$code" != 0 ] || [ "$result" != uninstalled ]; then
         mzd_package_set_state "$1" failed || :
         mzd_package_error 'Uninstall could not be verified; saved package retained. Do NOT reboot.'; return 2
@@ -319,7 +357,7 @@ mzd_package_action() (
     mzd_package_set_state "$entry" installing || exit 1
     mzd_package_worker "$entry" install; code=$?
     if [ "$code" != 0 ]; then mzd_package_set_state "$entry" failed || :; exit "$code"; fi
-    result=$(mzd_package_worker "$entry" status); code=$?
+    result=$(mzd_package_worker "$entry" status installed); code=$?
     if [ "$code" != 0 ] || [ "$result" != installed ]; then
         mzd_package_set_state "$entry" failed || :
         mzd_package_error 'Installation could not be verified. Do NOT reboot.'; exit 2

@@ -98,7 +98,7 @@ exec /usr/bin/grep "$@"
     write(bins / 'sshd', f'''#!/bin/sh
 case "$0" in /*) ;; *) echo 'sshd re-exec requires execution with an absolute path' >&2; exit 1 ;; esac
 if [ "$1" = -t ]; then exit 0; fi
-if [ -f {shlex.quote(bp(temp / 'fail-daemon'))} ]; then exit 1; fi
+if [ -f {shlex.quote(bp(temp / 'fail-daemon'))} ]; then echo 'fixture sshd: host key cannot be loaded' >&2; exit 1; fi
 CFG=$4
 PIDFILE=$(awk '$1=="PidFile" {{print $2}}' "$CFG")
 mkdir -p {shlex.quote(bp(proc))}/$$
@@ -135,6 +135,9 @@ esac
     (temp / 'foreign-port').unlink()
     write(temp / 'fail-daemon', 'fail')
     run('boot', 1, 'SSH could not open port 22')
+    assert not ram.exists() and account.read_text() == original
+    failed = subprocess.run([args.bash, str(service / 'service.sh'), 'boot', str(usb)], capture_output=True, text=True, timeout=20)
+    assert failed.returncode == 1 and 'fixture sshd: host key cannot be loaded' in failed.stderr, failed
     assert not ram.exists() and account.read_text() == original
     (temp / 'fail-daemon').unlink()
     background = subprocess.Popen([args.bash, str(service / 'service.sh'), 'boot', str(usb)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

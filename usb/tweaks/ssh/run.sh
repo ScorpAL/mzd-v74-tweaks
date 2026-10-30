@@ -241,12 +241,14 @@ ssh_complete() {
         fi
         sync
 
-        # Close both caller streams in the detached supervisor. It handles its
-        # own USB runtime logs and does not require WLAN to have an address yet.
-        sh "$SERVICE/service.sh" boot "$USB" >/dev/null 2>&1 3>&- 4>&- &
+        # Detach caller pipes, retaining a startup log until the supervisor is ready.
+        # Runtime logging is separate; WLAN need not have an address yet.
+        sh "$SERVICE/service.sh" boot "$USB" > "$MZD_REPORT/ssh-start.log" 2>&1 3>&- 4>&- &
         sleep 2
         if ! sh "$SERVICE/service.sh" status
         then
+            printf 'SSH startup check failed after 2 seconds. Startup diagnostics:\n' >&4
+            cat "$MZD_REPORT/ssh-start.log" >&4
             rm -f "$SERVICE/enabled"
             sh "$SERVICE/service.sh" stop || mzd_fatal 'SSH startup and service cleanup failed. Do NOT reboot.'
             ssh_rollback_hook || exit $?

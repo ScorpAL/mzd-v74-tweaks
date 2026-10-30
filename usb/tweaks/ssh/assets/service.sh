@@ -18,9 +18,10 @@ LOG=''
 WIFI_PID=''
 write_log() { if [ -n "$LOG" ]; then printf '%s\n' "$*" >> "$LOG" 2>/dev/null || :; fi; }
 wifi_bus() {
+    method=$1; shift
     dbus-send --address=unix:path=/tmp/dbus_hmi_socket \
         --type=method_call --print-reply --reply-timeout=2000 \
-        --dest=com.jci.blm_nms /com/jci/blm_nms "com.jci.blm_nms.$@"
+        --dest=com.jci.blm_nms /com/jci/blm_nms "com.jci.blm_nms.$method" "$@"
 }
 wifi_enable_once() {
     # A bounded background request, never a toggle or a permanent Wi-Fi monitor.
@@ -45,7 +46,16 @@ wifi_enable_once() {
     write_log 'Wi-Fi startup request timed out; SSH remains running.'
     return 0
 }
-fail() { echo "SSH: $*" >&2; write_log "SSH: $*"; exit 1; }
+fail() {
+    echo "SSH: $*" >&2
+    write_log "SSH: $*"
+    # Preserve sshd's own error before the supervisor removes RAM state.
+    if [ -n "$LOG" ] && [ "$LOG" != /dev/null ] && [ -f "$LOG" ]; then
+        printf 'SSH runtime diagnostics (%s):\n' "$LOG" >&2
+        tail -n 20 "$LOG" >&2 || :
+    fi
+    exit 1
+}
 owned_alive() {
     [ -f "$1" ] || return 1
     PID=$(cat "$1")
@@ -148,6 +158,7 @@ esac
 if owned_alive "$RAM/supervisor.pid" "$SELF boot"; then echo 'Managed SSH service is already running.'; exit 0; fi
 if [ -d "$RAM" ]; then stop_service; fi
 umask 077
+printf 'SSH startup phase: create runtime state\n' >&2
 mkdir "$RAM" || fail 'Could not create SSH state directory.'
 printf '%s\n' "$SELF" > "$RAM/owner"
 printf '%s\n' "$$" > "$RAM/supervisor.pid"
@@ -169,9 +180,11 @@ for U in "${2:-}" /tmp/mnt/sda1 /tmp/mnt/sdb1 /tmp/mnt/sdc1 /tmp/mnt/sdd1; do
         if mkdir -p "$D" && : > "$D/run.log"; then LOG="$D/run.log"; break; fi
     fi
 done
+printf 'SSH startup phase: validate configuration and prerequisites\n' >&2
 prerequisites
 if port_busy; then fail 'Port 22 is already in use. Existing service is left unchanged.'; fi
 account_mounted && fail 'Account file already has an overlay. Refusing a second overlay.'
+printf 'SSH startup phase: prepare account overlay\n' >&2
 PASSWORD_HASH=$(cat "$SELF_DIR/password.hash")
 case "$PASSWORD_HASH" in '$5$'*) ;; *) fail 'Unknown password format.' ;; esac
 awk -F: -v h="$PASSWORD_HASH" 'BEGIN {OFS=":"} $1=="cmu" {$2=h} {print}' "$ACCOUNT" > "$RAM/passwd"
@@ -180,6 +193,7 @@ chmod 644 "$RAM/passwd"
 mount -o bind "$RAM/passwd" "$ACCOUNT" || fail 'Could not set up password in RAM.'
 cmp -s "$RAM/passwd" "$ACCOUNT" || fail 'Could not verify account overlay.'
 if command -v nscd >/dev/null; then nscd -i passwd 2>/dev/null || :; fi
+printf 'SSH startup phase: launch sshd\n' >&2
 "$SSHD" -D -e -f "$CONFIG" 2>&1 | while IFS= read -r LINE; do write_log "$LINE"; done &
 sleep 1
 [ -s "$RAM/sshd.pid" ] || fail 'SSH could not open port 22.'
@@ -187,8 +201,11 @@ DAEMON=$(cat "$RAM/sshd.pid")
 case "$DAEMON" in ''|*[!0-9]*) fail 'SSH returned an invalid process ID.' ;; esac
 printf '%s\n' "$DAEMON" > "$RAM/daemon.pid"
 owned_alive "$RAM/daemon.pid" "$CONFIG" || fail 'SSH could not open port 22.'
+printf 'SSH startup phase: configure firewall\n' >&2
 firewall || fail 'Could not allow port 22 through the firewall.'
 write_log 'SSH started: port 22, user cmu. Log in with the agreed default password.'
+# Startup is complete: release the installer's startup-log streams.
+exec >/dev/null 2>&1
 wifi_enable_once >/dev/null 2>&1 &
 WIFI_PID=$!
 while kill -0 "$DAEMON" 2>/dev/null; do

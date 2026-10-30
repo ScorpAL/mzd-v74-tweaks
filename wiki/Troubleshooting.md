@@ -25,7 +25,7 @@ after reading its scope: it removes all patches on affected files.
 Keep the USB connected until the result appears. Preserve the action report under
 `reports/diffpatch/`. If requested for diagnosis, set `logging=debug` in
 `installer.conf` on USB and repeat only the agreed steps. Launcher diagnostics
-are saved under `installer-logs/`. Normal logging is the default; Off disables
+are saved under `installer-logs/`. Debug logging is the current development default; Off disables
 installer diagnostic exports but keeps action reports and explicit backups.
 
 A critical message saying **Do NOT reboot** means changes or cleanup could not
