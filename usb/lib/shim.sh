@@ -5,7 +5,7 @@ mzd_shim_error() { printf 'Shim: %s\n' "$*" >&2; return 1; }
 mzd_shim_targets() (
     printf '%s:%s\n' "$APP" "$ORIGINAL"
     for pair in $SHIM_EXTRA_TARGETS; do printf '%s\n' "$pair"; done
-) 
+)
 mzd_shim_transform() (
     input=$1; mode=$2
     output=$(mktemp /tmp/mzd-shim-transform.XXXXXX) || exit 1

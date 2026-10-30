@@ -30,7 +30,7 @@ jobs:
       - name: Test persistent packages, versions and owned paths
         run: python tests/contract/test_packages.py
       - name: Check shell errors
-        run: shellcheck --severity=error --shell=sh usb/autorun.sh usb/installer.sh usb/lib/*.sh usb/tweaks/*/run.sh usb/tweaks/*/reset.sh development/examples/hello/run.sh development/examples/settings/run.sh development/examples/shim/run.sh development/examples/shim/reset.sh development/examples/shim/build.sh development/examples/bundle/run.sh development/examples/bundle/reset.sh development/examples/bundle/build.sh
+        run: shellcheck --severity=error --shell=sh usb/autorun.sh usb/installer.sh usb/lib/*.sh usb/tweaks/*/run.sh usb/tweaks/*/reset.sh usb/tweaks/terminal/assets/terminal.sh development/examples/hello/run.sh development/examples/settings/run.sh development/examples/shim/run.sh development/examples/shim/reset.sh development/examples/shim/build.sh development/examples/bundle/run.sh development/examples/bundle/reset.sh development/examples/bundle/build.sh
       - name: Install full static BusyBox test applets
         run: |
           sudo apt-get update -qq
@@ -73,9 +73,11 @@ jobs:
       - name: Validate factory Lua syntax
         run: |
           sudo apt-get install -y lua5.1
-          for file in usb/lib/lua-bridge/*.lua tests/transport/*.lua; do luac5.1 -p "$file"; done
+          for file in usb/lib/lua-bridge/*.lua usb/tweaks/*/assets/*.lua tests/transport/*.lua; do luac5.1 -p "$file"; done
       - name: Test Hello entrypoint
         run: python tests/contract/test_hello.py
+      - name: Test Terminal entrypoint
+        run: python tests/contract/test_terminal.py
   launcher:
     runs-on: ubuntu-latest
     timeout-minutes: 5

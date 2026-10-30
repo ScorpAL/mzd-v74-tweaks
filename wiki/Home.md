@@ -7,6 +7,7 @@ This is a development version.
 - [Getting started](Getting-started)
 - [Using the installer](Using-the-installer)
 - [Backup and restore](Backup-and-restore)
+- [Terminal](Terminal)
 - [Troubleshooting](Troubleshooting)
 
 Use only while parked. Keep vehicle power on and leave the USB connected until
