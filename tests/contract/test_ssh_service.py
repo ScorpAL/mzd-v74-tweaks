@@ -92,6 +92,9 @@ exec /usr/bin/grep "$@"
 ''')
     assert 'ListenAddress 0.0.0.0' in config
     assert 'BindToDevice' not in config
+    # Factory sshd has no PAM support, even for an explicit 'no'.
+    assert not any(line.split() and line.split()[0].lower() == 'usepam'
+                   for line in config.splitlines()), 'Factory sshd does not support UsePAM'
     write(bins / 'sshd', f'''#!/bin/sh
 case "$0" in /*) ;; *) echo 'sshd re-exec requires execution with an absolute path' >&2; exit 1 ;; esac
 if [ "$1" = -t ]; then exit 0; fi

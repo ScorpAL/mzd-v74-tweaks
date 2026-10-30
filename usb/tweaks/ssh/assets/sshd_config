@@ -10,7 +10,6 @@ PasswordAuthentication yes
 PermitEmptyPasswords no
 PubkeyAuthentication no
 ChallengeResponseAuthentication no
-UsePAM no
 UsePrivilegeSeparation no
 StrictModes no
 UseDNS no
