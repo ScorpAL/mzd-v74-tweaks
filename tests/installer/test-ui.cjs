@@ -14,17 +14,17 @@ class Node {
   getElementsByTagName(tag){let all=[];for(const n of this.children){if(n.tagName===tag)all.push(n);all=all.concat(n.getElementsByTagName(tag));}return all;}
 }
 function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,includeSettings,includeBundle){
-  const usb={ids:null,manifests:{}},recovery={},restoreOutcomes={},recoveryHints={},savedSettings={},preflight={},savedUninstall={};
+  const usb={ids:null,manifests:{},installedVersions:{},updateOffers:{}},recovery={},restoreOutcomes={},recoveryHints={},savedSettings={},preflight={},savedUninstall={};
   const nodes={},jobs=[],calls=[],timers=[],intervals=[],listeners={},states={'restore-originals':'uninstalled','backup-jci':'uninstalled','logs-collector':'uninstalled',hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
   if(includeSettings)states['settings-example']='uninstalled';
   if(includeBundle)states['bundle-example']='uninstalled';
   const doc={activeElement:null,createElement(t){return new Node(t,doc);},getElementById(id){return nodes[id]||walk(nodes.app).concat(walk(nodes.overlay)).find(n=>n.id===id)||null;}};
   function walk(n){return [n].concat(n.children.flatMap(walk));}
-  for(const id of ['app','header','system-info','tabs','content','cards','empty','footer-status','list-position','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-settings','dialog-contributors','dialog-meta','dialog-output','dialog-actions','back','uninstall-action','restore-action','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
-  for(const id of ['refresh','exit','back','uninstall-action','restore-action','action','result-ok'])nodes[id].tagName='button';
+  for(const id of ['app','header','system-info','tabs','content','cards','empty','footer-status','list-position','refresh','exit','overlay','dialog','dialog-heading','dialog-dot','dialog-title','dialog-body','dialog-state','dialog-description','dialog-settings','dialog-contributors','dialog-meta','dialog-output','dialog-actions','back','uninstall-action','update-action','restore-action','action','result-ok','transport']){nodes[id]=new Node('div',doc);nodes[id].id=id;}
+  for(const id of ['refresh','exit','back','uninstall-action','update-action','restore-action','action','result-ok'])nodes[id].tagName='button';
   nodes.app.appendChild(nodes.header);nodes.header.appendChild(nodes.refresh);nodes.header.appendChild(nodes.exit);nodes.app.appendChild(nodes.tabs);nodes.app.appendChild(nodes.content);nodes.content.appendChild(nodes.cards);
-  nodes.overlay.appendChild(nodes.dialog);nodes.dialog.appendChild(nodes['dialog-body']);for(const id of ['dialog-state','dialog-description','dialog-settings','dialog-contributors','dialog-meta','dialog-output'])nodes['dialog-body'].appendChild(nodes[id]);nodes.dialog.appendChild(nodes['dialog-actions']);for(const id of ['back','uninstall-action','restore-action','action','result-ok'])nodes['dialog-actions'].appendChild(nodes[id]);
-  nodes['restore-action'].className='hidden';nodes['uninstall-action'].className='hidden';
+  nodes.overlay.appendChild(nodes.dialog);nodes.dialog.appendChild(nodes['dialog-body']);for(const id of ['dialog-state','dialog-description','dialog-settings','dialog-contributors','dialog-meta','dialog-output'])nodes['dialog-body'].appendChild(nodes[id]);nodes.dialog.appendChild(nodes['dialog-actions']);for(const id of ['back','uninstall-action','update-action','restore-action','action','result-ok'])nodes['dialog-actions'].appendChild(nodes[id]);
+  nodes['update-action'].className='primary hidden';nodes['restore-action'].className='hidden';nodes['uninstall-action'].className='hidden';
   nodes.overlay.className='hidden';nodes['result-ok'].className='primary hidden';
   nodes.transport.contentWindow={postMessage(job,origin){assert.equal(origin,'http://127.0.0.1:1234');jobs.push(job);}};
   const win={installerConfig:{origin:'http://127.0.0.1:1234',token:'secret'},innerWidth:800,innerHeight:480,setTimeout(fn){timers.push(fn);},setInterval(fn){intervals.push(fn);return intervals.length-1;},clearInterval(id){intervals[id]=null;},addEventListener(n,f){listeners[n]=f;}};
@@ -47,7 +47,8 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,inclu
       const defs=text.slice(text.indexOf('settings='));
       return ok('settings_saved='+(savedSettings[a[1]]?'true':'false')+'\n'+defs+'value.log_limit_mb='+(savedSettings[a[1]]||'20')+'\nvalue.compress=true\nvalue.profile='+(/setting.profile.default=([^\r\n]+)/.exec(text)||[])[1]+'\n');
     }
-    if(a[0]==='package-info')return ok(states[a[1]]==='installed'?'0.7.0\tinstalled\n':'');
+    if(a[0]==='update-info')return usb.updateOffers[a[1]]||ok('',1,'Update not available.');
+    if(a[0]==='package-info')return ok(states[a[1]]==='installed'?(usb.installedVersions[a[1]]||'0.7.0')+'\tinstalled\n':'');
     if(a[0]==='metrics')return ok('cpu\t1000\t700\t'+(a[1]==='0'?'-':'30')+'\ndisk\t/\t42\ndisk\t/tmp/mnt/resources\t18\ndisk\t/tmp/mnt/sdb1\t80\n');
     if(a[0]==='start-run'){background=a[1];polls=0;return ok('job.test01\n');}
     if(a[0]==='job-status'){polls++;return ok(polls===1?'running\n0\n0\nCreating archive\n':polls===2?'running\n5\n10\nCopying files\n':'done\n'+(outcomes[background]||0)+'\n');}
@@ -58,7 +59,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,inclu
     if(a[0]==='statuses')return ok(a[1].split(' ').map(id=>id+'\t'+(states[id]==='error'?'error':states[id])+'\t'+(states[id]==='error'?'Patch state is ambiguous.':['unavailable','broken'].includes(states[id])?(reasons[id]||''):'' )+'\n').join(''));
     if(a[2]==='status')return states[a[1]]==='error'?ok('',1,'Patch state is ambiguous.'):ok(states[a[1]]+'\n',0,['unavailable','broken'].includes(states[a[1]])?(reasons[a[1]]||''):'');
     const code=outcomes[a[1]]||0;
-    if(code===0)states[a[1]]=a[2]==='install'?'installed':'uninstalled';
+    if(code===0)states[a[1]]=['install','update'].includes(a[2])?'installed':'uninstalled';
     return ok(code?(code===1&&recovery[a[1]]&&recoveryHints[a[1]]!==false?'MZD_RECOVERY_CANDIDATE\n':''):a[2]+' completed. Other changes were preserved.',code,code===2?'Rollback failed. Do NOT reboot.':code?'Installation rejected.':'');
   }
   function pump(){let count=0;while(jobs.length){if(++count>100)throw new Error('request loop');const j=jobs.shift();event({type:'shell-result',token:'secret',id:j.id,result:process(j),error:null});}}
@@ -566,3 +567,18 @@ x.click('refresh');x.pump();assert.equal(x.nodes.cards.children.length,1,'repeat
 x.usb.ids=['hello'];x.click('refresh');x.pump();assert.equal(x.nodes.tabs.children.length,1);assert.equal(x.nodes.cards.children.length,1);assert.equal(x.nodes.cards.firstChild.id,'tweak-hello');
 x.usb.ids=[];x.click('refresh');x.pump();assert.equal(x.nodes.tabs.children.length,0);assert.equal(x.nodes.cards.children.length,0);assert.equal(x.nodes.refresh.disabled,false);
 console.log('FULL_REFRESH_PASSED: reread USB list/manifests, changed metadata/category, added/removed tweaks, disabled stale cards and no duplicates.');
+
+// Updates are offered only for a higher USB version, beside saved Uninstall.
+function updateOffer(usbVersion,installedVersion){
+ const r=boot();r.usb.manifests['list-beep']=fs.readFileSync(path.join(ROOT,'tweaks/list-beep/manifest.conf'),'utf8').replace(/^version=.*$/m,'version='+usbVersion);
+ r.usb.installedVersions['list-beep']=installedVersion;r.usb.updateOffers['list-beep']=r.ok('available\t'+installedVersion+'\t'+usbVersion+'\n');
+ r.states['list-beep']='installed';r.click('refresh');r.pump();r.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();r.click('tweak-list-beep');r.pump();return r;
+}
+for(const [u,i] of [['1.2.0','1.2.0'],['1.2.0','1.10.0'],['1.0.0','2.0.0']]){
+ const r=updateOffer(u,i);assert(r.nodes['update-action'].className.includes('hidden'));assert.equal(r.nodes.action.textContent,'Uninstall');assert(!r.calls.some(a=>a[0]==='update-info'));
+}
+x=updateOffer('1.10.0','1.2.0');assert(!x.nodes['update-action'].className.includes('hidden'));assert(!x.nodes['update-action'].disabled);assert.equal(x.nodes.action.textContent,'Uninstall');
+x.click('update-action');assert.equal(x.nodes['dialog-title'].textContent,'Update: No List Beep');x.click('back');x.pump();assert.equal(x.nodes.action.textContent,'Uninstall');assert(!x.calls.some(a=>a[0]==='action'&&a[2]==='update'));
+x.click('update-action');x.click('action');assert.equal(x.nodes['dialog-state'].textContent,'Updating');x.pump();assert(x.calls.some(a=>JSON.stringify(a)===JSON.stringify(['action','list-beep','update','1.10.0'])));assert.equal(x.states['list-beep'],'installed');assert.equal(x.nodes['dialog-state'].textContent,'Update completed');
+x=updateOffer('2.0.0','1.0.0');x.usb.updateOffers['list-beep']=x.ok('',1,'Dependent package blocks replacement.');x.click('back');x.click('tweak-list-beep');x.pump();assert(x.nodes['update-action'].disabled);assert.match(x.nodes['dialog-description'].textContent,/Update unavailable/);assert.equal(x.nodes.action.textContent,'Uninstall');
+console.log('INSTALLER_UPDATES_PASSED: version ordering, eligibility, confirmation, cancellation and version-pinned action.');

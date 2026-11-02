@@ -71,7 +71,7 @@ END {
         if(!valid(key,user_def[key]))fail("Invalid default for " key ": " user_def[key])
         field[key,"default"]=user_def[key]
     }
-    for(key in input)if(!declared[key])fail("Unknown value: " key)
+    for(key in input)if(!declared[key] && mode!="upgrade")fail("Unknown value: " key)
     if(mode=="validate")exit 0
     if(mode=="info") {
         print "settings=" list
@@ -81,6 +81,7 @@ END {
         key=keys[i]
         if(strict && !supplied[key])fail("Saved value missing: " key)
         value=supplied[key] ? input[key] : field[key,"default"]
+        if(mode=="upgrade" && !valid(key,value))value=field[key,"default"]
         if(!valid(key,value))fail("Invalid value for " key ": " value)
         if(mode!="check")print (mode=="info" ? "value." : "") key "=" value
     }

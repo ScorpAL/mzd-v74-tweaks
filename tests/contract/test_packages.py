@@ -167,6 +167,20 @@ esac
     assert target.read_text()=='2.0.0\n' and text()==before
     (base/'no-space').unlink();action('alpha','install')
     assert 'uninstall alpha 2.0.0 2.0.0' in text() and target.read_text()=='3.0.0\n'
+    # Explicit updates require a newer version and preserve a verified old snapshot.
+    before=text();call(['update-info','alpha'],1);action('alpha','update',1);assert text()==before
+    make('alpha','3.1.0');call(['update-info','alpha'],output='available\t3.0.0\t3.1.0\n')
+    call(['action','alpha','update','9.0.0'],1);assert target.read_text()=='3.0.0\n'
+    call(['action','alpha','update','3.1.0']);assert target.read_text()=='3.1.0\n'
+    assert not list(store.glob('.update-*'))
+    make('alpha','3.2.0');write(base/'fail-install','yes')
+    r=action('alpha','update',1);assert 'Previous version recovery snapshot retained:' in r.stderr
+    archives=list(store.glob('.update-*/alpha'));assert len(archives)==1
+    assert 'version=3.1.0' in (archives[0]/'package/tweaks/alpha/manifest.conf').read_text()
+    assert 'state=installed' in (archives[0]/'state.conf').read_text()
+    (base/'fail-install').unlink();action('alpha','uninstall')
+    for archive in store.glob('.update-*'):shutil.rmtree(archive)
+    make('alpha','3.0.0');action('alpha','install')
     # Saved packages remain discoverable/removable without a USB tweak folder.
     shutil.rmtree(folder)
     assert 'alpha\n' in call(['list']).stdout

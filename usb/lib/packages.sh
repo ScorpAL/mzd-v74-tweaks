@@ -290,13 +290,61 @@ mzd_package_stage() (
     mzd_package_inventory "$stage" > "$stage/package.files" || exit 1
     mzd_package_set_state "$stage" prepared
 )
+# Compare numeric version components without shell integer overflow.
+mzd_package_version_newer() (
+    awk -v newer="$1" -v older="$2" 'BEGIN {
+        if(newer !~ /^[0-9]+[.][0-9]+[.][0-9]+$/ || older !~ /^[0-9]+[.][0-9]+[.][0-9]+$/)exit 1
+        split(newer,n,"[.]");split(older,o,"[.]")
+        for(i=1;i<=3;i++) {
+            sub(/^0+/,"",n[i]);sub(/^0+/,"",o[i])
+            if(length(n[i])!=length(o[i]))exit !(length(n[i])>length(o[i]))
+            if("v" n[i] != "v" o[i])exit !(("v" n[i])>("v" o[i]))
+        }
+        exit 1
+    }'
+)
+# Read-only eligibility. The modifying action repeats this under the package lock.
+mzd_package_update_info() (
+    source=$1;id=$2
+    mzd_manifest_id "$id" || exit 1
+    entry="$MZD_PACKAGE_STORE/$id"
+    mzd_package_check "$entry" || exit 1
+    [ "$(mzd_package_state "$entry")" = installed ] || { mzd_package_error 'Only a complete installed package can be updated.';exit 1; }
+    mzd_manifest_load "$entry/package/tweaks/$id/manifest.conf" || exit 1
+    previous_version=$VERSION;previous_type=$TYPE
+    mzd_manifest_load "$source/tweaks/$id/manifest.conf" && [ "$ID" = "$id" ] || exit 1
+    [ "$TYPE" = "$previous_type" ] && [ "$TYPE" != command ] || { mzd_package_error 'Type changes require explicit saved removal.';exit 1; }
+    case " $ACTIONS " in *' install '*) ;; *) exit 1;; esac
+    mzd_package_version_newer "$VERSION" "$previous_version" || { mzd_package_error 'USB version is not newer than the installed version.';exit 1; }
+    mzd_package_dependents "$entry" || exit 1
+    printf 'available\t%s\t%s\n' "$previous_version" "$VERSION"
+)
+# Preserve the old immutable snapshot before its uninstaller changes anything.
+mzd_package_update_backup() (
+    entry=$1;archive=$2
+    [ ! -e "$archive" ] && [ ! -L "$archive" ] || exit 1
+    needed=$(du -sk "$entry" | awk '{print $1+1024}') || exit 1
+    df -Pk "$MZD_PACKAGE_MOUNT" | awk -v needed="$needed" 'NR==2 {reserve=$2/10;if(reserve<65536)reserve=65536;ok=($4-needed>=reserve)} END {exit !ok}' || {
+        mzd_package_error 'Not enough space for the previous-version recovery snapshot.';exit 1;
+    }
+    mkdir "$archive" && cp -R "$entry" "$archive/${entry##*/}" || exit 1
+    diff -r "$entry" "$archive/${entry##*/}" >/dev/null && mzd_package_check "$archive/${entry##*/}" || exit 1
+    sync
+)
+
 mzd_package_action() (
     source=$1; id=$2; action=$3; shift 3
     unset MZD_PACKAGE_STATE
     MZD_WORKER_DIRECT=1; export MZD_WORKER_DIRECT
     mzd_manifest_id "$id" || exit 1
-    case "$action" in install|uninstall|status) ;; *) mzd_package_error 'Unsupported package action.'; exit 1 ;; esac
+    case "$action" in install|uninstall|status|update) ;; *) mzd_package_error 'Unsupported package action.'; exit 1 ;; esac
     entry="$MZD_PACKAGE_STORE/$id"
+    updating=0;update_archive='';expected_update=''
+    if [ "$action" = update ]; then
+        [ "$#" -le 1 ] || { mzd_package_error 'Expected at most one update version.';exit 1; }
+        expected_update=${1:-};shift "$#"
+        updating=1;action=install
+    fi
     if [ "$action" = status ]; then
         if [ -e "$entry" ] || [ -L "$entry" ]; then mzd_package_status "$id"; exit $?; fi
         printf 'uninstalled\n'; exit 0
@@ -307,7 +355,9 @@ mzd_package_action() (
         . "$source/lib/settings.sh" || exit 1
         mzd_manifest_load "$source/tweaks/$id/manifest.conf" || exit 1
         settings_tmp=$(mktemp /tmp/mzd-install-settings.XXXXXX) || exit 1
-        mzd_settings_normalize "$source/tweaks/$id/manifest.conf" "$@" > "$settings_tmp" || { rm -f "$settings_tmp"; exit 1; }
+        if [ "$updating" = 0 ]; then
+            mzd_settings_normalize "$source/tweaks/$id/manifest.conf" "$@" > "$settings_tmp" || { rm -f "$settings_tmp"; exit 1; }
+        fi
         MZD_SETTINGS_FILE=$settings_tmp; export MZD_SETTINGS_FILE
     fi
     trap '[ -z "$settings_tmp" ] || rm -f "$settings_tmp"' 0
@@ -315,8 +365,14 @@ mzd_package_action() (
     mkdir -p "$MZD_PACKAGE_STORE" || exit 1
     mkdir "$MZD_PACKAGE_LOCK" 2>/dev/null || { mzd_package_error 'Another package operation or Restore is active.'; exit 1; }
     stage=''
-    trap 'code=$?; [ -z "$settings_tmp" ] || rm -f "$settings_tmp"; [ -z "$stage" ] || rm -rf "$stage"; rmdir "$MZD_PACKAGE_LOCK" 2>/dev/null || :; exit "$code"' 0
+    trap 'code=$?; if [ "$code" != 0 ] && [ -n "$update_archive" ] && [ -d "$update_archive" ]; then printf "Previous version recovery snapshot retained: %s\n" "$update_archive" >&2; fi; [ -z "$settings_tmp" ] || rm -f "$settings_tmp"; [ -z "$stage" ] || rm -rf "$stage"; rmdir "$MZD_PACKAGE_LOCK" 2>/dev/null || :; exit "$code"' 0
     trap 'exit 2' INT TERM
+    if [ "$updating" = 1 ]; then
+        mzd_package_update_info "$source" "$id" >/dev/null || exit 1
+        mzd_manifest_load "$source/tweaks/$id/manifest.conf" || exit 1
+        [ -z "$expected_update" ] || [ "$VERSION" = "$expected_update" ] || { mzd_package_error 'USB update version changed; refresh before trying again.';exit 1; }
+        mzd_settings_upgrade "$source/tweaks/$id/manifest.conf" "$entry/package/settings.conf" > "$settings_tmp" || exit 1
+    fi
     MZD_ORIGIN_USB=$source; export MZD_ORIGIN_USB
     # Preserve the actual USB mount for workers executing from persistent storage.
     while [ "$MZD_ORIGIN_USB" != / ]; do
@@ -373,6 +429,10 @@ mzd_package_action() (
             mzd_package_stage "$source" "$stage" "$id" "$requested" || exit 1
             mzd_package_install_paths "$stage/paths.tsv" "$entry" || exit 1
         fi
+        if [ "$updating" = 1 ]; then
+            update_archive="$MZD_PACKAGE_STORE/.update-$id-$$"
+            mzd_package_update_backup "$entry" "$update_archive" || exit 1
+        fi
         if [ "$action:$old_gui" = install:1 ]; then
             (MZD_GUI_REPLACEMENT=1; export MZD_GUI_REPLACEMENT; mzd_package_remove "$entry") || exit $?
         else mzd_package_remove "$entry" || exit $?; fi
@@ -407,7 +467,12 @@ mzd_package_action() (
         mzd_package_set_state "$entry" failed || :
         mzd_package_error 'Installation could not be verified. Do NOT reboot.'; exit 2
     fi
-    mzd_package_set_state "$entry" installed
+    mzd_package_set_state "$entry" installed || exit 1
+    if [ -n "$update_archive" ]; then
+        [ "$update_archive" = "$MZD_PACKAGE_STORE/.update-$id-$$" ] || exit 2
+        rm -rf "$update_archive" || { mzd_package_error 'Update installed, but previous snapshot cleanup failed.';exit 1; }
+        update_archive='';sync
+    fi
 )
 
 # One read-only request for the whole menu. No workers, target hashes or probes.

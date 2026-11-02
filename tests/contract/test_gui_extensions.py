@@ -247,7 +247,7 @@ exec '''+copy_command+''' "$@"
  # Consumer replacement retains shared support and keeps other registrations.
  call('gui-example','install');call('second-example','install')
  p=usb/'tweaks/gui-example/manifest.conf';write(p,p.read_text().replace('version=0.1.0','version=0.1.1'))
- call('gui-example','install');assert 'second-example' in registry.read_text();assert hook.read_bytes()==hook_before
+ call('gui-example','update');assert 'second-example' in registry.read_text();assert hook.read_bytes()==hook_before
  call('second-example','uninstall');call('gui-example','uninstall');absent()
  # A failed first consumer rolls newly created provider/hook back completely.
  write(b/'fail-hook','1');call('gui-example','install',1);absent();(b/'fail-hook').unlink()

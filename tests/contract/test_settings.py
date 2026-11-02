@@ -177,6 +177,10 @@ esac
     call(['action','configured','install','log_limit_mb=40','compress=false','profile=medium'])
     assert target.read_text().strip()=='40 false medium'
     assert 'value.log_limit_mb=40' in call(['settings-info','configured']).stdout
+    # Explicit Update retains valid settings and uses defaults for incompatible values.
+    write(folder/'manifest.conf',re.sub('^version=.*$', 'version=2.0.0', data, flags=re.M).replace('options=stock medium large','options=stock large'))
+    call(['action','configured','update','2.0.0'])
+    assert target.read_text().strip()=='40 false stock'
     # The new USB helper cannot alter the saved uninstaller's option reader.
     write(usb/'lib/settings.sh',(usb/'lib/settings.sh').read_text()+'\nmzd_setting() { echo wrong-new-helper; }\n')
     # Reset hooks use the same saved configuration, including all phases.

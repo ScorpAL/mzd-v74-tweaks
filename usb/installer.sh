@@ -59,6 +59,10 @@ case "${1:-}" in
     mzd_manifest_load "$entry/package/tweaks/$2/manifest.conf" || exit 1
     case " $ACTIONS " in *" uninstall "*) ;; *) fail 'Saved package does not support Uninstall.' ;; esac
     printf 'available\t%s\t%s\n' "$VERSION" "$state" ;;
+  update-info)
+    [ "$#" = 2 ] && valid_id "$2" || fail 'Expected a tweak ID.'
+    . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1
+    mzd_package_update_info "$HERE" "$2" ;;
   package-info)
     [ "$#" = 2 ] && valid_id "$2" || fail 'Expected a tweak ID.'
     . "$HERE/lib/manifest.sh" && . "$HERE/lib/packages.sh" || exit 1
@@ -118,9 +122,9 @@ case "${1:-}" in
       cat "$TWEAK/manifest.conf"
     else
       [ "$#" -ge 3 ] || fail 'Expected tweak and action.'
-      case "$3" in install|uninstall|status|run) ;; *) fail 'Unsupported action.' ;; esac
+      case "$3" in install|uninstall|status|run|update) ;; *) fail 'Unsupported action.' ;; esac
       [ -f "$TWEAK/run.sh" ] && [ ! -L "$TWEAK/run.sh" ] || fail 'Tweak run.sh is missing or is a symbolic link.'
-      case "$3" in install|run) ;; *) [ "$#" = 3 ] || fail 'Settings are accepted only for Install or Run.' ;; esac
+      case "$3" in install|run|update) ;; *) [ "$#" = 3 ] || fail 'Settings are accepted only for Install or Run.' ;; esac
       # No string evaluation or shell command concatenation. Preserve the
       # worker's stdout, stderr and exit code, including critical exit code 2.
       if [ "$3" != run ]; then
@@ -130,6 +134,7 @@ case "${1:-}" in
           shift
           mzd_package_action "$HERE" "$@"
           exit $?
+        elif [ "$3" = update ]; then fail 'Command tweaks cannot be updated.'
         elif [ "$3" = status ]; then
           # Command readiness is checked by Run, not by the menu refresh.
           printf 'uninstalled\n'

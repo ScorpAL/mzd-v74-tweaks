@@ -63,7 +63,7 @@
         closeChoice(false);
         dialogMode=mode;
         el("dialog-heading").className=mode==="details"?"detail-heading":"";
-        if (mode!=="details") {el("dialog-meta").tabIndex=-1;show("restore-action",false);show("uninstall-action",false);clear(el("dialog-settings"));clear(el("dialog-contributors"));}
+        if (mode!=="details") {el("dialog-meta").tabIndex=-1;show("restore-action",false);show("uninstall-action",false);show("update-action",false);clear(el("dialog-settings"));clear(el("dialog-contributors"));}
     }
     function trim(value) { return String(value || "").replace(/^\s+|\s+$/g, ""); }
     function supported(item, action) { return item.manifest.actions.indexOf(action) !== -1; }
@@ -124,6 +124,7 @@
         el("exit").disabled = operating || closing;
         el("restore-action").disabled = scanning || locked || operating || closing;
         el("uninstall-action").disabled = scanning || locked || operating || closing;
+        el("update-action").disabled = scanning || locked || operating || closing || !selected || !selected.updateAvailable;
         if (dialogMode === "restart") el("action").disabled = scanning || locked || operating || closing;
         var nodes = el("tabs").getElementsByTagName("button"), i;
         for (i = 0; i < nodes.length; i++) nodes[i].disabled = scanning || operating || closing;
@@ -513,10 +514,29 @@
         row.appendChild(title); row.appendChild(content); el("dialog-meta").appendChild(row);
         return content;
     }
+    function versionNewer(newer, older) {
+        if (!/^[0-9]+[.][0-9]+[.][0-9]+$/.test(newer) || !/^[0-9]+[.][0-9]+[.][0-9]+$/.test(older)) return false;
+        var n=newer.split("."),o=older.split("."),i;
+        for(i=0;i<3;i++) {
+            n[i]=n[i].replace(/^0+/,"");o[i]=o[i].replace(/^0+/,"");
+            if(n[i].length!==o[i].length)return n[i].length>o[i].length;
+            if(n[i]!==o[i])return n[i]>o[i];
+        }
+        return false;
+    }
+    function confirmUpdate(item) {
+        if (!item.updateAvailable || operating || scanning || closing || locked) return;
+        setDialogMode("confirm");el("dialog-body").className="";
+        text("dialog-title","Update: "+item.name);text("dialog-state",item.installedVersion+" to "+item.manifest.version);
+        text("dialog-description","The saved version will be uninstalled, then the USB version installed.\nCompatible settings are retained; new or incompatible options use the new defaults.\n\nIf replacement fails, the previous package is retained for recovery. It is not automatically reinstalled.");
+        clear(el("dialog-meta"));text("dialog-output","");text("back","Cancel");text("action","Update");
+        el("back").disabled=false;el("action").disabled=false;el("back").onclick=function(){openDetails(item);};
+        el("action").onclick=function(){perform(item,"update");};el("back").focus();
+    }
     function openDetails(item) {
         if (operating || closing || !item) return;
         var view=++detailView;
-        show("restore-action",false); show("uninstall-action",false); item.savedRemovable=false; item.installNeedsRestore=false;
+        show("restore-action",false); show("uninstall-action",false); item.savedRemovable=false; item.installNeedsRestore=false; item.updateAvailable=false; show("update-action",false);
         text("back","Back"); el("back").onclick=closeDialog;
         el("dialog-body").className = "section-list";
         selected = item; returnFocusId = "tweak-" + item.id; setDialogMode("details");
@@ -534,10 +554,21 @@
         var versionMeta = item.manifest.version !== undefined ? addMeta("Version",item.manifest.version) : null;
         if (versionMeta && item.state === "installed" && item.manifest.type !== "command") {
             call(["package-info",item.id],function (error,result) {
-                if (error || resultError(result) || dialogMode !== "details" || selected !== item) return;
+                if (error || resultError(result) || view!==detailView || dialogMode !== "details" || selected !== item) return;
                 var info = trim(result.stdout).split("\t");
                 if (info.length !== 2 || !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(info[0])) return;
                 if (info[0] !== item.manifest.version) versionMeta.textContent = info[0] + " installed / " + item.manifest.version + " on USB";
+                if (info[1]!=="installed" || !versionNewer(item.manifest.version,info[0]) || !supported(item,"install")) return;
+                item.installedVersion=info[0];show("update-action",true);el("update-action").disabled=true;
+                call(["update-info",item.id],function(error,result){
+                    if(view!==detailView || dialogMode!=="details" || selected!==item || operating || closing || scanning || locked)return;
+                    var offer=result && !result.stdoutTruncated && !result.stderrTruncated && result.stdout.match(/^available\t([0-9]+\.[0-9]+\.[0-9]+)\t([0-9]+\.[0-9]+\.[0-9]+)\n$/);
+                    if(error || resultError(result) || !offer || offer[1]!==item.installedVersion || offer[2]!==item.manifest.version) {
+                        text("dialog-description",description+"\n\nUpdate unavailable: "+String(error||resultError(result)||"Package versions changed. Refresh and retry."));return;
+                    }
+                    item.updateAvailable=true;el("update-action").disabled=false;
+                    el("update-action").onclick=function(){if(view===detailView && selected===item && dialogMode==="details")confirmUpdate(item);};
+                });
             });
         }
         if (item.manifest.firmware !== undefined) addMeta("Firmware",Array.isArray(item.manifest.firmware) ? item.manifest.firmware.join(", ") : item.manifest.firmware);
@@ -671,6 +702,7 @@
     function executeAction(item, action, callback, restoreHash) {
         if(action==="restore-original") {call(["restore-original",item.id,restoreHash],callback);return;}
         var options;
+        if(action==="update"){call(["action",item.id,"update",item.manifest.version],callback);return;}
         try {options=(action==="install" || action==="run")?settingArguments(item):[];}
         catch(e){callback(null,{started:false,startError:String(e),exitCode:null,signal:null,stdout:"",stderr:""});return;}
         if(action!=="run" || !item.manifest.progress) {call(["action",item.id,action].concat(options),callback);return;}
@@ -726,7 +758,7 @@
         if(choicePicker)return;
         var actionName = action==="restore-original" ? "Restore" : action.charAt(0).toUpperCase() + action.slice(1);
         var workingTimer = null, workingDots = 0;
-        var workingLabel = {install:"Installing",uninstall:"Uninstalling","restore-original":"Restoring"}[action];
+        var workingLabel = {install:"Installing",update:"Updating",uninstall:"Uninstalling","restore-original":"Restoring"}[action];
         operating = true; controls(); setDialogMode("working");
         el("dialog-body").className = "bottom-info";
         el("dialog-state").className = "operation-status";
@@ -750,7 +782,7 @@
             var problem = error || resultError(result);
             var critical = !!error || !result || (result.started && (result.exitCode === 2 || !!result.signal || result.exitCode === null));
             if (critical) locked=true;
-            if (!problem && (action==="restore-original" || (item.manifest.reboot_required && (action === "install" || action === "uninstall" || action === "run")))) restartRequired=true;
+            if (!problem && (action==="restore-original" || (item.manifest.reboot_required && (action === "install" || action === "update" || action === "uninstall" || action === "run")))) restartRequired=true;
             var message = result ? trim(result.stdout + (result.stderr ? "\n" + result.stderr : "")) : "";
             // Old saved workers may still return their original progress preamble.
             // Keep the single live status row authoritative; retain useful details.

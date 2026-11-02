@@ -64,3 +64,11 @@ mzd_setting() (
     }
     awk -v key="$1" 'index($0,key "=")==1 {print substr($0,length(key)+2); found++} END {exit found!=1}' "$MZD_SETTINGS_FILE"
 )
+
+# Carry valid matching settings forward; removed/changed options use new defaults.
+mzd_settings_upgrade() (
+    previous=$2
+    [ -e "$previous" ] || previous=/dev/null
+    [ ! -L "$previous" ] && [ -r "$previous" ] || exit 1
+    mzd_settings_process "$1" upgrade 0 "$previous"
+)

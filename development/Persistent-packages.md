@@ -188,3 +188,25 @@ Install the USB version. There is no automatic reinstall or receipt deletion.
 `type=gui-extension` saves each consumer independently and manages the common
 provider automatically. See [Shared GUI extensions](Gui-extensions.md) for the
 first/last-consumer lifecycle, ownership and development limits.
+
+## Updating from USB
+
+Installed tweaks offer **Update** beside **Uninstall** when the USB version is
+higher (numeric major.minor.patch). Equal versions, downgrades, commands and
+incomplete installations do not offer Update. Read-only eligibility is checked
+again under the package lock, including the confirmed USB version.
+
+Update stages the new package, retains compatible saved settings, discards
+removed options and uses new defaults for new or incompatible options. The saved
+old worker removes the old version; the new worker installs the replacement.
+Firmware, dependency, ownership and storage checks still apply.
+
+Before removal, a verified old package copy is saved in
+`installed/.update-<id>-<pid>/<id>`. Success removes it. Failure retains it and
+prints its recovery path. It supports manual recovery; targets are not restored
+automatically. Keep it until the failed update has been investigated.
+
+`installer.sh update-info ID` returns `available<TAB>old<TAB>new` on success.
+`installer.sh action ID update VERSION` performs the confirmed replacement.
+Update is a controller action; manifests and workers keep their existing
+install/uninstall/status actions.
