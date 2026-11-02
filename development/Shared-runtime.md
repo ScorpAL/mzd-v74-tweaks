@@ -48,6 +48,10 @@ rollback journal, reset hooks and read-only compatibility messages. See the
 vehicle.sh: bounded read-only VBS control/HUD queries. It reports facts and
 unknown values; feature-specific compatibility policy belongs to each worker.
 
+datetime.sh: the car's date and time for log/report names (`20261101-204939`,
+`...Z` when the zone is unknown, `nodate-u228` without a date), the `Start:` log line
+and file dates. Read-only, never sets a clock. See [CMU time](CMU-time.md).
+
 ## Blocked status diagnostics
 
 During development, `logging=debug` is the shipped default and also the fallback

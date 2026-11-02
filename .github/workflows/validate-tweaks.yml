@@ -81,6 +81,8 @@ jobs:
         run: python tests/contract/test_metrics.py
       - name: Test diagnostics configuration and USB snapshots
         run: python tests/contract/test_logging.py
+      - name: Test car date and time for names, log lines and file dates
+        run: python tests/contract/test_datetime.py
       - name: Test final result messages and current patch example
         run: python tests/contract/test_report_messages.py
       - name: Validate factory Lua syntax

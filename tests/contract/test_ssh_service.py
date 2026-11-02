@@ -173,6 +173,7 @@ esac
         assert 'SSH startup phase: launch sshd' in startup.read_text()
         runtime_logs = list((usb / 'reports/ssh').glob('runtime-*/run.log'))
         assert any('fixture daemon ready' in p.read_text() for p in runtime_logs)
+        assert all(p.read_text().startswith('Start: ') for p in runtime_logs), 'runtime log starts with the time line'
         expected_hash = (service / 'password.hash').read_text().strip()
         assert account.read_text().splitlines()[0].split(':')[1] == expected_hash
         assert account.read_text().splitlines()[1] == original.splitlines()[1]

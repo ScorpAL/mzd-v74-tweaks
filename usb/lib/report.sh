@@ -88,8 +88,11 @@ mzd_begin() {
   fi
   mount -o rw,remount "$MZD_USB" || exit 1
   mkdir -p "$MZD_USB/reports/$2" || exit 1
+  # Car local time in the name and the Start line: one reading (development/CMU-time.md).
+  . "${ROOT:-$(dirname "$1")/../..}/lib/datetime.sh" || exit 1
+  mzd_datetime_snapshot
   # CMU clocks and PIDs can repeat across boots. Never reuse stale rollback state.
-  MZD_REPORT=$(mktemp -d "$MZD_USB/reports/$2/$ACTION-$(date +%Y%m%d-%H%M%S)-XXXXXX") || exit 1
+  MZD_REPORT=$(mktemp -d "$MZD_USB/reports/$2/$ACTION-$(mzd_datetime_name)-XXXXXX") || exit 1
   if [ -n "${MZD_SETTINGS_FILE:-}" ]; then
     [ -f "$MZD_SETTINGS_FILE" ] && [ ! -L "$MZD_SETTINGS_FILE" ] || exit 1
     cp "$MZD_SETTINGS_FILE" "$MZD_REPORT/settings.conf" && cmp -s "$MZD_SETTINGS_FILE" "$MZD_REPORT/settings.conf" || exit 1
@@ -98,6 +101,7 @@ mzd_begin() {
   exec 3>&1
   exec 4>&2
   exec > "$MZD_REPORT/run.log" 2>&1
+  mzd_datetime_start
   printf 'Installer version: %s\n' "${MZD_INSTALLER_VERSION:-unknown}"
   trap mzd_finish 0
   trap 'exit 130' INT
@@ -131,11 +135,19 @@ mzd_finish() {
     printf 'ERROR: Cannot save the final result. Check USB storage.\nReports: %s\n' "$MZD_REPORT" >&4
     [ "$MZD_EXIT" = 0 ] && MZD_EXIT=1
   fi
+  # Real dates instead of 1970/1980 for the folder and the files the report itself
+  # writes. Copies (backups, payloads) keep their own dates for diagnosis.
+  mzd_datetime_touch "$MZD_REPORT" "$MZD_REPORT/run.log" "$MZD_REPORT/status.txt" "$MZD_REPORT/settings.conf" \
+    "$MZD_REPORT/error-reported" "$MZD_REPORT/critical-error" "$MZD_REPORT/ssh-start.log" 2>/dev/null || :
   sync
   # Never announce success before cleanup and result recording have succeeded.
   if [ "$MZD_EXIT" = 0 ] && [ -n "${MZD_SUCCESS:-}" ]
   then
     mzd_report_message "$MZD_SUCCESS"
+    # The success line changed run.log after the sync: date it and flush it too,
+    # because a worker run from SSH or the shell has no launcher sync afterwards.
+    mzd_datetime_touch "$MZD_REPORT/run.log" 2>/dev/null || :
+    sync
   fi
   if [ "$MZD_EXIT" = 0 ] && [ -n "${MZD_STATUS:-}" ]
   then
