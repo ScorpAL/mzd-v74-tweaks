@@ -8,7 +8,13 @@ HERE=$(dirname "$SELF")
 MZD_INSTALLER_VERSION=$(mzd_installer_version "$HERE"); export MZD_INSTALLER_VERSION
 STATE=$(mktemp -d /tmp/cmu-installer.XXXXXX) || exit 1
 INSTALLER_STATE=$STATE; export INSTALLER_STATE
-LOG_DIR="$HERE/installer-logs/$(date +%Y%m%d-%H%M%S)-$$"
+# Car local time for the folder name and file dates (development/CMU-time.md).
+# Asked once here; workers inherit MZD_DATETIME_ASKED=1 (and the offset) and never ask.
+. "$HERE/lib/datetime.sh" || exit 1
+mzd_datetime_snapshot
+LOG_DIR="$HERE/installer-logs/$(mzd_datetime_name)-$$"
+# The uptime stamps below (00:03:48 ...) are tied to the real time by this line.
+mzd_datetime_start > "$STATE/launcher.log"
 INSTALLER_LOG=$STATE; export INSTALLER_LOG
 MZD_LOG_LEVEL=debug
 HTTP_PID=''; OPERA_PID=''; ACTIVE=0
@@ -19,6 +25,8 @@ save_logs() {
   for name in launcher.log http.log opera.log native.log ui.log; do
     [ ! -f "$STATE/$name" ] || cp "$STATE/$name" "$LOG_DIR/$name" 2>/dev/null || :
   done
+  # Our own logs only: the whole folder may get the current date.
+  mzd_datetime_touch -r "$LOG_DIR" 2>/dev/null || :
   sync
 }
 native_surface() {

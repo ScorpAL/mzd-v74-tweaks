@@ -171,14 +171,50 @@ finish() {
 }
 trap finish 0
 trap 'exit 0' INT TERM
+# Car time for the runtime log name and its Start line (see development/CMU-time.md).
+# Why a copy of usb/lib/datetime.sh and not `. usb/lib/datetime.sh`:
+#   - the service is installed alone into /tmp/mnt/resources/mzd-tweaks/ssh (only
+#     service.sh, sshd_config and password.hash) and starts at every boot from there,
+#     often without any USB stick, so usb/lib is not there to be sourced;
+#   - it must never wait for D-Bus: the installer checks the service 2 s after start.
+# So this copy only reads the RTC and the offset the installer passes
+# (MZD_DATETIME_OFFSET); at boot it gives a UTC name (...Z) or nodate-u<uptime>.
+# Keep its offset check identical to usb/lib/datetime.sh (tests/contract/test_datetime.py
+# compares both). Under set -eu every step has a fallback: logging must never stop the service.
+time_line() {
+    T=$(cat /sys/class/rtc/rtc0/since_epoch 2>/dev/null) || T=
+    UP=$(cut -d. -f1 /proc/uptime 2>/dev/null) || UP=
+    case "$UP" in ''|*[!0-9]*) UP=0 ;; esac
+    case "$T" in ''|*[!0-9]*) T=0 ;; esac
+    [ "${#T}" -le 10 ] && [ "$T" -ge 1659312000 ] || T=0
+    O=${MZD_DATETIME_OFFSET:-}
+    # Keep identical to mzd_datetime_offset_ok in usb/lib/datetime.sh (0900 would be octal).
+    case "$O" in ''|-|*[!0-9-]*|?*-*|-0*|0?*) O= ;; esac
+    if [ -n "$O" ] && [ "${#O}" -le 6 ] && [ "$O" -ge -50400 ] && [ "$O" -le 50400 ] && [ "$((O % 900))" = 0 ]; then :; else O=; fi
+    TIME_NAME="nodate-u$UP"; TIME_START="Start: no date (car clock not set), $UP s after power-on"
+    [ "$T" != 0 ] || return 0
+    if [ -z "$O" ]; then
+        TIME_NAME=$(date -u -d "@$T" +%Y%m%d-%H%M%SZ) || TIME_NAME="nodate-u$UP"
+        TIME_START="Start: $(date -u -d "@$T" '+%Y-%m-%d %H:%M:%S') UTC (car zone not known yet), $UP s after power-on" ||
+            TIME_START="Start: no date (car clock not set), $UP s after power-on"
+    else
+        LT=$((T + O)); Z=+
+        TIME_NAME=$(date -u -d "@$LT" +%Y%m%d-%H%M%S) || TIME_NAME="nodate-u$UP"
+        [ "$O" -ge 0 ] || { Z=-; O=$((-O)); }
+        Z=$(printf '%s%d:%02d' "$Z" "$((O / 3600))" "$((O % 3600 / 60))") || Z=unknown
+        TIME_START="Start: $(date -u -d "@$LT" '+%Y-%m-%d %H:%M:%S') local (UTC $(date -u -d "@$T" +%H:%M:%S), zone $Z), $UP s after power-on" ||
+            TIME_START="Start: no date (car clock not set), $UP s after power-on"
+    fi
+}
 # Runtime logs only on a matching attached USB; never in internal flash or RAM.
 LOG=/dev/null
+time_line
 for U in "${2:-}" /tmp/mnt/sda1 /tmp/mnt/sdb1 /tmp/mnt/sdc1 /tmp/mnt/sdd1; do
     [ -n "$U" ] || continue
     if [ -f "$U/mzd-ssh-log-marker.txt" ] && line_is 'MZD-AIO-SSH-v1' "$U/mzd-ssh-log-marker.txt"; then
         if mkdir -p "$U/reports/ssh" &&
-            D=$(mktemp -d "$U/reports/ssh/runtime-$(date +%Y%m%d-%H%M%S)-XXXXXX") &&
-            : > "$D/run.log"; then LOG="$D/run.log"; break; fi
+            D=$(mktemp -d "$U/reports/ssh/runtime-$TIME_NAME-XXXXXX") &&
+            printf '%s\n' "$TIME_START" > "$D/run.log"; then LOG="$D/run.log"; break; fi
     fi
 done
 printf 'SSH startup phase: validate configuration and prerequisites\n' >&2

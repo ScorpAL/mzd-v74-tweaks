@@ -5,6 +5,7 @@ SELF=$(readlink -f "$0") || exit 1
 HERE=$(dirname "$SELF")
 ROOT=$(CDPATH= cd "$HERE/../.." && pwd) || exit 1
 EXPORT_TOOLS='zip unzip mktemp'
+EXPORT_OWN_FILES='jci.zip'  # written by this export, not copied: gets the real date
 EXPORT_MIN_KB=174080
 mzd_export_run() {
     mzd_export_progress 0 0 'Creating JCI backup'

@@ -5,6 +5,7 @@ import shutil
 import shlex
 import subprocess
 import tempfile
+import calendar
 import time
 import zipfile
 from cases import CASES
@@ -24,6 +25,9 @@ with tempfile.TemporaryDirectory(prefix='cmu-export-') as directory:
     source.mkdir(); bins.mkdir(); state.mkdir()
     write(source/'first.log', 'first\n'); write(source/'nested/second log.txt', 'second\n')
     shutil.copytree(ROOT/'usb/lib', usb/'lib')
+    # A fixed car clock: 2026-11-01 16:49:39 UTC (development/CMU-time.md).
+    write(base/'rtc', '1793551779\n'); dt=usb/'lib/datetime.sh'
+    write(dt, dt.read_text().replace('/sys/class/rtc/rtc0/since_epoch', bp(base/'rtc')))
     shutil.copyfile(ROOT/'usb/installer.sh', usb/'installer.sh')
     version = base/'version'; mounts = base/'mounts'; events = base/'events'
     write(version, 'JCI_SW_VER="MAZ_CMU-150_74.00.324"\n')
@@ -89,6 +93,7 @@ else:
         r=command(id_,['run']);assert 'Saved to USB:' in r.stdout
         assert ' rw ' in mounts.read_text()
         complete=list((usb/'exports'/id_).glob('*-complete'));assert len(complete)==1
+        assert (complete[0]/'run.log').read_text().startswith('Start: '),'run.log starts with the time line'
         if id_=='backup-jci':
             with zipfile.ZipFile(complete[0]/'jci.zip') as z:assert z.testzip() is None and len(z.namelist())==2
         else:
@@ -128,4 +133,17 @@ else:
     assert len(created) == 1 and bp(next(iter(created))) in result.stdout
     assert not (nested / 'exports').exists()
     assert original=={p.relative_to(source).as_posix():p.read_bytes() for p in source.rglob('*') if p.is_file()}
+    # File dates: the folder and the export's own files get the car's local time; copies keep theirs.
+    stamp=calendar.timegm((2026,11,1,20,49,39))
+    dated=dict(env,MZD_DATETIME_OFFSET='14400',MZD_DATETIME_ASKED='1')
+    for id_,own,copied in [('logs-collector','source-files.txt','logs/first.log'),('backup-jci','jci.zip',None)]:
+        before=set((usb/'exports'/id_).glob('*-complete'))
+        r=subprocess.run([SHELL,bp(usb/'tweaks'/id_/'run.sh'),'run'],env=dated,capture_output=True,text=True,timeout=20)
+        assert r.returncode==0,(r.stdout,r.stderr)
+        created=set((usb/'exports'/id_).glob('*-complete'))-before;assert len(created)==1
+        folder=next(iter(created));assert folder.name.startswith('20261101-204939-'),folder.name
+        assert (folder/'run.log').read_text().startswith('Start: 2026-11-01 20:49:39 local (UTC 16:49:39, zone +4:00)')
+        for p in [folder,folder/'run.log',folder/own]:assert int(p.stat().st_mtime)==stamp,p
+        if copied:assert int((folder/copied).stat().st_mtime)!=stamp,'a copied file keeps its own date'
+        checks+=1
 print('EXPORT_COMMANDS_PASSED:',checks,'entrypoint checks, read-only sources, USB-only unique outputs, ZIP validation/failure and live jobs.')

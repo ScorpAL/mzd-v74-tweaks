@@ -5,6 +5,7 @@ SELF=$(readlink -f "$0") || exit 1
 HERE=$(dirname "$SELF")
 ROOT=$(CDPATH= cd "$HERE/../.." && pwd) || exit 1
 EXPORT_TOOLS='wc sed mktemp'
+EXPORT_OWN_FILES='source-files.txt'  # written by this export, not copied: gets the real date
 mzd_export_ready() {
     first=$(find "$APP" -type f | sed -n '1p')
     [ -n "$first" ] || { printf 'No running log files are available.\n' >&2; return 2; }

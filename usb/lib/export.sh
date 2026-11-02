@@ -48,6 +48,14 @@ mzd_export_finish() {
     if [ -n "${EXPORT_PARTIAL:-}" ] && [ -d "$EXPORT_PARTIAL" ]; then
         printf 'Incomplete export retained at: %s\n' "$EXPORT_PARTIAL" >&2
     fi
+    # Real dates instead of 1970/1980 for the folder and the files the export writes
+    # itself (EXPORT_OWN_FILES from the tweak). Copied files keep their own dates.
+    for folder in "${EXPORT_PARTIAL:-}" "${EXPORT_OUTPUT:-}"; do
+        [ -n "$folder" ] && [ -d "$folder" ] || continue
+        set -- "$folder" "$folder/run.log" "$folder/settings.conf"
+        for file in ${EXPORT_OWN_FILES:-}; do set -- "$@" "$folder/$file"; done
+        mzd_datetime_touch "$@" 2>/dev/null || :
+    done
     sync
     if [ "$code" = 0 ]; then printf 'Saved to USB: %s\n' "$EXPORT_OUTPUT"; fi
     exit "$code"
@@ -60,6 +68,7 @@ mzd_export_main() {
         *) printf 'Unsupported action. Use run or status.\n' >&2; return 1 ;;
     esac
     . "$ROOT/lib/manifest.sh" || return 1
+    . "$ROOT/lib/datetime.sh" || return 1
     mzd_manifest_load "$HERE/manifest.conf" || return 1
     if [ "$1" = status ]; then
         reason=$(mzd_export_check status 2>&1); result=$?
@@ -78,9 +87,12 @@ mzd_export_main() {
     trap 'exit 143' TERM
     case ",$EXPORT_MODE," in *,ro,*) mount -o rw,remount "$EXPORT_MOUNT" || return 1 ;; esac
     mkdir -p "$EXPORT_MOUNT/exports/$ID" || return 1
-    EXPORT_PARTIAL=$(mktemp -d "$EXPORT_MOUNT/exports/$ID/$(date +%Y%m%d-%H%M%S)-XXXXXX") || return 1
+    # Car local time in the name and the Start line: one reading (development/CMU-time.md).
+    mzd_datetime_snapshot
+    EXPORT_PARTIAL=$(mktemp -d "$EXPORT_MOUNT/exports/$ID/$(mzd_datetime_name)-XXXXXX") || return 1
     EXPORT_OUTPUT="$EXPORT_PARTIAL-complete"
-    printf 'Installer version: %s\nExport source: %s\nOriginating USB: %s\n' "${MZD_INSTALLER_VERSION:-unknown}" "$APP" "$EXPORT_MOUNT" > "$EXPORT_PARTIAL/run.log"
+    { mzd_datetime_start
+      printf 'Installer version: %s\nExport source: %s\nOriginating USB: %s\n' "${MZD_INSTALLER_VERSION:-unknown}" "$APP" "$EXPORT_MOUNT"; } > "$EXPORT_PARTIAL/run.log"
     if [ -n "${MZD_SETTINGS_FILE:-}" ] && [ -s "$MZD_SETTINGS_FILE" ]; then
         [ ! -L "$MZD_SETTINGS_FILE" ] && cp "$MZD_SETTINGS_FILE" "$EXPORT_PARTIAL/settings.conf" && cmp -s "$MZD_SETTINGS_FILE" "$EXPORT_PARTIAL/settings.conf" || return 1
     fi

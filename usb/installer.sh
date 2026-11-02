@@ -175,6 +175,11 @@ case "${1:-}" in
       note) ;;
       *) fail 'Unsupported installer event.' ;;
     esac
+    # A new ui.log starts with the real time (development/CMU-time.md); no D-Bus
+    # question, only the launcher's offset. A log line must never fail a UI event.
+    if [ ! -f "$INSTALLER_LOG/ui.log" ] && [ -f "$HERE/lib/datetime.sh" ] && . "$HERE/lib/datetime.sh"; then
+      mzd_datetime_start >> "$INSTALLER_LOG/ui.log" || :
+    fi
     printf '%s %s %s\n' "$(date +%H:%M:%S)" "$2" "${3:-}" >> "$INSTALLER_LOG/ui.log"
     ;;
   *) fail 'Usage: installer.sh list | manifest ID | action ID ACTION | event EVENT DETAIL' ;;
