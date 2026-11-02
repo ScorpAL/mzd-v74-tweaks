@@ -15,7 +15,9 @@ slideshows automatically; duplicate contents are allowed.
 Gallery > image offers Use as background, Include in slideshow and Delete image.
 The selected image previews behind its menu. Deletion requires confirmation.
 Slideshow offers Off or 5/10/30/60/120/300 seconds. Include images through Gallery;
-Off retains the current background. Settings restores the original Mazda image.
+Off retains the current background. Gallery, Slideshow, Import from USB and
+Use original background are available directly in the main menu. Selecting
+Use original background applies the Mazda background without opening a submenu.
 
 ## Installation and lifecycle
 

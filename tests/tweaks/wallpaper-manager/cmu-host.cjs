@@ -32,7 +32,7 @@ function flush(){let n=0;while(queue.length){assert(++n<200,'message loop');queu
 function click(i){control.focus=i;control.props.selectCallback(control,control.dataList.items[i].appData);flush();}
 function input(action,phase='step'){for(const f of viewEvents.message.slice())f({source:parent,data:{type:'mzd-gui-input',token:'fixture-token',action,phase}});flush();}
 flush();assert.equal(sb,'Wallpaper Manager');assert.equal(host.WallpaperManager.snapshot().images.length,1);assert.deepEqual(Array.from(host.WallpaperManager.snapshot().slides),[]);
-click(0);click(1);click(0);assert.equal(saved.selected,imageID);assert.equal(writes,1);assert.equal(host.WallpaperManager.snapshot().active,imageID);
+click(0);click(0);click(0);assert.equal(saved.selected,imageID);assert.equal(writes,1);assert.equal(host.WallpaperManager.snapshot().active,imageID);
 failSave=true;hostEvents.message({source:view,data:{type:'wallpaper-preview-request',token:'fixture-token',id:999,command:'select',value:null}});flush();assert.equal(saved.selected,imageID);assert.equal(host.WallpaperManager.snapshot().active,imageID,'failed save rolls UI back to durable settings');
 click(1);assert.deepEqual(saved.slides,[imageID]);input('back');input('back');click(1);click(1);assert(saved.enabled);assert.equal(saved.interval,5);
 resident.closed();assert.equal(host.WallpaperManager.snapshot().enabled,true,'closing the manager retains resident slideshow');
