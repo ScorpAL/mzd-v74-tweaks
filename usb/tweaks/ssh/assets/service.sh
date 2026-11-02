@@ -171,11 +171,16 @@ finish() {
 }
 trap finish 0
 trap 'exit 0' INT TERM
-# Car time for the runtime log name and its Start line. A minimal copy of
-# usb/lib/datetime.sh (see development/CMU-time.md): this service runs from internal
-# storage without usb/lib. It never waits for D-Bus, so the installer's 2-second
-# startup check is not delayed; it uses the installer's known offset, if any.
-# Under set -eu every step has a fallback: logging must never stop the service.
+# Car time for the runtime log name and its Start line (see development/CMU-time.md).
+# Why a copy of usb/lib/datetime.sh and not `. usb/lib/datetime.sh`:
+#   - the service is installed alone into /tmp/mnt/resources/mzd-tweaks/ssh (only
+#     service.sh, sshd_config and password.hash) and starts at every boot from there,
+#     often without any USB stick, so usb/lib is not there to be sourced;
+#   - it must never wait for D-Bus: the installer checks the service 2 s after start.
+# So this copy only reads the RTC and the offset the installer passes
+# (MZD_DATETIME_OFFSET); at boot it gives a UTC name (...Z) or nodate-u<uptime>.
+# Keep its offset check identical to usb/lib/datetime.sh (tests/contract/test_datetime.py
+# compares both). Under set -eu every step has a fallback: logging must never stop the service.
 time_line() {
     T=$(cat /sys/class/rtc/rtc0/since_epoch 2>/dev/null) || T=
     UP=$(cut -d. -f1 /proc/uptime 2>/dev/null) || UP=
