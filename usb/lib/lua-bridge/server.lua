@@ -16,6 +16,20 @@ if arg[1]=="--check" then
 end
 assert(#arg==2,"Usage: lua server.lua transport.html ready-file | --check")
 local transport,readyPath=arg[1],arg[2]
+-- Keep the already authenticated page available while the USB is unplugged.
+local transportFile=assert(io.open(transport,"rb"))
+local transportPage=assert(transportFile:read("*a"));transportFile:close()
+local sessionState=os.getenv("INSTALLER_STATE")
+local function currentInstaller()
+    if not sessionState then return nil end
+    local file=io.open(sessionState.."/usb-root","r")
+    if not file then return nil end
+    local root=file:read("*l");file:close()
+    if root and (root:match("^/tmp/mnt/sd[a-z][0-9]+$") or root:match("^/mnt/sd[a-z][0-9]+$")) then
+        return root.."/installer.sh"
+    end
+    return nil
+end
 local server=assert(socket.bind("127.0.0.1",0))
 server:settimeout(1)
 assert(posix.fcntl(server:getfd(),posix.F_SETFD,1))
@@ -81,9 +95,7 @@ local function request(client)
     end
     debug("request "..method.." "..path)
     if method=="GET" and path=="/" then
-        local file=io.open(transport,"rb")
-        if not file then respond(client,500,"text/plain","Missing transport page");return end
-        local body=file:read("*a");file:close();respond(client,200,"text/html; charset=utf-8",body);return
+        respond(client,200,"text/html; charset=utf-8",transportPage);return
     end
     if method~="POST" or headers["x-poc-token"]~=token then respond(client,403,"text/plain","Forbidden");return end
     local textLength=headers["content-length"] or ""
@@ -111,7 +123,15 @@ local function request(client)
     -- A disconnect or SIGTERM must not abort an already-running modifying worker.
     local readonlyStatus=program=="/bin/sh" and args[1]=="./installer.sh" and
         ((args[2]=="action" and args[4]=="status" and #args==4) or ((args[2]=="statuses" or args[2]=="update-info" or args[2]=="uninstall-check" or args[2]=="restore-check" or args[2]=="settings-info" or args[2]=="preflight-info") and #args==3))
-    local ok,result=pcall(process.run,program,args,{server:getfd(),client:getfd()},trace,readonlyStatus and 30 or nil)
+    local runArgs=args
+    if program=="/bin/sh" and args[1]=="./installer.sh" then
+        local installer=currentInstaller()
+        if installer then
+            runArgs={};for i,value in ipairs(args) do runArgs[i]=value end
+            runArgs[1]=installer
+        end
+    end
+    local ok,result=pcall(process.run,program,runArgs,{server:getfd(),client:getfd()},trace,readonlyStatus and 30 or nil)
     if ok then
         debug("result "..label.." started="..tostring(result.started).." exit="..tostring(result.exitCode)..
             " signal="..tostring(result.signal).." stdout="..#result.stdout.." stderr="..#result.stderr)

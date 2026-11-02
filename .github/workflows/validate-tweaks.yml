@@ -77,6 +77,8 @@ jobs:
           python tests/contract/test_recovery.py
       - name: Test optional restart and launcher cleanup
         run: python tests/contract/test_restart.py
+      - name: Test installer replug session
+        run: python tests/contract/test_session.py
       - name: Test read-only system metrics
         run: python tests/contract/test_metrics.py
       - name: Test diagnostics configuration and USB snapshots

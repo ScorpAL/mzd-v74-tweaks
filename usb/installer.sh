@@ -170,6 +170,13 @@ case "${1:-}" in
   event)
     [ -n "${INSTALLER_STATE:-}" ] && [ -d "$INSTALLER_STATE" ] || fail 'Installer session is missing.'
     case "${2:-}" in
+      focus-poll)
+        if [ -f "$INSTALLER_STATE/ui-refocus-request" ] && [ ! -e "$INSTALLER_STATE/ui-close" ] && [ ! -e "$INSTALLER_STATE/ui-closing" ]; then
+          rm -f "$INSTALLER_STATE/ui-refocus-request" || exit 1
+          printf 'requested\n'
+        fi
+        exit 0 ;;
+      refocus-ready) : > "$INSTALLER_STATE/ui-refocus-ready" ;;
       ready) : > "$INSTALLER_STATE/ui-ready" ;;
       ui-error) : ;; # Early browser diagnostics do not declare the UI ready.
       close) : > "$INSTALLER_STATE/ui-close" ;;

@@ -806,6 +806,21 @@
         }
         executeAction(item,action,complete,restoreHash);
     }
+    var focusPending=false;
+    function checkFocusRequest() {
+        if(focusPending || operating || closing || !connected)return;
+        focusPending=true;
+        call(["event","focus-poll"],function(error,result){
+            if(error || resultError(result) || closing || !result || trim(result.stdout)!=="requested") {focusPending=false;return;}
+            try {
+                manager.SetRequiredSurfaces("JCI_OPERA_SECONDARY",0);
+                manager.SetKeyboardFocus("JCI_OPERA_SECONDARY");
+            } catch(e) {
+                focusPending=false;call(["event","note","Replug focus failed: "+String(e)],function(){});return;
+            }
+            call(["event","refocus-ready","Replug: Secondary visibility and keyboard focus requested"],function(){focusPending=false;});
+        });
+    }
     function restorePrimary() {
         if (!manager) return "Native focus controller unavailable.";
         try {manager.SetRequiredSurfaces("JCI_OPERA_PRIMARY",0);manager.SetKeyboardFocus("JCI_OPERA_PRIMARY");return "";}
@@ -936,6 +951,7 @@
             showDisclaimer();
             updateMetrics();
             window.setInterval(updateMetrics, 5000);
+            window.setInterval(checkFocusRequest, 1000);
         });
     },false);
     controls(); frame.src=config.origin+"/#"+config.token;

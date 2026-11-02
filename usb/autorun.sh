@@ -4,11 +4,26 @@ set -u
 umask 077
 SELF=$(readlink -f "$0") || exit 1
 HERE=$(dirname "$SELF")
+# Release the firmware USB invocation; all three standard streams are detached.
+if [ "${1:-}" != --session ]; then
+  sh "$SELF" --session </dev/null >/dev/null 2>&1 &
+  exit 0
+fi
+
 . "$HERE/lib/defines.sh" || exit 1
 . "$HERE/lib/version.sh" || exit 1
 MZD_INSTALLER_VERSION=$(mzd_installer_version "$HERE"); export MZD_INSTALLER_VERSION
 STATE=$(mktemp -d /tmp/cmu-installer.XXXXXX) || exit 1
 INSTALLER_STATE=$STATE; export INSTALLER_STATE
+. "$HERE/lib/session.sh" || exit 1
+mzd_session_claim; session_code=$?
+if [ "$session_code" != 0 ]; then
+  rmdir "$STATE" 2>/dev/null || :
+  [ "$session_code" = 2 ] && exit 0
+  printf 'Installer session is starting or closing; retry shortly.\n' >&2;exit 1
+fi
+trap 'mzd_session_release' 0
+
 # Car local time for the folder name and file dates (development/CMU-time.md).
 # Asked once here; workers inherit MZD_DATETIME_ASKED=1 (and the offset) and never ask.
 . "$HERE/lib/datetime.sh" || exit 1
@@ -35,6 +50,7 @@ native_surface() {
 }
 finish() {
   code=$?; trap - 0
+  : > "$STATE/ui-closing"
   # Normal Exit first returns keyboard focus through the native JS plugin.
   # The direct D-Bus API is the additional, vehicle-confirmed visibility path.
   if [ "$ACTIVE" = 1 ]; then native_surface 9 >> "$STATE/native.log" 2>&1 || checkpoint 'Primary fallback request failed'; fi
@@ -65,6 +81,7 @@ finish() {
     code=1
     checkpoint "ERROR: Could not flush filesystem writes."; save_logs
   fi
+  if command -v mzd_session_release >/dev/null 2>&1; then mzd_session_release || code=1; fi
   if [ "$code" = 0 ] && [ -f "$STATE/ui-restart" ]; then
     # All workers, services owned by the launcher and storage cleanup are done.
     . "$HERE/lib/restart.sh" && mzd_launcher_restart "$code" || code=1
@@ -132,6 +149,19 @@ checkpoint 'Launching Secondary Opera'
 OPERA_PID=$!; ACTIVE=1; ACTIVATED=0; SECONDS_WAITED=0
 while [ ! -f "$STATE/ui-close" ]; do
   kill -0 "$OPERA_PID" 2>/dev/null || fail 'Secondary Opera exited. Any active worker will be allowed to finish.'
+  if [ -f "$STATE/usb-root" ]; then
+    NEW_ROOT=$(cat "$STATE/usb-root")
+    if [ "$NEW_ROOT" != "$HERE" ]; then
+      case "$NEW_ROOT" in /tmp/mnt/sd[a-z][0-9]*|/mnt/sd[a-z][0-9]*)
+        if [ -f "$NEW_ROOT/installer.sh" ]; then
+          mount -o rw,remount "$NEW_ROOT" >> "$STATE/native.log" 2>&1 || checkpoint 'Replug: USB remount failed'
+          HERE=$NEW_ROOT;LOG_DIR="$HERE/installer-logs/${LOG_DIR##*/}"
+          [ "$MZD_LOG_LEVEL" = off ] || mkdir -p "$LOG_DIR"
+          checkpoint 'Replug: USB source location refreshed'
+        fi ;;
+      esac
+    fi
+  fi
   mzd_transport_alive || fail 'Shell transport stopped.'
   if [ "$ACTIVATED" = 0 ]; then
     if [ -f "$STATE/ui-ready" ]; then
@@ -140,6 +170,11 @@ while [ ! -f "$STATE/ui-close" ]; do
       native_surface 10 >> "$STATE/native.log" 2>&1 || fail 'Secondary visibility request failed.'
       ACTIVATED=1; checkpoint 'Secondary visibility requested through direct D-Bus'
     elif [ "$SECONDS_WAITED" -ge 30 ]; then fail 'Menu did not report ready within 30 seconds.'; fi
+  fi
+  if [ -f "$STATE/ui-refocus-ready" ]; then
+    rm -f "$STATE/ui-refocus-ready"
+    if native_surface 10 >> "$STATE/native.log" 2>&1; then checkpoint 'Replug: Secondary visibility requested';
+    else checkpoint 'Replug: Secondary visibility request failed'; fi
   fi
   if [ "$MZD_LOG_LEVEL" = debug ] && [ "$((SECONDS_WAITED % 30))" = 0 ]; then save_logs; fi
   sleep 1; SECONDS_WAITED=$((SECONDS_WAITED + 1))

@@ -93,3 +93,13 @@ bundled Acorn parser supplies grammar parsing; no runtime npm dependency ships.
 `node tests/installer/test-startup-errors.cjs` checks independent early parse/error
 reporting through the transport iframe. Those diagnostics use event ui-error,
 never ready, and are retained in normal USB ui.log on launcher cleanup.
+
+Installer replug focus checks: `python tests/contract/test_session.py` exercises
+the real RAM session helper and event adapter with private fixtures.
+`node tests/installer/test-ui.cjs` verifies the browser handshake, no focus
+requests while idle, and deferral during modifying actions. A CMU test must also
+verify actual display/input restoration on replug and a fresh start after Exit.
+The replug case must include a changed USB mount (for example sda1 to sdb1).
+The firmware USB invocation must return while the detached installer stays alive.
+Original-CMU Lua transport checks cover resolving the current installer path and
+serving the cached transport page after its USB source disappears.

@@ -35,6 +35,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,inclu
   let background=null,polls=0;
   function process(job){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
+    if(a[0]==='event' && a[1]==='focus-poll'){const requested=usb.refocusRequested;usb.refocusRequested=false;return ok(requested?'requested\n':'');}
     if(a[0]==='event')return ok();
     if(a[0]==='uninstall-check')return savedUninstall[a[1]]||ok('',1,'No saved uninstaller is available.');
     if(a[0]==='restore-check')return recovery[a[1]]?ok(recovery[a[1]]):ok('',1,'No verified original backup is available.');
@@ -582,3 +583,15 @@ x.click('update-action');assert.equal(x.nodes['dialog-title'].textContent,'Updat
 x.click('update-action');x.click('action');assert.equal(x.nodes['dialog-state'].textContent,'Updating');x.pump();assert(x.calls.some(a=>JSON.stringify(a)===JSON.stringify(['action','list-beep','update','1.10.0'])));assert.equal(x.states['list-beep'],'installed');assert.equal(x.nodes['dialog-state'].textContent,'Update completed');
 x=updateOffer('2.0.0','1.0.0');x.usb.updateOffers['list-beep']=x.ok('',1,'Dependent package blocks replacement.');x.click('back');x.click('tweak-list-beep');x.pump();assert(x.nodes['update-action'].disabled);assert.match(x.nodes['dialog-description'].textContent,/Update unavailable/);assert.equal(x.nodes.action.textContent,'Uninstall');
 console.log('INSTALLER_UPDATES_PASSED: version ordering, eligibility, confirmation, cancellation and version-pinned action.');
+
+x=boot();const pollFocus=x.intervals[1];assert.equal(typeof pollFocus,'function');
+let focusBefore=x.calls.filter(a=>a[0]==='focus').length;
+pollFocus();x.pump();assert.equal(x.calls.filter(a=>a[0]==='focus').length,focusBefore);
+x.usb.refocusRequested=true;pollFocus();pollFocus();x.pump();
+assert.equal(x.calls.filter(a=>a[0]==='focus').length,focusBefore+1);
+assert(x.calls.some(a=>a[0]==='event'&&a[1]==='refocus-ready'));
+pollFocus();x.pump();assert.equal(x.calls.filter(a=>a[0]==='focus').length,focusBefore+1);
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();x.click('tweak-list-beep');x.pump();x.click('action');
+x.usb.refocusRequested=true;const pendingRequests=x.jobs.length;pollFocus();assert.equal(x.jobs.length,pendingRequests,'No focus polling during a worker');
+x.pump();pollFocus();x.pump();assert.equal(x.calls.filter(a=>a[0]==='focus').length,focusBefore+2);
+console.log('REPLUG_FOCUS_UI_PASSED: explicit request only, coalescing, no idle focus stealing and deferred while operating.');
