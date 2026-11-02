@@ -14,7 +14,7 @@ class Node {
   getElementsByTagName(tag){let all=[];for(const n of this.children){if(n.tagName===tag)all.push(n);all=all.concat(n.getElementsByTagName(tag));}return all;}
 }
 function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,includeSettings,includeBundle){
-  const recovery={},restoreOutcomes={},recoveryHints={},savedSettings={},preflight={},savedUninstall={};
+  const usb={ids:null,manifests:{}},recovery={},restoreOutcomes={},recoveryHints={},savedSettings={},preflight={},savedUninstall={};
   const nodes={},jobs=[],calls=[],timers=[],intervals=[],listeners={},states={'restore-originals':'uninstalled','backup-jci':'uninstalled','logs-collector':'uninstalled',hello:'uninstalled','list-beep':'uninstalled','main-menu-loop':'installed','ssh':'error'},outcomes={},reasons={ssh:'A required component is missing.'};
   if(includeSettings)states['settings-example']='uninstalled';
   if(includeBundle)states['bundle-example']='uninstalled';
@@ -52,8 +52,9 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,inclu
     if(a[0]==='start-run'){background=a[1];polls=0;return ok('job.test01\n');}
     if(a[0]==='job-status'){polls++;return ok(polls===1?'running\n0\n0\nCreating archive\n':polls===2?'running\n5\n10\nCopying files\n':'done\n'+(outcomes[background]||0)+'\n');}
     if(a[0]==='job-output')return ok(a[2]==='stdout'?'Saved to USB: /mnt/sdb1/exports/'+background:'');
+    if(a[0]==='list' && usb.ids!==null)return ok(usb.ids.join('\n')+'\n');
     if(a[0]==='list')return ok((includeBundle?'bundle-example\n':'')+(includeSettings?'settings-example\n':'')+'list-beep\nmain-menu-loop\nssh\nbroken\n'+(includeCommand?'hello\n':'')+(includeExports?'backup-jci\nlogs-collector\nrestore-originals\n':''));
-    if(a[0]==='manifest'){if(a[1]==='bundle-example')return ok(fs.readFileSync(path.join(ROOT,'../development/examples/bundle/manifest.conf'),'utf8'));if(a[1]==='settings-example')return ok(fs.readFileSync(path.join(ROOT,'../development/examples/settings/manifest.conf'),'utf8'));if(a[1]==='broken')return ok('{broken');let m=fs.readFileSync(a[1]==='hello'?path.join(ROOT,'../development/examples/hello/manifest.conf'):path.join(ROOT,'tweaks',a[1],'manifest.conf'),'utf8');if(a[1]==='list-beep')m=m.replace(/^contributors=.*\r?\n?/gm,'')+'contributors=Original author; port by Example <developer>\n';if(manifestVersion)m=m.replace(/^contract_version=.*$/m,'contract_version='+manifestVersion);return ok(m);}
+    if(a[0]==='manifest'){if(Object.prototype.hasOwnProperty.call(usb.manifests,a[1]))return ok(usb.manifests[a[1]]);if(a[1]==='bundle-example')return ok(fs.readFileSync(path.join(ROOT,'../development/examples/bundle/manifest.conf'),'utf8'));if(a[1]==='settings-example')return ok(fs.readFileSync(path.join(ROOT,'../development/examples/settings/manifest.conf'),'utf8'));if(a[1]==='broken')return ok('{broken');let m=fs.readFileSync(a[1]==='hello'?path.join(ROOT,'../development/examples/hello/manifest.conf'):path.join(ROOT,'tweaks',a[1],'manifest.conf'),'utf8');if(a[1]==='list-beep')m=m.replace(/^contributors=.*\r?\n?/gm,'')+'contributors=Original author; port by Example <developer>\n';if(manifestVersion)m=m.replace(/^contract_version=.*$/m,'contract_version='+manifestVersion);return ok(m);}
     if(a[0]==='statuses')return ok(a[1].split(' ').map(id=>id+'\t'+(states[id]==='error'?'error':states[id])+'\t'+(states[id]==='error'?'Patch state is ambiguous.':['unavailable','broken'].includes(states[id])?(reasons[id]||''):'' )+'\n').join(''));
     if(a[2]==='status')return states[a[1]]==='error'?ok('',1,'Patch state is ambiguous.'):ok(states[a[1]]+'\n',0,['unavailable','broken'].includes(states[a[1]])?(reasons[a[1]]||''):'');
     const code=outcomes[a[1]]||0;
@@ -65,7 +66,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,inclu
   event({type:'shell-ready',token:'secret'});pump();
   if(!keepDisclaimer){nodes.action.onclick();pump();}
   const click=id=>{const n=doc.getElementById(id);assert(n,'missing '+id);assert(!n.disabled,'disabled '+id);n.onclick();};
-  return {nodes,doc,jobs,calls,states,outcomes,reasons,recovery,restoreOutcomes,recoveryHints,savedSettings,preflight,savedUninstall,timers,intervals,pump,click,ok,event};
+  return {usb,nodes,doc,jobs,calls,states,outcomes,reasons,recovery,restoreOutcomes,recoveryHints,savedSettings,preflight,savedUninstall,timers,intervals,pump,click,ok,event};
 }
 let x=boot();
 assert.equal(x.calls.filter(a=>a[0]==='statuses').length,1);
@@ -288,7 +289,7 @@ console.log('RESTART_UI_PASSED: successful install/uninstall, optional Exit, exp
 x=boot();let beforeScan=x.calls.filter(a=>a[0]==='statuses').length;
 x.click('refresh');assert.equal(x.nodes.exit.disabled,false);
 x.click('exit');x.pump();assert(x.calls.some(a=>a[0]==='event'&&a[1]==='close'));
-assert.equal(x.calls.filter(a=>a[0]==='statuses').length,beforeScan+1);
+assert.equal(x.calls.filter(a=>a[0]==='statuses').length,beforeScan,'Exit during discovery must not start a status scan');
 console.log('SCAN_EXIT_PASSED: Exit stays available and stops subsequent read-only status requests.');
 
 // Exiting a scan is safe, but Restart must wait for its result.
@@ -518,3 +519,24 @@ console.log('TWO_CHOICE_UI_PASSED: two options retain direct cycling without a p
 // Descriptions are one semantic field regardless of an arbitrary character count.
 x=boot(null,false,false,false,false,true);x.preflight['bundle-example']=x.ok('warning\t'+('Language compatibility details '.repeat(11))+'overridden\n');x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();x.click('tweak-bundle-example');x.pump();const descriptionParts=x.nodes['dialog-description'].children;assert.equal(descriptionParts.length,1);assert.equal(descriptionParts[0].attributes['data-heading'],'DESCRIPTION');assert(x.nodes['dialog-description'].textContent.includes('overridden'));const descriptionField=descriptionParts[0];descriptionField.clientHeight=190;descriptionField.scrollHeight=500;descriptionField.focus();controller('onkeydown',40);assert.equal(x.doc.activeElement,descriptionField);assert.equal(descriptionField.scrollTop,46);controller('onkeydown',38);assert.equal(descriptionField.scrollTop,0);
 console.log('DESCRIPTION_FIELD_PASSED: one continuous field, complete warning text and controller scrolling for genuinely long descriptions.');
+
+// Refresh discovers changed USB content rather than only rechecking old states.
+x=boot();
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
+x.click('tweak-list-beep');x.click('back');
+x.usb.ids=['list-beep','hello'];x.states.hello='uninstalled';
+x.usb.manifests['list-beep']=fs.readFileSync(path.join(ROOT,'tweaks/list-beep/manifest.conf'),'utf8')
+ .replace(/^name=.*$/m,'name=Updated tweak').replace(/^description=.*$/m,'description=Updated USB description')
+ .replace(/^version=.*$/m,'version=9.8.7').replace(/^group=.*$/m,'group=traffic-jam');
+const beforeRefresh=x.calls.length;
+x.click('refresh');assert(x.nodes.refresh.disabled);assert(x.nodes.cards.children.every(n=>n.disabled));x.pump();
+assert(x.calls.slice(beforeRefresh).some(a=>a[0]==='list'));
+assert.equal(x.calls.slice(beforeRefresh).filter(a=>a[0]==='manifest').length,2);
+assert.equal(x.nodes.tabs.children.length,2);assert(!x.nodes.tabs.textContent.includes('Interface'));
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('Traffic Jam')===0).onclick();
+assert.equal(x.nodes.cards.children.length,1);assert(x.nodes.cards.textContent.includes('Updated tweak'));
+x.click('tweak-list-beep');assert.match(x.nodes['dialog-description'].textContent,/Updated USB description/);assert(x.nodes['dialog-meta'].textContent.includes('9.8.7'));x.click('back');
+x.click('refresh');x.pump();assert.equal(x.nodes.cards.children.length,1,'repeated discovery must not duplicate tweaks');
+x.usb.ids=['hello'];x.click('refresh');x.pump();assert.equal(x.nodes.tabs.children.length,1);assert.equal(x.nodes.cards.children.length,1);assert.equal(x.nodes.cards.firstChild.id,'tweak-hello');
+x.usb.ids=[];x.click('refresh');x.pump();assert.equal(x.nodes.tabs.children.length,0);assert.equal(x.nodes.cards.children.length,0);assert.equal(x.nodes.refresh.disabled,false);
+console.log('FULL_REFRESH_PASSED: reread USB list/manifests, changed metadata/category, added/removed tweaks, disabled stale cards and no duplicates.');

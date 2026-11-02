@@ -126,9 +126,9 @@
         el("uninstall-action").disabled = scanning || locked || operating || closing;
         if (dialogMode === "restart") el("action").disabled = scanning || locked || operating || closing;
         var nodes = el("tabs").getElementsByTagName("button"), i;
-        for (i = 0; i < nodes.length; i++) nodes[i].disabled = operating || closing;
+        for (i = 0; i < nodes.length; i++) nodes[i].disabled = scanning || operating || closing;
         nodes = el("cards").getElementsByTagName("button");
-        for (i = 0; i < nodes.length; i++) nodes[i].disabled = operating || closing;
+        for (i = 0; i < nodes.length; i++) nodes[i].disabled = scanning || operating || closing;
     }
     function updateCard(item) {
         if (!item.button) return;
@@ -404,8 +404,10 @@
         scanning = true; controls(); footer("Finding tweaks on USB...");
         call(["list"], function (error, result) {
             var problem = error || resultError(result);
-            if (problem) { scanning = false; footer("Could not read tweaks"); showResult("Cannot read tweaks", String(problem), false, function () {}); controls(); return; }
+            if (result && (result.exitCode === 2 || result.signal)) {locked = true;failedStatusName = "USB scan";}
+            if (problem) { scanning = false; footer("Could not read tweaks"); showResult("Cannot read tweaks", String(problem), locked, function () {}); controls(); return; }
             var ids = trim(result.stdout) ? trim(result.stdout).split(/\r?\n/) : [], index = 0;
+            tweaks = [];
             function nextManifest() {
                 if (closing) return;
                 if (index === ids.length) {
@@ -417,6 +419,10 @@
                 if (!/^[a-zA-Z0-9_-]+$/.test(id)) { nextManifest(); return; }
                 footer("Reading " + id + "...");
                 call(["manifest", id], function (error, result) {
+                    if (result && (result.exitCode === 2 || result.signal)) {
+                        locked = true; failedStatusName = id; scanning = false;
+                        showResult("Cannot read tweak", String(error || resultError(result)), true, function () {}); controls(); return;
+                    }
                     var item = {id:id,name:id,group:"errors",manifest:{actions:[]},state:"error",error:"",invalid:false};
                     try {
                         var problem = error || resultError(result);
@@ -804,7 +810,12 @@
         el("back").focus();
     }
     el("back").onclick=closeDialog;
-    el("refresh").onclick=function () {if (accepted && !scanning && !operating && !locked) refreshAll();};
+    el("refresh").onclick=function () {
+        if (!accepted || scanning || operating || closing || locked) return;
+        if (dialogMode) closeDialog();
+        selected = null; detailView += 1;
+        discover();
+    };
     el("exit").onclick=exit;
     function controllerBack(event) {
         // Backspace is the CMU Back button. Always suppress browser history.
