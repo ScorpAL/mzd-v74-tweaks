@@ -346,20 +346,26 @@ function recoveryOffer(raw='available\t'+'a'.repeat(32)+'\t/jci/test.js\n') {
   r.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
   r.click('tweak-list-beep');r.pump();return r;
 }
-// A stock target is a quiet outcome, while a recovery offer does not block Install.
+// A stock target permits Install; a verified recovery offer requires Restore first.
 for (const raw of ['original\n','available\t'+'a'.repeat(32)+'\t/jci/test.js\n']) {
   x=boot();x.recovery['list-beep']=raw;
   x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
   x.click('tweak-list-beep');x.pump();
-  assert.equal(x.nodes.action.textContent,'Install');assert.equal(x.nodes.action.disabled,false);
+  assert.equal(x.nodes.action.textContent,'Install');assert.equal(x.nodes.action.disabled,raw!=='original\n');
   assert.equal(x.nodes['restore-action'].className.includes('hidden'),raw==='original\n');
   assert.doesNotMatch(x.nodes['dialog-description'].textContent,/Restore original unavailable/);
   if(raw==='original\n')assert.doesNotMatch(x.nodes['dialog-description'].textContent,/Restore original resets/);
-  else assert.match(x.nodes['dialog-description'].textContent,/Restore original resets ALL changes/);
+  else {
+    assert.match(x.nodes['dialog-description'].textContent,/Restore original resets ALL changes/);
+    const installs=x.calls.filter(a=>a[0]==='action'&&a[2]==='install').length;
+    x.nodes.action.disabled=false;x.nodes.action.onclick();x.pump();
+    assert.equal(x.calls.filter(a=>a[0]==='action'&&a[2]==='install').length,installs,'action guard must also reject Install while Restore is required');
+  }
 }
 x=recoveryOffer();assert.equal(x.nodes['dialog-title'].textContent,'No List Beep - Broken installation');
 assert(!x.nodes['restore-action'].className.includes('hidden'));
 assert.equal(x.nodes.action.textContent,'Retry status');
+assert.equal(x.nodes.action.disabled,false,'Restore offer must not disable Retry status');
 assert.equal(x.doc.activeElement,x.nodes.back,'Showing Restore must not move focus');
 assert(!x.calls.some(a=>a[0]==='action'&&a[2]==='install'),'Broken tweaks need no attempted install');
 assert(!x.calls.some(a=>a[0]==='restore-original'));
@@ -378,7 +384,7 @@ assert.deepEqual(Array.from(x.calls.find(a=>a[0]==='restore-original')),['restor
 assert.equal(x.nodes['dialog-state'].textContent,'Restore completed');
 assert.equal(x.calls.filter(a=>a[0]==='action'&&a[2]==='install').length,0,'Restore must not automatically reinstall');
 x.click('result-ok');x.pump();x.outcomes['list-beep']=0;x.click('tweak-list-beep');assert.equal(x.nodes.action.textContent,'Install');
-x.pump();assert(x.nodes['restore-action'].className.includes('hidden'));
+x.pump();assert(x.nodes['restore-action'].className.includes('hidden'));assert.equal(x.nodes.action.disabled,false,'Install becomes available after successful Restore');
 x=recoveryOffer();x.restoreOutcomes['list-beep']=2;x.click('restore-action');x.click('action');x.pump();
 assert.match(x.nodes['dialog-description'].textContent,/Do NOT reboot/);x.click('result-ok');assert.equal(x.nodes.refresh.disabled,true);
 for(const raw of ['', 'original', 'original\nextra\n', 'available\tbad-hash\t/jci/test.js\n','available\t'+'a'.repeat(32)+'\t/jci/test.js','available\t'+'a'.repeat(32)+'\t/jci/test.js\nextra\n']) {
@@ -397,7 +403,15 @@ x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
 assert.equal(x.nodes['dialog-title'].textContent,'Operation failed');x.click('result-ok');x.pump();
 assert.equal(x.nodes['dialog-title'].textContent,'No List Beep - Not installed');assert(!x.nodes['restore-action'].className.includes('hidden'));
 assert(!x.calls.some(a=>a[0]==='restore-original'));
-console.log('TARGET_RECOVERY_UI_PASSED: conditional detail button, preserved focus, no attempted install, explicit confirmation, stale-view guards and critical failures.');
+// A later settings reply must not re-enable Install after Restore was offered.
+x=boot();x.usb.manifests['list-beep']=fs.readFileSync(path.join(ROOT,'tweaks/list-beep/manifest.conf'),'utf8')+'\nsettings=flag\nsetting.flag.type=boolean\nsetting.flag.label=Flag\nsetting.flag.default=false\n';
+x.click('refresh');x.pump();x.recovery['list-beep']='available\t'+'a'.repeat(32)+'\t/jci/test.js\n';
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();x.click('tweak-list-beep');
+const lateSettings=x.jobs.find(j=>j.args[1]==='settings-info');assert(lateSettings);x.jobs.splice(x.jobs.indexOf(lateSettings),1);x.pump();
+assert(x.nodes.action.disabled);assert(!x.nodes['restore-action'].className.includes('hidden'));
+x.event({type:'shell-result',token:'secret',id:lateSettings.id,result:x.ok('settings_saved=false\nsettings=\n')});
+assert(x.nodes.action.disabled,'late settings must preserve the Restore requirement');
+console.log('TARGET_RECOVERY_UI_PASSED: Restore blocks Install, late-settings/action guards, re-enable after restore, Retry status preserved, explicit confirmation and critical failures.');
 
 // Generic controls use real manifest declarations, not a preview-only widget.
 x=boot(null,false,false,false,true);

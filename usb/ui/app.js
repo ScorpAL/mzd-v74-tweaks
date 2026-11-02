@@ -351,7 +351,7 @@
                     item.settingValues[d.key]=!item.settingsSaved && settingValid(d,item.settingDraft[d.key])?item.settingDraft[d.key]:v;
                 }
                 item.settingsReady=true;renderSettings(item);
-                el("action").disabled=scanning||locked||item.invalid||item.settingsSaved&&item.state!=="installed"||item.compatibilityPending||item.compatibilityBlocked;
+                el("action").disabled=scanning||locked||item.invalid||item.settingsSaved&&item.state!=="installed"||item.compatibilityPending||item.compatibilityBlocked||item.installNeedsRestore;
             } catch(e){item.settingsReady=false;el("action").disabled=true;text("dialog-description",item.manifest.description+"\n\nSettings unavailable: "+String(e));}
         });
     }
@@ -516,7 +516,7 @@
     function openDetails(item) {
         if (operating || closing || !item) return;
         var view=++detailView;
-        show("restore-action",false); show("uninstall-action",false); item.savedRemovable=false;
+        show("restore-action",false); show("uninstall-action",false); item.savedRemovable=false; item.installNeedsRestore=false;
         text("back","Back"); el("back").onclick=closeDialog;
         el("dialog-body").className = "section-list";
         selected = item; returnFocusId = "tweak-" + item.id; setDialogMode("details");
@@ -552,7 +552,7 @@
         el("action").disabled = scanning || locked || item.invalid || !supported(item,action);
         el("back").disabled = false; el("back").focus();
         el("action").onclick = function () {
-            if (el("action").disabled || !item.settingsReady || item.compatibilityPending || item.compatibilityBlocked) return;
+            if (el("action").disabled || !item.settingsReady || item.compatibilityPending || item.compatibilityBlocked || (action === "install" && item.installNeedsRestore)) return;
             if (action === "status") {
                 scanning = true; controls(); el("action").disabled = true;
                 checkStatus(item,function () {scanning=false;controls();openDetails(item);});
@@ -577,7 +577,7 @@
                 if(error || resultError(result)) {blocked=true;if(!messages.length)messages.push(String(error||resultError(result)));}
                 item.compatibilityBlocked=blocked;
                 text("dialog-description",description+(messages.length?"\n\n"+messages.join("\n"):""));
-                el("action").disabled=scanning||locked||item.invalid||!item.settingsReady||blocked||!supported(item,action);
+                el("action").disabled=scanning||locked||item.invalid||!item.settingsReady||blocked||item.installNeedsRestore||!supported(item,action);
             });
         }
         // Offer the recorded uninstaller for a broken package, never a new USB
@@ -601,7 +601,7 @@
             });
         }
         // Inspect only the opened detail view, never the whole menu. Leave it
-        // visible and preserve focus; eligibility adds a button, not a dialog.
+        // visible and preserve focus; require offered recovery before Install.
         if (!scanning && !locked && !item.invalid && item.manifest.type==="patch" && item.state!=="installed" && supported(item,"install")) {
             call(["restore-check",item.id],function (error,result) {
                 if (error || view!==detailView || dialogMode!=="details" || selected!==item || operating || closing || scanning || locked || item.savedRemovable) return;
@@ -613,7 +613,8 @@
                     return;
                 }
                 show("restore-action",true); el("restore-action").disabled=false;
-                text("dialog-description",item.manifest.description+"\n\nRestore original resets ALL changes to this file.");
+                if (action === "install") {item.installNeedsRestore=true;el("action").disabled=true;}
+                text("dialog-description",item.manifest.description+"\n\nRestore original resets ALL changes to this file."+(action === "install" ? " Restore it before installing." : ""));
                 el("restore-action").onclick=function () {
                     if (el("restore-action").disabled) return;
                     confirmOriginalRestore(item,offer.hash,offer.path,function () {openDetails(item);});
