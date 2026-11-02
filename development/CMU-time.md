@@ -7,6 +7,7 @@ firmware 74.00.324.
 
 ```sh
 . "$ROOT/lib/datetime.sh"
+mzd_datetime_snapshot          # resolve the local offset; share one time for name and header
 name=$(mzd_datetime_name)        # for folder and file names
 mzd_datetime_start >> "$LOG"     # first line of a log
 mzd_datetime_touch "$FOLDER"     # real file dates, after the folder is complete
