@@ -411,6 +411,11 @@ def test_launcher_exports_asked(box):
     end = launcher.index(start_line) + len(start_line)
     assert end < launcher.index("mzd_transport_start"), "the launcher asks before any worker"
     shutil.copyfile(ROOT / "usb/VERSION", box.usb / "VERSION")
+    session = box.usb / "lib/session.sh"
+    write(session, session.read_text().replace(
+        "MZD_SESSION_DIR=/tmp/mzd-installer-session",
+        "MZD_SESSION_DIR=" + shlex.quote(bp(box.base / "launcher-session")),
+    ))
     tail = textwrap.dedent(
         """\
         sh -c 'echo "$MZD_DATETIME_ASKED ${MZD_DATETIME_OFFSET:-none}"'
@@ -423,7 +428,8 @@ def test_launcher_exports_asked(box):
     cases = [(RTC + OFFSET, f"1 {OFFSET}", LOCAL_NAME), (None, "1 none", UTC_NAME)]
     for local, expected, name in cases:
         box.car(local=local)
-        child, log_dir, start = box.run_file(box.usb / "autorun.sh")
+        # Inspect the real session child; detachment itself has a separate test.
+        child, log_dir, start = box.run_file(box.usb / "autorun.sh", ["--session"])
         assert child == expected, f"environment for workers: {child}"
         assert box.queries() == 1, f"the launcher asks once, not {box.queries()} times"
         assert log_dir.startswith(name + "-"), f"installer-logs folder name: {log_dir}"
