@@ -18,16 +18,52 @@ set, including BusyBox workers, patch combinations, SSH supervision, exports,
 Restore, restart, metrics, logging, Lua syntax and disclaimer behavior. Run checks
 appropriate to the change; a green check does not replace review or vehicle tests.
 
-## BusyBox worker fixtures
+## Tests in CI
 
-The container job mounts a full static BusyBox at `/usr/local/bin/busybox`.
-Alpine's default build does not include every required applet, including `patch`.
-When `CMU_TEST_BUSYBOX=1` is set, every dedicated worker fixture must expose the
-mounted binary through applet symlinks in its private command directory. Keep
-mock mount, watchdog and service commands separate; never replace those guards.
-The cluster-language fixture follows the same setup as the shared patch workers.
-A modern BusyBox CI pass supplements the original CMU tool checks; it does not
-prove compatibility with every option on the vehicle's older BusyBox.
+The [validation workflow](../.github/workflows/validate-tweaks.yml) runs four jobs:
+
+| Job | Runner | What it checks |
+| --- | --- | --- |
+| `contract` | Ubuntu | manifests, `shellcheck`, Lua syntax and the contract tests, on the runner's own tools (dash, GNU) |
+| `busybox` | ARM | builds the CMU-like BusyBox 1.19.2 and checks it against the CMU's BusyBox; only when its files change, otherwise it comes from the cache |
+| `workers` | ARM | `tests/contract/test_workers.py` in an image that holds only that BusyBox, as user 0 (`cmu`) with the CMU's 128 kB stack |
+| `launcher` | Ubuntu | the launcher UI tests (Node) |
+
+If `workers` fails on a command that works on your PC, the CMU most likely lacks it or answers differently; see
+[CMU BusyBox](CMU-BusyBox.md). The BusyBox, its checks and the image are described in
+[tools/busybox/README.md](../tools/busybox/README.md).
+
+## Worker tests on the CMU-like BusyBox
+
+`python tests/contract/test_workers.py` above runs the worker scripts with your PC's shell and tools: quick, but
+not what the CMU runs. In CI the same test runs in a Docker image that holds only the CMU-like BusyBox: it is
+`/bin/sh` and every command, linked at the paths the CMU has, so a tweak meets the CMU's shell and options. The
+image also has the CMU's users (user 0 is called `cmu`) and a Python for the test driver outside the scripts'
+`PATH`. To run it the same way:
+
+```sh
+sh tools/busybox/build.sh
+sh tools/busybox/image/make-image.sh .cache/cmu-busybox/busybox cmu-tweak-test:local
+docker run --rm --network none --read-only --security-opt no-new-privileges --user 0:0 \
+  --ulimit stack=131072:131072 --tmpfs /tmp:rw,exec,nosuid,size=128m \
+  -e PATH=/sbin:/usr/sbin:/bin:/usr/bin -e HOME=/tmp -e CMU_TEST_BUSYBOX=1 \
+  -v "$PWD:/repo:ro" -w /repo cmu-tweak-test:local /usr/local/bin/python3 tests/contract/test_workers.py
+```
+
+On an ARM machine that runs 32-bit ARM programs this is fast. On an x86 PC or an Apple Silicon Mac the ARM BusyBox
+runs through qemu (`qemu-user-static`, included in Docker Desktop): it works, but the build takes a few minutes and
+the test about ten. If Docker on your machine cannot start ARM programs in containers, see `QEMU_STATIC` in
+[tools/busybox/README.md](../tools/busybox/README.md). `-e CMU_TEST_ONLY=<tweak-id>` limits the test to one tweak.
+
+Rules for worker fixtures:
+
+- With `CMU_TEST_BUSYBOX=1` every dedicated worker fixture links the BusyBox found on `PATH` into its private command
+  directory; the cluster-language fixture follows the same setup as the shared patch workers.
+- Keep mock mount, watchdog and service commands separate; never replace those guards.
+- A fake command that hands over to the real one must call it at the path the CMU has: `/bin/mv`, `/bin/rm`,
+  `/bin/cp`, `/bin/grep`, `/bin/cat` (not `/usr/bin/...`, which exists only on a PC). The image has nothing else.
+- Commands the CMU has outside BusyBox (`dbus-send`, `lua`, `zip`, `unzip`, `ip`, the JCI programs) are not in the
+  image: a test that needs one fakes it.
 
 ## Offline styling preview on Windows
 

@@ -50,15 +50,6 @@ jobs:
           busybox diff --help
       - name: Test wallpaper storage domain with generated PNG input
         run: python tests/tweaks/wallpaper-manager/test_backend.py
-      - name: Run actual workers in a read-only, networkless BusyBox container
-        run: |
-          docker run --rm --network none --read-only --cap-drop ALL \
-            --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
-            --tmpfs /tmp:rw,exec,nosuid,size=128m \
-            -e PYTHONDONTWRITEBYTECODE=1 -e CMU_TEST_BUSYBOX=1 \
-            -v "$(command -v busybox):/usr/local/bin/busybox:ro" \
-            -v "$PWD:/repo:ro" -w /repo python:3.12-alpine \
-            python tests/contract/test_workers.py
       - name: Verify all shared-target patch combinations
         run: python tests/contract/test_combinations.py
       - name: Exercise the real SSH supervisor with fake system commands
@@ -95,6 +86,81 @@ jobs:
         run: python tests/contract/test_hello.py
       - name: Test Terminal entrypoint
         run: python tests/contract/test_terminal.py
+  busybox:
+    # Prepares the CMU-like BusyBox 1.19.2 (ARM, static; tools/busybox/README.md) for the tweak tests: builds
+    # it and runs all checks of the BusyBox itself (check.sh, testsuite.sh), but only when the files of the
+    # build or of its checks changed. The cache holds only a BusyBox that passed those checks (actions/cache
+    # saves only when the job succeeds), so the jobs that use it do not check it again. It runs on an ARM
+    # runner, whose processor runs the 32-bit ARM build tools and BusyBox directly, without emulation.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Take the checked BusyBox of the same build and checks from the cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/cmu-busybox/busybox
+          # The files of the build and of its checks (not the README): a change in any of them builds and checks again.
+          key: >-
+            cmu-busybox-${{ hashFiles('tools/busybox/build.sh', 'tools/busybox/in-container.sh',
+            'tools/busybox/source.conf', 'tools/busybox/cmu_defconfig', 'tools/busybox/tests/**') }}
+      - name: Build the CMU-like BusyBox
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sh tools/busybox/build.sh
+      - name: Check it against the CMU BusyBox (applets, help texts, CMU vs PC commands, ELF)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sh tools/busybox/tests/check.sh .cache/cmu-busybox/busybox
+      - name: Run the official BusyBox 1.19.2 testsuite in a closed container (same failing tests as the CMU's)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sh tools/busybox/tests/testsuite.sh .cache/cmu-busybox/busybox
+      - name: Keep the logs of a failed build or check
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmu-busybox-logs
+          path: |
+            .cache/cmu-busybox/make.log
+            .cache/cmu-busybox/busybox.config
+            .cache/cmu-busybox/testsuite.log
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cmu-busybox
+          path: .cache/cmu-busybox/busybox
+          retention-days: 7
+  workers:
+    # The real worker entrypoints in a read-only, networkless container that holds only the CMU-like
+    # BusyBox (its sh and its applets, linked as on the CMU) and a Python for the test driver
+    # (tools/busybox/image/). It uses the BusyBox prepared and checked by the job busybox and does not
+    # check it again. It runs on an ARM
+    # runner, whose processor runs the 32-bit ARM BusyBox directly, without emulation: about 6 times
+    # faster than through qemu on an x86 runner.
+    needs: busybox
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: cmu-busybox
+          path: .cache/cmu-busybox
+      - name: Make the test image (only the CMU-like BusyBox, laid out as on the CMU, and Python for the driver)
+        run: |
+          chmod 755 .cache/cmu-busybox/busybox
+          sh tools/busybox/image/make-image.sh .cache/cmu-busybox/busybox cmu-tweak-test:local
+      - name: Run actual workers in a read-only, networkless container with only the CMU-like BusyBox
+        # As a tweak on the CMU: user 0 (named cmu in the image), a 128 kB stack. Docker's default capabilities,
+        # not none: a tweak has all of them on the CMU, and without any user 0 would be an ordinary user.
+        run: |
+          docker run --rm --network none --read-only \
+            --security-opt no-new-privileges --user 0:0 --ulimit stack=131072:131072 \
+            --tmpfs /tmp:rw,exec,nosuid,size=128m \
+            -e PATH=/sbin:/usr/sbin:/bin:/usr/bin -e HOME=/tmp \
+            -e PYTHONDONTWRITEBYTECODE=1 -e CMU_TEST_BUSYBOX=1 \
+            -v "$PWD:/repo:ro" -w /repo cmu-tweak-test:local \
+            /usr/local/bin/python3 tests/contract/test_workers.py
   launcher:
     runs-on: ubuntu-latest
     timeout-minutes: 5
