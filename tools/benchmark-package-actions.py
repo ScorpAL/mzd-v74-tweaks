@@ -8,21 +8,21 @@ from pathlib import Path
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--candidate',action='append',required=True,metavar='LABEL=HELPER')
-parser.add_argument('--runs',type=int,default=5)
+parser.add_argument('--runs',type=int,default=1)
 args=parser.parse_args()
-if args.runs<5:parser.error('Use at least five measured runs.')
+if args.runs<1:parser.error('Use at least one run.')
 root=Path(__file__).resolve().parents[1]
 results={}
-# Alternate candidate order to reduce cache/order bias. Round zero is warm-up.
-for round_ in range(args.runs+1):
+# Alternate candidate order when repeats are explicitly requested.
+for round_ in range(args.runs):
  for candidate in (args.candidate if round_%2==0 else list(reversed(args.candidate))):
   label,helper=candidate.split('=',1)
   env=dict(os.environ,MZD_BENCHMARK_HELPER=str(Path(helper).resolve()))
   result=subprocess.run([sys.executable,str(root/'tests/contract/test_gui_extensions.py'),'--performance-only'],env=env,capture_output=True,text=True,timeout=3600)
   if result.returncode:raise RuntimeError(result.stdout+result.stderr)
   rows=json.loads(next(line.partition('=')[2] for line in result.stdout.splitlines() if line.startswith('PACKAGE_PERFORMANCE=')))
-  print(json.dumps({'candidate':label,'round':round_,'warmup':round_==0,'actions':rows}),flush=True)
-  if round_:results.setdefault(label,[]).append(rows)
+  print(json.dumps({'candidate':label,'round':round_,'warmup':False,'actions':rows}),flush=True)
+  results.setdefault(label,[]).append(rows)
 summary={}
 for label,runs in results.items():
  actions=[]

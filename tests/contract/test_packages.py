@@ -108,6 +108,33 @@ esac
     installed_custom = (entry/'package/tweaks/alpha/assets/custom.conf').read_text()
     assert installed_custom == 'user=custom\n'
     assert 'bundled_extra' not in installed_custom
+    # Real saved-package verification is reused only inside one mutation-free phase.
+    counter=base/'full-check-count';probe=base/'cache-probe.sh'
+    probe_source=pkg.read_text().replace('mzd_package_check_full() (\n', 'mzd_package_check_full() (\n    printf "check\\n" >> '+shlex.quote(bp(counter))+'\n',1)
+    write(probe,probe_source)
+    checked_file=entry/'package/lib/test-helper.sh';original_bytes=checked_file.read_bytes()
+    saved_copy=base/'original-helper';saved_copy.write_bytes(original_bytes)
+    no_cache_export=base/'no-cache-export.sh';write(no_cache_export,'#!/bin/sh\n[ "${MZD_PACKAGE_CACHE+set}" != set ]\n')
+    common='. '+shlex.quote(bp(usb/'lib/manifest.sh'))+'; . '+shlex.quote(bp(probe))+'; entry='+shlex.quote(bp(entry))+'; checked='+shlex.quote(bp(checked_file))+'; '
+    setup='mzd_package_cache_begin || exit 1; trap \'rm -rf "$MZD_PACKAGE_CACHE"\' 0; '
+    tamper='printf "changed\\n" >> "$checked"; '
+    scenarios=[
+        (setup+'mzd_package_check "$entry" && mzd_package_check "$entry"',1),
+        (setup+'mzd_package_check "$entry" || exit 1; '+tamper+'mzd_package_set_state "$entry" installed || exit 1; ! mzd_package_check "$entry"',2),
+        (setup+'mzd_package_check "$entry" || exit 1; mzd_package_worker "$entry" status >/dev/null || exit 1; '+tamper+'! mzd_package_check "$entry"',2),
+        (setup+tamper+'if mzd_package_check "$entry"; then exit 1; fi; cp '+shlex.quote(bp(saved_copy))+' "$checked"; mzd_package_check "$entry"',2),
+        (setup+'mzd_package_check "$entry" || exit 1; mzd_package_cache_clear; '+tamper+'! mzd_package_check "$entry"',2),
+        (setup+'mzd_package_check "$entry" || exit 1; mzd_package_exec_worker "$entry/package/tweaks/alpha/run.sh" status >/dev/null || exit 1; '+tamper+'! mzd_package_check "$entry"',2),
+        (setup+'mzd_package_check "$entry" || exit 1; mzd_package_exec_worker '+shlex.quote(bp(no_cache_export))+' || exit 1; mzd_package_check "$entry"',2),
+    ]
+    for script,expected_checks in scenarios:
+        checked_file.write_bytes(original_bytes)
+        if counter.exists():counter.unlink()
+        result=subprocess.run([SHELL,'-c',common+script],env=dict(env,MZD_PACKAGE_CACHE='/untrusted-caller-cache'),capture_output=True,text=True,timeout=30)
+        assert result.returncode==0,(result.stdout,result.stderr)
+        assert len(counter.read_text().splitlines())==expected_checks
+        checks+=1
+    checked_file.write_bytes(original_bytes)
     shutil.rmtree(usb/'user/alpha')
     action('alpha','uninstall')
 
