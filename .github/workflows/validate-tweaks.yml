@@ -103,17 +103,21 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      # The fingerprint of the files of the build and of its checks (not the README), as prepare.sh computes it:
+      # a change in any of them builds and checks again. prepare.sh holds the only list of these files.
+      - name: Fingerprint the build and check files
+        id: fingerprint
+        run: |
+          fp=$(sh tools/busybox/prepare.sh --fingerprint)
+          [ -n "$fp" ]
+          echo "value=$fp" >>"$GITHUB_OUTPUT"
       - name: Take the checked BusyBox of the same build and checks from the cache
         uses: actions/cache@v4
         with:
           path: |
             .cache/cmu-busybox/busybox
             .cache/cmu-busybox/checked
-          # The files of the build and of its checks (not the README): a change in any of them builds and checks again.
-          key: >-
-            cmu-busybox-${{ hashFiles('tools/busybox/prepare.sh', 'tools/busybox/build.sh',
-            'tools/busybox/in-container.sh', 'tools/busybox/source.conf', 'tools/busybox/cmu_defconfig',
-            'tools/busybox/tests/**') }}
+          key: cmu-busybox-${{ steps.fingerprint.outputs.value }}
       - name: Build and check the CMU-like BusyBox (only if not already checked)
         run: sh tools/busybox/prepare.sh
       - name: Keep the logs of a failed build or check
@@ -122,6 +126,7 @@ jobs:
         with:
           name: cmu-busybox-logs
           path: |
+            .cache/cmu-busybox/apt.log
             .cache/cmu-busybox/make.log
             .cache/cmu-busybox/busybox.config
             .cache/cmu-busybox/testsuite.log
