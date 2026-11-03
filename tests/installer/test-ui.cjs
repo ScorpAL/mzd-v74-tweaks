@@ -35,6 +35,11 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,inclu
   let background=null,polls=0;
   function process(job){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
+    if(a[0]==='manifests') {
+      const ids=process({program:job.program,args:['./installer.sh','list']}).stdout.trim().split('\n').filter(Boolean);
+      return ok(ids.map(key=>{const r=process({program:job.program,args:['./installer.sh','manifest',key]});return JSON.stringify({key,exitCode:r.exitCode,stdout:r.stdout,stderr:r.stderr});}).join('\n')+(ids.length?'\n':''));
+    }
+    if(a[0]==='details')return ok(a[2].split(' ').map(key=>{const r=process({program:job.program,args:['./installer.sh',key,a[1]]});return JSON.stringify({key,exitCode:r.exitCode,stdout:r.stdout,stderr:r.stderr});}).join('\n')+'\n');
     if(a[0]==='config-info')return ok(usb.configPresent?'present\n':'none\n');
     if(a[0]==='event' && a[1]==='focus-poll'){const requested=usb.refocusRequested;usb.refocusRequested=false;return ok(requested?'requested\n':'');}
     if(a[0]==='event')return ok();
@@ -72,6 +77,7 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,inclu
   return {usb,nodes,doc,jobs,calls,states,outcomes,reasons,recovery,restoreOutcomes,recoveryHints,savedSettings,preflight,savedUninstall,timers,intervals,pump,step(){const j=jobs.shift();assert(j);event({type:'shell-result',token:'secret',id:j.id,result:process(j),error:null});},click,ok,event};
 }
 let x=boot();
+assert.equal(x.calls.filter(a=>a[0]==='manifests').length,1);
 assert.equal(x.calls.filter(a=>a[0]==='statuses').length,1);
 assert.equal(x.calls.filter(a=>a[0]==='action'&&a[2]==='status').length,0);
 assert.equal(x.nodes.tabs.children.length,3); // Errors, Interface, System.
@@ -335,9 +341,9 @@ for(const raw of ['available\tbad\tfailed\n','available\t0.8.3\tfailed','availab
  x=brokenSaved();x.savedUninstall.ssh=x.ok(raw);x.pump();assert(x.nodes['uninstall-action'].className.includes('hidden'));
 }
 x=brokenSaved();x.savedUninstall.ssh=x.ok('available\t0.8.3\tfailed\n');
-const staleUninstall=x.jobs.find(j=>j.args[1]==='uninstall-check');x.jobs.splice(x.jobs.indexOf(staleUninstall),1);
+const staleUninstall=x.jobs.find(j=>j.args[1]==='details');x.jobs.splice(x.jobs.indexOf(staleUninstall),1);
 x.nodes.back.onclick();assert(!x.nodes['detail-loading'].className.includes('hidden'));
-x.event({type:'shell-result',token:'secret',id:staleUninstall.id,result:x.savedUninstall.ssh});x.pump();x.click('back');
+x.event({type:'shell-result',token:'secret',id:staleUninstall.id,result:x.ok(JSON.stringify({key:'uninstall-check',exitCode:0,stdout:x.savedUninstall.ssh.stdout,stderr:''})+'\n')});x.pump();x.click('back');
 x.event({type:'shell-result',token:'secret',id:staleUninstall.id,result:x.savedUninstall.ssh});assert(x.nodes['uninstall-action'].className.includes('hidden'));
 x=brokenSaved();x.savedUninstall.ssh=x.ok('available\t0.8.3\tfailed\n');x.pump();x.outcomes.ssh=2;
 x.click('uninstall-action');x.pump();assert.match(x.nodes['dialog-description'].textContent,/Do NOT reboot/);
@@ -411,10 +417,10 @@ assert(!x.calls.some(a=>a[0]==='restore-original'));
 x=boot();x.usb.manifests['list-beep']=fs.readFileSync(path.join(ROOT,'tweaks/list-beep/manifest.conf'),'utf8')+'\nsettings=flag\nsetting.flag.type=boolean\nsetting.flag.label=Flag\nsetting.flag.default=false\n';
 x.click('refresh');x.pump();x.recovery['list-beep']='available\t'+'a'.repeat(32)+'\t/jci/test.js\n';
 x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();x.click('tweak-list-beep');
-const lateSettings=x.jobs.find(j=>j.args[1]==='settings-info');assert(lateSettings);x.jobs.splice(x.jobs.indexOf(lateSettings),1);x.pump();
-assert(x.nodes.action.disabled);assert(!x.nodes['restore-action'].className.includes('hidden'));
-x.event({type:'shell-result',token:'secret',id:lateSettings.id,result:x.ok('settings_saved=false\nsettings=\n')});
-assert(x.nodes.action.disabled,'late settings must preserve the Restore requirement');
+assert.equal(x.jobs.filter(j=>j.args[1]==='details').length,1);
+x.pump();assert(x.nodes.action.disabled);assert(!x.nodes['restore-action'].className.includes('hidden'));
+// Both sections settle in one response; Settings cannot override Restore.
+assert(x.nodes.action.disabled,'settings must preserve the Restore requirement');
 console.log('TARGET_RECOVERY_UI_PASSED: Restore blocks Install, late-settings/action guards, re-enable after restore, Retry status preserved, explicit confirmation and critical failures.');
 
 // Generic controls use real manifest declarations, not a preview-only widget.
@@ -622,7 +628,7 @@ function updateOffer(usbVersion,installedVersion){
  r.states['list-beep']='installed';r.click('refresh');r.pump();r.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();r.click('tweak-list-beep');r.pump();return r;
 }
 for(const [u,i] of [['1.2.0','1.2.0'],['1.2.0','1.10.0'],['1.0.0','2.0.0']]){
- const r=updateOffer(u,i);assert(r.nodes['update-action'].className.includes('hidden'));assert.equal(r.nodes.action.textContent,'Uninstall');assert(!r.calls.some(a=>a[0]==='update-info'));
+ const r=updateOffer(u,i);assert(r.nodes['update-action'].className.includes('hidden'));assert.equal(r.nodes.action.textContent,'Uninstall');assert(r.calls.some(a=>a[0]==='details'));
 }
 x=updateOffer('1.10.0','1.2.0');assert(!x.nodes['update-action'].className.includes('hidden'));assert(!x.nodes['update-action'].disabled);assert.equal(x.nodes.action.textContent,'Uninstall');
 x.click('update-action');assert.equal(x.nodes['dialog-title'].textContent,'Update: No List Beep');x.click('back');x.pump();assert.equal(x.nodes.action.textContent,'Uninstall');assert(!x.calls.some(a=>a[0]==='action'&&a[2]==='update'));
@@ -657,8 +663,8 @@ detailAnimation();assert.equal(x.nodes['detail-loading-text'].textContent,'Readi
 const mutations=x.calls.filter(a=>a[0]==='action').length;
 x.nodes.action.onclick();x.nodes.back.onclick();controller('onkeydown',13);controller('onkeydown',27);controller('onkeyup',8);
 assert(!x.nodes.overlay.className.includes('hidden'));assert(!x.nodes['detail-loading'].className.includes('hidden'));assert.equal(x.calls.filter(a=>a[0]==='action').length,mutations);
-x.step();assert(!x.nodes['detail-loading'].className.includes('hidden'),'package info enqueues Update eligibility');
-x.step();assert(!x.nodes['detail-loading'].className.includes('hidden'),'settings alone cannot release the dialog');
+assert.equal(x.jobs.filter(j=>j.args[1]==='details').length,1,'one bridge request owns all details');
+x.step();assert(x.nodes['detail-loading'].className.includes('hidden'),'one aggregate response releases all detail queries');
 x.pump();assert(x.nodes['detail-loading'].className.includes('hidden'));assert.equal(x.nodes.dialog.attributes['aria-busy'],'false');assert(!x.nodes['update-action'].disabled);assert.equal(x.doc.activeElement,x.nodes.back);
 const settledText=x.nodes['detail-loading-text'].textContent;detailAnimation();assert.equal(x.nodes['detail-loading-text'].textContent,settledText,'settled animation stays stopped');
 x.click('back');x.usb.updateOffers['list-beep']=x.ok('',1,'Update unavailable for this package.');x.doc.getElementById('tweak-list-beep').onclick();x.pump();assert(x.nodes['detail-loading'].className.includes('hidden'));assert.match(x.nodes['dialog-description'].textContent,/Update unavailable/);x.click('back');

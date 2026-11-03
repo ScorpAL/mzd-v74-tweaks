@@ -114,12 +114,45 @@
             frame.contentWindow.postMessage({type:"shell-exec",token:config.token,id:id,program:program,args:args}, config.origin);
         }
     };
+    var detailRequests=null,detailReplies=null;
+    function infoRows(result) {
+        var problem=resultError(result),rows={},lines,i,row;
+        if(problem || result.stdoutTruncated || result.stderrTruncated)throw new Error(problem || "Information response was truncated.");
+        if(result.stdout && result.stdout.charAt(result.stdout.length-1)!=="\n")throw new Error("Incomplete information response.");
+        lines=result.stdout?result.stdout.slice(0,-1).split("\n"):[];
+        for(i=0;i<lines.length;i++) {
+            row=JSON.parse(lines[i]);
+            if(!row || !/^[a-zA-Z0-9_-]+$/.test(row.key) || Object.prototype.hasOwnProperty.call(rows,row.key) ||
+               typeof row.exitCode!=="number" || row.exitCode<0 || row.exitCode>255 || row.exitCode%1 ||
+               typeof row.stdout!=="string" || typeof row.stderr!=="string")throw new Error("Invalid information response.");
+            rows[row.key]={started:true,startError:"",exitCode:row.exitCode,signal:null,stdout:row.stdout,stderr:row.stderr,stdoutTruncated:false,stderrTruncated:false};
+        }
+        return rows;
+    }
     function call(args, callback) {
-        var state=detailBusy() && ["package-info","update-info","settings-info","preflight-info","uninstall-check","restore-check"].indexOf(args[0])>=0 ? detailLoad : null;
+        var isDetail=["package-info","update-info","settings-info","preflight-info","uninstall-check","restore-check"].indexOf(args[0])>=0;
+        var state=detailBusy() && isDetail ? detailLoad : null;
         if(state)state.pending++;
-        shell.exec("/bin/sh", ["./installer.sh"].concat(args), function(error,result){
+        function complete(error,result) {
             try { callback(error,result); }
             finally { if(state){state.pending--;finishDetailLoad(state);} }
+        }
+        if(detailRequests && isDetail){detailRequests.push({args:args,complete:complete});return;}
+        if(detailReplies && isDetail){complete(null,detailReplies[args[0]] || {started:false,startError:"Missing detail response."});return;}
+        shell.exec("/bin/sh", ["./installer.sh"].concat(args), complete);
+    }
+    function requestDetails(item,requests) {
+        if(!requests.length)return;
+        var sections=[],i;
+        for(i=0;i<requests.length;i++)sections.push(requests[i].args[0]);
+        if(sections.indexOf("package-info")>=0)sections.push("update-info");
+        call(["details",item.id,sections.join(" ")],function(error,result) {
+            var rows=null,problem=error,j;
+            try {if(!problem)rows=infoRows(result);}catch(e){problem=String(e);}
+            if(!problem)for(j=0;j<sections.length;j++)if(!Object.prototype.hasOwnProperty.call(rows,sections[j])){problem="Missing detail response.";break;}
+            detailReplies=problem?null:rows;
+            try {for(j=0;j<requests.length;j++)requests[j].complete(problem,problem?result:rows[requests[j].args[0]]);}
+            finally {detailReplies=null;}
         });
     }
     var cpuTotal = "0", cpuIdle = "0", metricsPending = false;
@@ -464,39 +497,28 @@
     }
     function discover() {
         scanning = true; controls(); footer("Finding tweaks on USB...");
-        call(["list"], function (error, result) {
-            var problem = error || resultError(result);
-            if (result && (result.exitCode === 2 || result.signal)) {locked = true;failedStatusName = "USB scan";}
-            if (problem) { scanning = false; footer("Could not read tweaks"); showResult("Cannot read tweaks", String(problem), locked, function () {}); controls(); return; }
-            var ids = trim(result.stdout) ? trim(result.stdout).split(/\r?\n/) : [], index = 0;
-            tweaks = [];
-            function nextManifest() {
-                if (closing) return;
-                if (index === ids.length) {
-                    tweaks.sort(function (a,b) {return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0;});
-                    if (closing) return;
-                    renderTabs(); renderCards(); refreshAll(); return;
-                }
-                var id = ids[index++];
-                if (!/^[a-zA-Z0-9_-]+$/.test(id)) { nextManifest(); return; }
-                footer("Reading " + id + "...");
-                call(["manifest", id], function (error, result) {
-                    if (result && (result.exitCode === 2 || result.signal)) {
-                        locked = true; failedStatusName = id; scanning = false;
-                        showResult("Cannot read tweak", String(error || resultError(result)), true, function () {}); controls(); return;
-                    }
-                    var item = {id:id,name:id,group:"errors",manifest:{actions:[]},state:"error",error:"",invalid:false};
-                    try {
-                        var problem = error || resultError(result);
-                        if (problem) throw new Error(String(problem));
-                        if (result.stdoutTruncated) throw new Error("Manifest exceeds output limit.");
-                        item.manifest = parseManifest(id, result.stdout); item.name = item.manifest.name;
-                        item.group = item.manifest.group || "other"; item.state = "checking";
-                    } catch (e) { item.error = String(e); item.invalid = true; }
-                    tweaks.push(item); nextManifest();
-                });
+        call(["manifests"], function (error, result) {
+            var problem=error,rows,ids=[],id,i;
+            try {if(!problem)rows=infoRows(result);}catch(e){problem=String(e);}
+            if(result && (result.exitCode===2 || result.signal)){locked=true;failedStatusName="USB scan";}
+            if(problem){scanning=false;footer("Could not read tweaks");showResult("Cannot read tweaks",String(problem),locked,function(){});controls();return;}
+            tweaks=[];
+            for(id in rows)if(Object.prototype.hasOwnProperty.call(rows,id))ids.push(id);
+            ids.sort();
+            for(i=0;i<ids.length;i++) {
+                id=ids[i];var reply=rows[id];
+                if(reply.exitCode===2){locked=true;failedStatusName=id;scanning=false;showResult("Cannot read tweak",String(resultError(reply)),true,function(){});controls();return;}
+                var item={id:id,name:id,group:"errors",manifest:{actions:[]},state:"error",error:"",invalid:false};
+                try {
+                    problem=resultError(reply);if(problem)throw new Error(String(problem));
+                    item.manifest=parseManifest(id,reply.stdout);item.name=item.manifest.name;
+                    item.group=item.manifest.group||"other";item.state="checking";
+                }catch(e){item.error=String(e);item.invalid=true;}
+                tweaks.push(item);
             }
-            nextManifest();
+            tweaks.sort(function(a,b){return a.name.toLowerCase()<b.name.toLowerCase()?-1:a.name.toLowerCase()>b.name.toLowerCase()?1:0;});
+            if(closing)return;
+            renderTabs();renderCards();refreshAll();
         });
     }
     function checkStatus(item, callback) {
@@ -615,6 +637,7 @@
     function openDetails(item) {
         if (operating || closing || !item) return;
         var view=++detailView;
+        detailRequests=[];
         show("restore-action",false); show("uninstall-action",false); item.savedRemovable=false; item.installNeedsRestore=false; item.updateAvailable=false; show("update-action",false);
         text("back","Back"); el("back").onclick=closeDialog;
         el("dialog-body").className = "section-list";
@@ -733,6 +756,8 @@
                 };
             });
         }
+        var requests=detailRequests;detailRequests=null;
+        requestDetails(item,requests);
         loading.building=false;finishDetailLoad(loading);
         if(detailBusy())el("detail-loading").focus();
     }

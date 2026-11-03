@@ -1,6 +1,7 @@
 """Real installer/package controller on private fixtures, no vehicle writes."""
 from pathlib import Path
 import os
+import json
 import shlex
 import shutil
 import subprocess
@@ -108,6 +109,27 @@ esac
     installed_custom = (entry/'package/tweaks/alpha/assets/custom.conf').read_text()
     assert installed_custom == 'user=custom\n'
     assert 'bundled_extra' not in installed_custom
+    # Aggregate discovery preserves literal text and isolates invalid tweaks.
+    write(usb/'tweaks/invalid/manifest.conf','id=invalid\n')
+    rows={r['key']:r for r in map(json.loads,call(['manifests']).stdout.splitlines())}
+    assert rows['alpha']['exitCode']==0 and rows['alpha']['stdout']==(folder/'manifest.conf').read_text()
+    assert rows['invalid']['exitCode']==1 and rows['invalid']['stderr']
+    shutil.rmtree(usb/'tweaks/invalid')
+    # One detail request shares verification of a saved package under the lock.
+    manifest_before=(folder/'manifest.conf').read_text()
+    write(folder/'manifest.conf',manifest_before.replace('version=1.0.0','version=2.0.0'))
+    pkg_before=pkg.read_text();detail_counter=base/'detail-check-count'
+    write(pkg,pkg_before.replace('mzd_package_check_full() (\n','mzd_package_check_full() (\n    printf "check\\n" >> '+shlex.quote(bp(detail_counter))+'\n',1))
+    rows={r['key']:r for r in map(json.loads,call(['details','alpha','package-info settings-info update-info']).stdout.splitlines())}
+    assert rows['package-info']['stdout']=='1.0.0\tinstalled\n'
+    assert rows['update-info']['stdout']=='available\t1.0.0\t2.0.0\n'
+    assert rows['settings-info']['exitCode']==0
+    assert detail_counter.read_text().splitlines()==['check'] and not lock.exists()
+    write(pkg,pkg_before);write(folder/'manifest.conf',manifest_before)
+    call(['details','alpha','action'],1)
+    call(['details','alpha','settings-info settings-info'],1)
+    lock.mkdir();call(['details','alpha','settings-info'],1);assert lock.exists();lock.rmdir()
+    assert not detail_counter.read_text().splitlines()[1:]
     # Real saved-package verification is reused only inside one mutation-free phase.
     counter=base/'full-check-count';probe=base/'cache-probe.sh'
     probe_source=pkg.read_text().replace('mzd_package_check_full() (\n', 'mzd_package_check_full() (\n    printf "check\\n" >> '+shlex.quote(bp(counter))+'\n',1)
