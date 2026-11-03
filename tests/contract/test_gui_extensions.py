@@ -7,6 +7,9 @@ def bp(p):
  s=Path(p).resolve().as_posix();return '/'+s[0].lower()+s[2:] if len(s)>1 and s[1]==':' else s
 def write(p,s):
  p.parent.mkdir(parents=True,exist_ok=True);p.write_text(s,encoding='utf-8',newline='\n');p.chmod(0o755)
+# Upper limit for one installer action. The CMU-like BusyBox is a 32-bit ARM program: on an x86 PC or a Mac it runs
+# through qemu, where an action can take several times longer than on the ARM CI runner.
+ACTION_TIMEOUT=600 if os.environ.get('CMU_TEST_BUSYBOX') else 180 if os.name=='nt' else 60
 # Resolve real commands before installing failure-injection wrappers. Alpine keeps
 # these applets outside /usr/bin; the BusyBox job must use its supplied binary.
 def real_command(name):
@@ -78,7 +81,7 @@ exec '''+copy_command+''' "$@"
    f.write('mzd_gui_services_start() { printf "start\\n" >> '+shlex.quote(bp(events))+'; }\n')
  def call(id_,action,code=0,out=None,extra=()):
   global checks
-  r=subprocess.run([SHELL,bp(usb/'installer.sh'),'action',id_,action,*extra],capture_output=True,text=True,timeout=180 if os.name=='nt' else 60)
+  r=subprocess.run([SHELL,bp(usb/'installer.sh'),'action',id_,action,*extra],capture_output=True,text=True,timeout=ACTION_TIMEOUT)
   detail=''
   if r.returncode!=code:
    logs=sorted((usb/'reports'/id_).rglob('run.log'),key=lambda p:p.stat().st_mtime)
