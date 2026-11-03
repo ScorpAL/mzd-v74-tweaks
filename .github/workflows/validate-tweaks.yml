@@ -31,6 +31,8 @@ jobs:
         run: sh tests/tweaks/touch-while-driving/reader.sh usb/tweaks/touch-while-driving/touch.sh
       - name: Test mutable config defaults and ownership
         run: python tests/contract/test_config_data.py
+      - name: Test package inventory batching and failure handling
+        run: python tests/contract/test_package_inventory.py
       - name: Test persistent packages, versions and owned paths
         run: python tests/contract/test_packages.py
       - name: Test automatic GUI support and saved consumer lifecycle

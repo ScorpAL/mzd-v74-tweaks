@@ -30,12 +30,28 @@ mzd_package_tree_ok() (
 )
 mzd_package_inventory() (
     cd "$1" || exit 1
-    find package -type f | LC_ALL=C sort | while IFS= read -r file; do
-        case "$file" in *"$(printf '\t')"*|*'\'*) exit 1 ;; esac
-        hash=$(md5sum "$file") || exit 1
-        printf '%s\t%s\n' "${hash%% *}" "$file" || exit 1
-    done
+    # Reject delimiter-bearing names before converting find output to records.
+    mzd_package_tree_ok package || exit 1
+    scratch=$(mktemp -d /tmp/mzd-inventory.XXXXXX) || exit 1
+    trap 'rm -rf "$scratch"' 0
+    find package -type f > "$scratch/unsorted" &&
+        LC_ALL=C sort "$scratch/unsorted" > "$scratch/files" || exit 1
+    tab=$(printf '\t')
+    while IFS= read -r file; do
+        case "$file" in *"$tab"*|*'\'*) exit 1 ;; esac
+        printf '%s\000' "$file" || exit 1
+    done < "$scratch/files" > "$scratch/names" || exit 1
+    # NUL separation preserves spaces and quotes. Check xargs itself before
+    # parsing output so a missing/unreadable file cannot become a partial success.
+    hash_command=$(command -v md5sum) || exit 1
+    xargs -0 -r -n 64 "$hash_command" < "$scratch/names" > "$scratch/hashes" || exit 1
+    awk 'NR==FNR {files[++count]=$0; next}
+        {hash=substr($0,1,32); name=substr($0,35)
+         if(length(hash)!=32 || hash!~/^[0-9a-f]+$/ || substr($0,33,2)!="  " || name!=files[++done])exit 1
+         print hash "\t" name}
+        END {if(done!=count)exit 1}' "$scratch/files" "$scratch/hashes"
 )
+
 # Full verification uses RAM only; stored code never comes from the new USB.
 mzd_package_check() (
     entry=$1
