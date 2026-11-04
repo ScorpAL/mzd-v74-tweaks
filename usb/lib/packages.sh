@@ -666,7 +666,7 @@ mzd_package_forget_restored() (
         if [ "$FIRMWARE" != "$RESTORE_FIRMWARE" ]; then continue; fi
         result=$(mzd_package_worker "$entry" status 2> "$scratch/reason"); code=$?
         if [ "$code" = 1 ] && [ -z "$result" ] &&
-            [ "$(cat "$scratch/reason")" = 'ERROR: Target is busy; retry status after the other operation.' ] &&
+            awk '$0=="ERROR: Target is busy; retry status after the other operation." {found=1} END {exit !found}' "$scratch/reason" &&
             mzd_package_restored_paths "$entry"; then
             result=uninstalled; code=0
             printf 'Verified restored paths for saved worker: %s\n' "${entry##*/}"

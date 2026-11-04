@@ -19,7 +19,7 @@ def patch_original(text):
         elif in_hunk and line[:1] in [' ','-']:lines.append(line[1:])
     return ''.join(lines)
 
-for scenario in ['current','saved-old-status','remaining-payload','changed-target']:
+for scenario in ['current','saved-old-status','saved-old-status-warning','remaining-payload','changed-target']:
  with tempfile.TemporaryDirectory(prefix='mzd-restore-locks-') as temporary:
     base=Path(temporary);usb=base/'usb';internal=base/'internal';persist=internal/'persist';resources=internal/'resources';bins=base/'bin';locks=base/'locks'
     for folder in [internal,persist,resources,bins,locks]:folder.mkdir(parents=True,exist_ok=True)
@@ -86,6 +86,7 @@ esac
             legacy=legacy[:start]+legacy[end:]
             legacy=legacy.replace('    status_restore_report=${MZD_REPORT:-}; status_restore_system=${MZD_SYSTEM:-}\n','')
             legacy=legacy.replace('mzd_status_lock_available ||','[ ! -e "$LOCK" ] ||')
+            if scenario=='saved-old-status-warning':legacy+='\nprintf "Saved helper diagnostic.\\n" >&2\n'
             write(path,legacy)
         if scenario in ['remaining-payload','changed-target']:
             path=store/'ssh/package/tweaks/ssh/reset.sh'
@@ -95,12 +96,12 @@ esac
         for entry in store.iterdir():
             command='. "$1";mzd_package_inventory "$2" > "$2/package.files"'
             subprocess.run(['/bin/sh','-c',command,'inventory',str(usb/'lib/packages.sh'),str(entry)],check=True)
-    result=call('action','restore-originals','run',code=0 if scenario in ['current','saved-old-status'] else 2)
+    result=call('action','restore-originals','run',code=0 if scenario in ['current','saved-old-status','saved-old-status-warning'] else 2)
     assert not list(locks.iterdir()),(scenario,list(locks.iterdir()))
-    if scenario in ['current','saved-old-status']:
+    if scenario in ['current','saved-old-status','saved-old-status-warning']:
         assert not list(store.iterdir()) and not running.exists() and not (resources/'mzd-tweaks/ssh').exists()
         for path,content in originals.items():assert path.read_text()==content and not Path(str(path)+'.org').exists()
-        if scenario=='saved-old-status':assert any('Verified restored paths for saved worker' in p.read_text() for p in (usb/'reports').rglob('run.log'))
+        if scenario in ['saved-old-status','saved-old-status-warning']:assert any('Verified restored paths for saved worker' in p.read_text() for p in (usb/'reports').rglob('run.log'))
     else:
         assert list(store.iterdir()) and all(Path(str(path)+'.org').exists() for path in originals)
         assert 'Do NOT reboot' in result.stderr
