@@ -27,7 +27,8 @@ traffic_profile=any(flag in sys.argv for flag in ['--traffic-jam-only','--snake-
 with tempfile.TemporaryDirectory(prefix='cmu-gui-') as folder:
  b=Path(folder);usb=b/'usb';data=b/'data';base=data/'integration';persist=b/'persist';provider=persist/'mzd-tweaks/gui-provider';bins=b/'bin';version=b/'version';mounts=b/'mounts';events=b/'events'
  for p in [base,bins,persist]:p.mkdir(parents=True)
- shutil.copytree(ROOT/'usb/lib',usb/'lib');write(usb/'installer.sh',(ROOT/'usb/installer.sh').read_text())
+ shutil.copytree(ROOT/'usb/lib',usb/'lib')
+ write(usb/'installer.sh',(ROOT/'usb/installer.sh').read_text())
  for id_,parent in [('gui-example',''),('second-example','Games')]:
   dest=usb/'tweaks'/id_;shutil.copytree(ROOT/'development/examples/gui-extension',dest)
   p=dest/'manifest.conf';s=p.read_text().replace('id=gui-example','id='+id_).replace('gui_menu_path=','gui_menu_path='+parent)
