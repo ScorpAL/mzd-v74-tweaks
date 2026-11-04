@@ -397,3 +397,6 @@ esac
                 assert target.read_text()==original+'// unrelated sentinel\n'
                 assert not (persist/'installed'/id_).exists()
 print('WORKER_CONTRACT_PASSED:', checks, 'real-entrypoint checks.')
+
+if not os.environ.get("CMU_TEST_ONLY") or os.environ["CMU_TEST_ONLY"]=="ssh":
+    subprocess.run([sys.executable,str(Path(__file__).with_name("test_gui_extensions.py")),"--ssh-coexist-only"],check=True)
