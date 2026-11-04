@@ -1,6 +1,6 @@
 """Real saved GUI workers: automatic shared support, reuse, rollback and cleanup."""
 from pathlib import Path
-import os,shutil,subprocess,tempfile,shlex,json,sys
+import os,shutil,subprocess,tempfile,shlex,json,sys,hashlib
 ROOT=Path(__file__).resolve().parents[2]
 SHELL='C:/Program Files/Git/bin/bash.exe' if os.name=='nt' else '/bin/sh'
 def bp(p):
@@ -40,6 +40,9 @@ with tempfile.TemporaryDirectory(prefix='cmu-gui-') as folder:
  shutil.copytree(ROOT/'development/examples/gui-hello-world',usb/'tweaks/gui-hello-world')
  shutil.copytree(ROOT/'development/examples/config-data',usb/'tweaks/config-example')
  shutil.copytree(ROOT/'usb/tweaks/restore-originals',usb/'tweaks/restore-originals')
+ if '--ssh-coexist-only' in sys.argv:
+  shutil.copytree(ROOT/'usb/tweaks/ssh',usb/'tweaks/ssh')
+  write(b/'startup','#!/bin/sh\n\n');write(b/'watchdog','1\n');(b/'resources').mkdir()
  if '--services-only' in sys.argv or '--wallpaper-only' in sys.argv:
   for id_ in ['gui-example','second-example']:
    dest=usb/'tweaks'/id_
@@ -52,6 +55,9 @@ with tempfile.TemporaryDirectory(prefix='cmu-gui-') as folder:
  p=usb/'tweaks/restore-originals/manifest.conf';write(p,p.read_text().replace('target=/jci','target='+bp(data)))
  write(version,'JCI_SW_VER="MAZ_CMU-150_74.00.324"\n');write(mounts,'mock '+bp(usb)+' vfat rw 0 0\n/dev/mmcblk0p1 '+bp(data)+' relfs rw 0 0\nmock '+bp(persist)+' relfs rw 0 0\nmock '+bp(b)+' relfs rw 0 0\n')
  replacements={'MZD_GUI_STARTUP_MOUNT=/':'MZD_GUI_STARTUP_MOUNT='+bp(b),'/jci/scripts/stage_wifi.sh':bp(b/'startup'),'/tmp/mzd-stage_wifi-tweak.lock':bp(b/'startup.lock'),'/tmp/mnt/data_persist':bp(persist),'/tmp/mnt/data':bp(data),'/tmp/mzd-packages.lock':bp(b/'packages.lock'),'/tmp/mzd-gui-extension.lock':bp(b/'gui.lock'),'/tmp/mzd-restore-originals.lock':bp(b/'restore.lock'),'/jci/version.ini':bp(version),'/proc/mounts':bp(mounts)}
+ if '--ssh-coexist-only' in sys.argv:
+  replacements['/tmp/mnt/resources']=bp(b/'resources')
+  replacements['/sys/class/gpio/Watchdog\\ Disable/value']=bp(b/'watchdog')
  for p in usb.rglob('*.sh'):
   s=p.read_text()
   for x,y in replacements.items():s=s.replace(x,y)
@@ -59,6 +65,11 @@ with tempfile.TemporaryDirectory(prefix='cmu-gui-') as folder:
   s=s.replace('#!/bin/sh\n','#!/bin/sh\nPATH='+shlex.quote(bp(bins)+':/usr/bin:/bin')+'\nexport PATH\n',1);write(p,s)
  for p in usb.rglob('manifest.conf'):
   write(p,p.read_text().replace('/tmp/mnt/data_persist',bp(persist)))
+ if '--ssh-coexist-only' in sys.argv:
+  p=usb/'tweaks/ssh/manifest.conf';write(p,p.read_text().replace('/jci/scripts/stage_wifi.sh',bp(b/'startup')))
+  p=usb/'tweaks/ssh/managed-paths.tsv';write(p,p.read_text().replace('/tmp/mnt/resources',bp(b/'resources')))
+  with mounts.open('a') as f:f.write('root / relfs rw 0 0\nmock '+bp(b/'resources')+' relfs rw 0 0\n')
+  write(usb/'tweaks/ssh/assets/service.sh',"#!/bin/sh\ncase \"$1\" in check) exit 0;;boot) touch "+shlex.quote(bp(b/'ssh-running'))+";;status) [ -f "+shlex.quote(bp(b/'ssh-running'))+" ];;stop) rm -f "+shlex.quote(bp(b/'ssh-running'))+";;*) exit 1;;esac\n")
  for name in ['mount','sync']:write(bins/name,'#!/bin/sh\nprintf "'+name+'\\n" >> '+shlex.quote(bp(events))+'\n')
  write(bins/'df','#!/bin/sh\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted\\nmock 1000000 1000 999000 1%% persist\\n"\n')
  # Simulate an install-time boot-hook copy failure without touching any real CMU file.
@@ -70,7 +81,7 @@ if [ "$destination" = '''+shlex.quote(bp(base/'mzd-gui-runtime'))+''' ] && [ -f 
 exec '''+copy_command+''' "$@"
 ''')
  write(bins/'rm','#!/bin/sh\nfor arg do destination=$arg; done\nif [ "$destination" = '+shlex.quote(bp(base/'mzd-gui-runtime'))+' ] && [ -f '+shlex.quote(bp(b/'fail-remove'))+' ]; then '+remove_command+' -f '+shlex.quote(bp(b/'fail-remove'))+'; exit 1; fi\nexec '+remove_command+' "$@"\n')
- if traffic_profile or any(flag in sys.argv for flag in ['--services-only','--wallpaper-only','--tetris-only','--tetris-config-only']):
+ if traffic_profile or any(flag in sys.argv for flag in ['--services-only','--wallpaper-only','--tetris-only','--tetris-config-only','--ssh-coexist-only']):
   # CMU BusyBox does not decode the literal backslash-t passed through -F.
   # Reject that nonportable form even when the host awk would accept it.
   write(bins/'awk','#!/bin/sh\nif [ \"$1\" = -F ] && [ \"$2\" = '+shlex.quote(r'\t')+' ]; then printf \"Unsupported CMU awk field separator.\\n\" >&2; exit 1; fi\nexec '+awk_command+' \"$@\"\n')
@@ -100,6 +111,45 @@ exec '''+copy_command+''' "$@"
   checks+=1
  hook=base/'developer_mode_GuiConfig.js';runtime=base/'mzd-gui-runtime';registry=base/'mzd-gui-registry.js';modules=base/'mzd-gui-modules'
  def absent():assert not hook.exists() and not runtime.exists() and not registry.exists() and not provider.exists() and not modules.exists()
+ if '--ssh-coexist-only' in sys.argv:
+  startup=b/'startup';original=startup.read_bytes();backup=Path(str(startup)+'.org')
+  expected_hash=hashlib.md5(original).hexdigest()
+  assert 'oem_backup_md5='+expected_hash in (usb/'tweaks/ssh/manifest.conf').read_text()
+  gui_block=b'# MZD shared GUI services\nsh /data/integration/mzd-gui-runtime/service/supervisor.sh boot >/dev/null 2>&1 &\n'
+  # Both install orders and both removal orders, with real saved SSH/GUI workers.
+  for gui_id in ['tetris','wallpaper-manager']:
+   for gui_first in [True,False]:
+    for gui_remove_first in [True,False]:
+     assert startup.read_bytes()==original and not backup.exists()
+     order=[gui_id,'ssh'] if gui_first else ['ssh',gui_id]
+     for id_ in order:
+      call(id_,'install')
+      if id_==gui_id and gui_first:assert not backup.exists()
+     assert backup.read_bytes()==original
+     assert startup.read_bytes().count(gui_block)==1
+     assert startup.read_bytes().count(b'# MZD v74 SSH\n')==1
+     deep('ssh','installed');deep(gui_id,'installed')
+     removal=[gui_id,'ssh'] if gui_remove_first else ['ssh',gui_id]
+     for index,id_ in enumerate(removal):
+      call(id_,'uninstall')
+      if index==0:
+       remaining=removal[1];deep(remaining,'installed')
+       assert (gui_block in startup.read_bytes())==(remaining==gui_id)
+       assert (b'# MZD v74 SSH\n' in startup.read_bytes())==(remaining=='ssh')
+     absent();assert startup.read_bytes()==original and backup.read_bytes()==original
+     # Ordinary patch uninstall retains the verified shared OEM backup.
+     backup.unlink()
+  # Read-only checks must reject unknown, duplicate, partial or altered GUI data.
+  valid=original.replace(b'#!/bin/sh\n',b'#!/bin/sh\n'+gui_block,1)
+  malformed=[valid+b'# unrelated edit\n',valid.replace(gui_block,gui_block*2),valid.replace(b'supervisor.sh boot',b'supervisor.sh other'),valid.rstrip(b'\n')]
+  for content in malformed:
+   startup.write_bytes(content);deep('ssh','unavailable');call('ssh','install',1)
+   assert startup.read_bytes()==content and not backup.exists()
+  startup.write_bytes(valid);write(backup,'corrupt backup\n');deep('ssh','unavailable');call('ssh','install',1)
+  assert backup.read_text()=='corrupt backup\n' and startup.read_bytes()==valid
+  backup.unlink();startup.write_bytes(original)
+  print('SSH_GUI_COEXIST_PASSED:',checks,'real actions/checks; both GUI consumers, both install/removal orders, exact OEM backup and unmanaged-change refusal.')
+  raise SystemExit(0)
  if '--services-only' in sys.argv:
   startup=b/'startup';original=startup.read_bytes()
   call('gui-hello-world','install')
