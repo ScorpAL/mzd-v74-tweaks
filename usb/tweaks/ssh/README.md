@@ -17,6 +17,8 @@ SSH can coexist with the shared GUI startup hook in either installation order.
 Only that exact GUI block may be removed from a temporary inspection copy, and
 the result must match the OEM checksum before an original `.org` is created.
 Unknown changes or an invalid existing backup are still refused.
+The verified OEM `.org` backup remains after both SSH and GUI tweaks are
+uninstalled; Restore originals removes it after successful restoration.
 
 Action reports and `run.log` are saved on the originating USB under
 `reports/ssh/<action>-<timestamp>-<unique>/`.
