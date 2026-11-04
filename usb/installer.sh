@@ -85,6 +85,7 @@ case "${1:-}" in
     mzd_installer_packages || exit 1
     entry="$MZD_PACKAGE_STORE/$2"
     if [ -d "$entry" ] && [ ! -L "$entry" ]; then
+      mzd_package_check "$entry" || exit 1
       mzd_manifest_load "$entry/package/tweaks/$2/manifest.conf" || exit 1
       [ "$ID" = "$2" ] || exit 1
       state=$(mzd_package_state "$entry") || exit 1

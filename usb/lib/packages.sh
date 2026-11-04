@@ -19,7 +19,7 @@ mzd_package_exec_worker() (
     # USB probes and saved workers both end the current verification phase.
     mzd_package_cache_clear || exit 1
     sh "$@"; worker_result=$?
-    mzd_package_cache_clear || exit 1
+    mzd_package_cache_clear || printf 'Packages: Could not clear verification cache after worker.\n' >&2
     exit "$worker_result"
 )
 
@@ -377,6 +377,7 @@ mzd_package_update_info() (
     source=$1;id=$2
     mzd_manifest_id "$id" || exit 1
     entry="$MZD_PACKAGE_STORE/$id"
+    mzd_package_check "$entry" || exit 1
     [ "$(mzd_package_state "$entry")" = installed ] || { mzd_package_error 'Only a complete installed package can be updated.';exit 1; }
     mzd_manifest_load "$entry/package/tweaks/$id/manifest.conf" || exit 1
     previous_version=$VERSION;previous_type=$TYPE
@@ -384,7 +385,7 @@ mzd_package_update_info() (
     [ "$TYPE" = "$previous_type" ] && [ "$TYPE" != command ] || { mzd_package_error 'Type changes require explicit saved removal.';exit 1; }
     case " $ACTIONS " in *' install '*) ;; *) exit 1;; esac
     mzd_package_version_newer "$VERSION" "$previous_version" || { mzd_package_error 'USB version is not newer than the installed version.';exit 1; }
-    mzd_package_check "$entry" && mzd_package_dependents "$entry" || exit 1
+    mzd_package_dependents "$entry" || exit 1
     printf 'available\t%s\t%s\n' "$previous_version" "$VERSION"
 )
 # Preserve the old immutable snapshot before its uninstaller changes anything.

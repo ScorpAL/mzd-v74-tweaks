@@ -55,6 +55,11 @@ with tempfile.TemporaryDirectory(prefix='mzd-inventory-test-') as temp:
         run(False)
         (bins / tool).unlink()
         if tool == 'md5sum': write(bins / tool, original_md5)
+    # Let the structural scans pass; fail specifically in the inventory producer.
+    find_calls=base/'find-calls';real_find=shutil.which('find');assert real_find
+    write(bins/'find', '#!/bin/sh\nprintf "call\\n" >> '+shlex.quote(str(find_calls))+'\nif [ "$(wc -l < '+shlex.quote(str(find_calls))+')" -eq 3 ]; then echo partial; exit 91; fi\nexec '+shlex.quote(real_find)+' "$@"\n')
+    run(False);assert len(find_calls.read_text().splitlines())==3
+    (bins/'find').unlink()
     for fake in ['#!/bin/sh\nexit 0\n', '#!/bin/sh\necho malformed\n']:
         write(bins / 'md5sum', fake); run(False)
 print('PACKAGE_INVENTORY_PASSED:', checks, 'checks; exact bytes, batch count, changed/missing files, special names, links and producer failures.')

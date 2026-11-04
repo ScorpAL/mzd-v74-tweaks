@@ -23,13 +23,11 @@ def real_command(name):
  return shlex.quote(command)
 copy_command=real_command('cp');remove_command=real_command('rm');awk_command=real_command('awk')
 checks=0
-traffic_profile=any(flag in sys.argv for flag in ['--traffic-jam-only','--snake-only','--minesweeper-only','--performance-only'])
+traffic_profile=any(flag in sys.argv for flag in ['--traffic-jam-only','--snake-only','--minesweeper-only'])
 with tempfile.TemporaryDirectory(prefix='cmu-gui-') as folder:
  b=Path(folder);usb=b/'usb';data=b/'data';base=data/'integration';persist=b/'persist';provider=persist/'mzd-tweaks/gui-provider';bins=b/'bin';version=b/'version';mounts=b/'mounts';events=b/'events'
  for p in [base,bins,persist]:p.mkdir(parents=True)
  shutil.copytree(ROOT/'usb/lib',usb/'lib')
- if '--performance-only' in sys.argv and os.environ.get('MZD_BENCHMARK_HELPER'):
-  shutil.copyfile(os.environ['MZD_BENCHMARK_HELPER'],usb/'lib/packages.sh')
  write(usb/'installer.sh',(ROOT/'usb/installer.sh').read_text())
  for id_,parent in [('gui-example',''),('second-example','Games')]:
   dest=usb/'tweaks'/id_;shutil.copytree(ROOT/'development/examples/gui-extension',dest)
@@ -127,21 +125,6 @@ exec '''+copy_command+''' "$@"
   assert startup.read_bytes()==original and not (modules/'gui-example').exists() and not (persist/'mzd-tweaks/installed/gui-example').exists()
   call('gui-hello-world','uninstall');absent()
   print('GUI_SERVICES_PACKAGES_PASSED:',checks,'real entrypoint checks; shared startup, both service consumers, last cleanup, retained user data and old-provider refusal.')
-  raise SystemExit(0)
- if '--performance-only' in sys.argv:
-  import time
-  measurements=[]
-  def measure(id_,action):
-   before_pid=int(subprocess.check_output([SHELL,'-c','echo $$']))
-   started=time.monotonic();call(id_,action);elapsed=time.monotonic()-started
-   after_pid=int(subprocess.check_output([SHELL,'-c','echo $$']))
-   measurements.append({'action':id_+' '+action,'seconds':elapsed,'pid_delta':after_pid-before_pid-1})
-  for game_id in ['tetris','snake','minesweeper']:measure(game_id,'install')
-  assert registry.read_text().count('menuPath:"Traffic Jam"')==3
-  p=usb/'tweaks/snake/manifest.conf';write(p,p.read_text().replace('version=0.1.1','version=0.1.2'))
-  measure('snake','update');measure('snake','uninstall')
-  call('minesweeper','uninstall');call('tetris','uninstall');absent()
-  print('PACKAGE_PERFORMANCE='+json.dumps(measurements,sort_keys=True))
   raise SystemExit(0)
  if traffic_profile:
   startup=b/'startup';original=startup.read_bytes()

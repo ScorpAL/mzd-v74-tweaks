@@ -35,6 +35,8 @@ function boot(manifestVersion,includeCommand,keepDisclaimer,includeExports,inclu
   let background=null,polls=0;
   function process(job){
     assert.equal(job.program,'/bin/sh');assert.equal(job.args[0],'./installer.sh');const a=job.args.slice(1);calls.push(a);
+    if(a[0]==='manifests' && usb.manifestBatchFailure)return usb.manifestBatchFailure;
+    if(a[0]==='details' && usb.detailBatchFailure)return usb.detailBatchFailure;
     if(a[0]==='manifests') {
       const ids=process({program:job.program,args:['./installer.sh','list']}).stdout.trim().split('\n').filter(Boolean);
       return ok(ids.map(key=>{const r=process({program:job.program,args:['./installer.sh','manifest',key]});return JSON.stringify({key,exitCode:r.exitCode,stdout:r.stdout,stderr:r.stderr});}).join('\n')+(ids.length?'\n':''));
@@ -690,3 +692,25 @@ const updateRequests=x.jobs.length;controller('onkeyup',8);x.doc.onkeydown({keyC
 x.nodes.back.onclick();assert(x.nodes.back.disabled);assert.equal(x.nodes['dialog-state'].textContent,'Updating.');
 x.pump();assert.equal(x.nodes['dialog-title'].textContent,'No List Beep - Operation completed');assert(x.nodes.back.className.includes('hidden'));assert(!x.nodes['result-ok'].disabled);
 console.log('UI_POLISH_PASSED: app welcome title, tweak-specific result title and Back locked for the whole Update.');
+
+// Aggregate failures must degrade to independent read-only queries.
+for(const failed of [Object.assign(boot().ok('partial'),{stdoutTruncated:true}),boot().ok('',1,'Status check timed out.')]) {
+ x=boot();x.usb.manifestBatchFailure=failed;x.click('refresh');x.pump();
+ assert(!x.nodes.refresh.disabled);
+ x.usb.detailBatchFailure=failed;x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();x.click('tweak-main-menu-loop');x.pump();
+ assert(x.nodes['detail-loading'].className.includes('hidden'));assert(!x.nodes.back.disabled);x.click('back');
+}
+x=updateOffer('2.0.0','1.0.0');x.click('back');x.usb.detailBatchFailure=x.ok('',1,'Timed out');x.click('tweak-list-beep');x.pump();assert(!x.nodes['update-action'].disabled);x.click('back');
+x=boot(null,false,false,false,false,true);x.usb.detailBatchFailure=x.ok('',1,'aggregate deadline');x.preflight['bundle-example']=x.ok('',1,'Cannot read the hardware settings.');
+x.nodes.tabs.children.find(n=>n.textContent.indexOf('System')===0).onclick();x.click('tweak-bundle-example');x.pump();assert.match(x.nodes['dialog-description'].textContent,/Cannot read the hardware settings/);assert(!x.nodes['dialog-description'].textContent.includes('Invalid compatibility response'));assert(!x.nodes.back.disabled);
+// A building exception must release both the request queue and navigation.
+x=boot();x.nodes.tabs.children.find(n=>n.textContent.indexOf('Interface')===0).onclick();
+const appendMeta=x.nodes['dialog-meta'].appendChild.bind(x.nodes['dialog-meta']);let metaCount=0;
+x.nodes['dialog-meta'].appendChild=function(node){if(++metaCount===2)throw new Error('fixture build failure');return appendMeta(node);};
+x.click('tweak-main-menu-loop');assert(x.nodes['detail-loading'].className.includes('hidden'));assert.match(x.nodes['dialog-description'].textContent,/fixture build failure/);x.click('back');x.click('refresh');x.pump();assert(!x.nodes.refresh.disabled);
+// One callback failure must not strand the remaining callbacks/loading barrier.
+x=updateOffer('2.0.0','1.0.0');x.click('back');x.usb.updateOffers['list-beep']=x.ok('',1,'fixture update refusal');
+let thrown=false;const appendDescription=x.nodes['dialog-description'].appendChild.bind(x.nodes['dialog-description']);
+x.nodes['dialog-description'].appendChild=function(node){if(!thrown && node.textContent.includes('fixture update refusal')){thrown=true;throw new Error('fixture handler failure');}return appendDescription(node);};
+x.click('tweak-list-beep');x.pump();assert(thrown);assert(x.nodes['detail-loading'].className.includes('hidden'));assert(!x.nodes.back.disabled);assert(x.nodes.action.disabled);x.click('back');
+console.log('AGGREGATE_RECOVERY_PASSED: truncation/timeout fallback, update eligibility, exception-safe queues and independent handlers.');

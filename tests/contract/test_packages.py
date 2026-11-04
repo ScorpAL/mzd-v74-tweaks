@@ -115,7 +115,7 @@ esac
     assert rows['alpha']['exitCode']==0 and rows['alpha']['stdout']==(folder/'manifest.conf').read_text()
     assert rows['invalid']['exitCode']==1 and rows['invalid']['stderr']
     shutil.rmtree(usb/'tweaks/invalid')
-    # One detail request shares verification of a saved package under the lock.
+    # Read-only details verify sections independently without owning a global lock.
     manifest_before=(folder/'manifest.conf').read_text()
     write(folder/'manifest.conf',manifest_before.replace('version=1.0.0','version=2.0.0'))
     pkg_before=pkg.read_text();detail_counter=base/'detail-check-count'
@@ -124,12 +124,61 @@ esac
     assert rows['package-info']['stdout']=='1.0.0\tinstalled\n'
     assert rows['update-info']['stdout']=='available\t1.0.0\t2.0.0\n'
     assert rows['settings-info']['exitCode']==0
-    assert detail_counter.read_text().splitlines()==['check'] and not lock.exists()
+    assert detail_counter.read_text().splitlines()==['check']*3 and not lock.exists()
     write(pkg,pkg_before);write(folder/'manifest.conf',manifest_before)
     call(['details','alpha','action'],1)
     call(['details','alpha','settings-info settings-info'],1)
-    lock.mkdir();call(['details','alpha','settings-info'],1);assert lock.exists();lock.rmdir()
-    assert not detail_counter.read_text().splitlines()[1:]
+    lock.mkdir();call(['details','alpha','settings-info']);assert lock.exists();lock.rmdir()
+    # Forced termination of a blocked read-only check cannot leave a mutation lock.
+    if os.name!='nt':
+        import signal,time
+        ready=base/'hash-blocked';real_hash=shutil.which('md5sum');assert real_hash
+        write(bins/'md5sum','#!/bin/sh\nprintf ready > '+shlex.quote(str(ready))+'\nsleep 30\nexec '+shlex.quote(real_hash)+' "$@"\n')
+        reader=subprocess.Popen([SHELL,str(usb/'installer.sh'),'details','alpha','settings-info'],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,start_new_session=True)
+        try:
+            deadline=time.monotonic()+5
+            while not ready.exists() and time.monotonic()<deadline:time.sleep(0.01)
+            assert ready.exists() and not lock.exists()
+        finally:
+            os.killpg(reader.pid,signal.SIGKILL);reader.communicate(timeout=5)
+            (bins/'md5sum').unlink()
+        assert not lock.exists()
+        checks+=1
+    # Glob expansion must remain enabled for dependent and unknown-file checks.
+    write(folder/'manifest.conf',manifest_before.replace('version=1.0.0','version=2.0.0'))
+    make('beta',requires='alpha');action('beta','install')
+    for command in ['uninstall-check','update-info']:
+        direct=call([command,'alpha'],1)
+        bundled=json.loads(call(['details','alpha',command]).stdout)
+        assert bundled['exitCode']==1 and 'Required by installed tweak: beta' in bundled['stderr'],bundled
+    action('beta','uninstall');shutil.rmtree(usb/'tweaks/beta')
+    write(entry/'unexpected.txt','keep foreign data\n')
+    for command in ['settings-info','update-info','uninstall-check']:
+        bundled=json.loads(call(['details','alpha',command]).stdout)
+        assert bundled['exitCode']==1 and 'Unexpected files' in bundled['stderr'],bundled
+    (entry/'unexpected.txt').unlink()
+    # Reject a changed saved schema before any saved code can execute.
+    saved_manifest=entry/'package/tweaks/alpha/manifest.conf'
+    saved_schema=entry/'package/lib/settings.awk'
+    manifest_bytes=saved_manifest.read_bytes();schema_bytes=saved_schema.read_bytes()
+    marker=base/'unverified-code-ran'
+    write(saved_manifest,saved_manifest.read_text()+'settings=flag\nsetting.flag.type=boolean\nsetting.flag.label=Flag\nsetting.flag.default=false\n')
+    write(saved_schema,'BEGIN {system("touch '+str(marker)+'"); exit 0}\n')
+    call(['update-info','alpha'],1);call(['package-info','alpha'],1)
+    assert not marker.exists()
+    saved_manifest.write_bytes(manifest_bytes);saved_schema.write_bytes(schema_bytes)
+    # Encoding must preserve NUL, SOH at a line end and valid UTF-8 exactly.
+    payload=base/'json-bytes';payload.write_bytes(bytes(range(32))+b'\nline\x01\nlast\x01'+ ' \u00e4\u65e5'.encode())
+    encoded=subprocess.run([SHELL,'-c','. "$1"; mzd_info_json_string "$2"','json',str(usb/'lib/installer-info.sh'),str(payload)],capture_output=True,text=True,check=True)
+    assert json.loads(encoded.stdout).encode()==payload.read_bytes()
+    checks+=1
+    # Cache cleanup must never demote a critical worker result.
+    critical_worker=base/'critical-worker.sh';write(critical_worker,'#!/bin/sh\nexit 2\n')
+    critical_script='. '+shlex.quote(str(pkg))+'; calls=0; mzd_package_cache_clear() { calls=$((calls+1)); [ "$calls" = 1 ]; }; mzd_package_exec_worker '+shlex.quote(str(critical_worker))
+    critical_result=subprocess.run([SHELL,'-c',critical_script],capture_output=True,text=True)
+    assert critical_result.returncode==2,critical_result
+    checks+=1
+    write(folder/'manifest.conf',manifest_before)
     # Real saved-package verification is reused only inside one mutation-free phase.
     counter=base/'full-check-count';probe=base/'cache-probe.sh'
     probe_source=pkg.read_text().replace('mzd_package_check_full() (\n', 'mzd_package_check_full() (\n    printf "check\\n" >> '+shlex.quote(bp(counter))+'\n',1)

@@ -141,18 +141,35 @@
         if(detailReplies && isDetail){complete(null,detailReplies[args[0]] || {started:false,startError:"Missing detail response."});return;}
         shell.exec("/bin/sh", ["./installer.sh"].concat(args), complete);
     }
+    function detailError(error) {
+        text("dialog-description","Could not read tweak information: "+String(error));
+        el("action").disabled=true;el("update-action").disabled=true;el("uninstall-action").disabled=true;el("restore-action").disabled=true;
+    }
     function requestDetails(item,requests) {
         if(!requests.length)return;
-        var sections=[],i;
+        var sections=[],i,deliveryFailure=null;
         for(i=0;i<requests.length;i++)sections.push(requests[i].args[0]);
         if(sections.indexOf("package-info")>=0)sections.push("update-info");
+        function deliver(request,error,result) {
+            try {request.complete(error,result);}
+            catch(e){deliveryFailure=e;detailError(e);}
+        }
+        function individual(index) {
+            if(index===requests.length){if(deliveryFailure)detailError(deliveryFailure);return;}
+            var request=requests[index];
+            shell.exec("/bin/sh",["./installer.sh"].concat(request.args),function(error,result){
+                deliver(request,error,result);individual(index+1);
+            });
+        }
         call(["details",item.id,sections.join(" ")],function(error,result) {
             var rows=null,problem=error,j;
             try {if(!problem)rows=infoRows(result);}catch(e){problem=String(e);}
             if(!problem)for(j=0;j<sections.length;j++)if(!Object.prototype.hasOwnProperty.call(rows,sections[j])){problem="Missing detail response.";break;}
-            detailReplies=problem?null:rows;
-            try {for(j=0;j<requests.length;j++)requests[j].complete(problem,problem?result:rows[requests[j].args[0]]);}
-            finally {detailReplies=null;}
+            // A truncated, timed-out or invalid batch must not hide valid sections.
+            if(problem){individual(0);return;}
+            detailReplies=rows;
+            try {for(j=0;j<requests.length;j++)deliver(requests[j],null,rows[requests[j].args[0]]);}
+            finally {detailReplies=null;if(deliveryFailure)detailError(deliveryFailure);}
         });
     }
     var cpuTotal = "0", cpuIdle = "0", metricsPending = false;
@@ -497,9 +514,29 @@
     }
     function discover() {
         scanning = true; controls(); footer("Finding tweaks on USB...");
-        call(["manifests"], function (error, result) {
+        function individual() {
+            call(["list"],function(error,result){
+                var problem=error||resultError(result),ids,index=0,rows=[];
+                if(problem || result.stdoutTruncated || result.stderrTruncated){received(problem||"USB list was truncated.",result,false);return;}
+                ids=trim(result.stdout)?trim(result.stdout).split(/\r?\n/):[];
+                function next() {
+                    if(closing){scanning=false;return;}
+                    if(index===ids.length){received(null,{started:true,exitCode:0,signal:null,stdout:rows.join("\n")+(rows.length?"\n":""),stderr:""},false);return;}
+                    var id=ids[index++];
+                    if(!/^[a-zA-Z0-9_-]+$/.test(id)){next();return;}
+                    call(["manifest",id],function(error,reply){
+                        rows.push(JSON.stringify({key:id,exitCode:reply && reply.exitCode===2?2:error||resultError(reply)||reply.stdoutTruncated||reply.stderrTruncated?1:0,
+                            stdout:reply?reply.stdout:"",stderr:String(error||resultError(reply)||(reply.stdoutTruncated||reply.stderrTruncated?"Manifest was truncated.":""))}));
+                        next();
+                    });
+                }
+                next();
+            });
+        }
+        function received(error,result,canRetry) {
             var problem=error,rows,ids=[],id,i;
             try {if(!problem)rows=infoRows(result);}catch(e){problem=String(e);}
+            if(problem && canRetry){individual();return;}
             if(result && (result.exitCode===2 || result.signal)){locked=true;failedStatusName="USB scan";}
             if(problem){scanning=false;footer("Could not read tweaks");showResult("Cannot read tweaks",String(problem),locked,function(){});controls();return;}
             tweaks=[];
@@ -519,7 +556,8 @@
             tweaks.sort(function(a,b){return a.name.toLowerCase()<b.name.toLowerCase()?-1:a.name.toLowerCase()>b.name.toLowerCase()?1:0;});
             if(closing)return;
             renderTabs();renderCards();refreshAll();
-        });
+        }
+        call(["manifests"],function(error,result){received(error,result,true);});
     }
     function checkStatus(item, callback) {
         if (item.invalid) { callback(); return; }
@@ -635,14 +673,29 @@
         el("action").onclick=function(){perform(item,"update");};el("back").focus();
     }
     function openDetails(item) {
-        if (operating || closing || !item) return;
+        if(operating || closing || !item)return;
+        var requests=[],previous=detailRequests,built=false;
+        detailRequests=requests;
+        try {buildDetails(item);built=true;}
+        catch(e){
+            if(detailLoad){detailLoad.pending=0;detailLoad.building=false;}
+            clearDetailLoad();show("overlay",true);show("back",true);el("back").disabled=false;el("back").onclick=closeDialog;
+            detailError(e);el("back").focus();
+        }
+        finally {detailRequests=previous;}
+        if(built){
+            requestDetails(item,requests);
+            if(detailLoad){detailLoad.building=false;finishDetailLoad(detailLoad);}
+            if(detailBusy())el("detail-loading").focus();
+        }
+    }
+    function buildDetails(item) {
         var view=++detailView;
-        detailRequests=[];
         show("restore-action",false); show("uninstall-action",false); item.savedRemovable=false; item.installNeedsRestore=false; item.updateAvailable=false; show("update-action",false);
         text("back","Back"); el("back").onclick=closeDialog;
         el("dialog-body").className = "section-list";
         selected = item; returnFocusId = "tweak-" + item.id; setDialogMode("details");
-        var loading=beginDetailLoad(view);
+        beginDetailLoad(view);
         text("dialog-title", item.name+" - "+itemLabel(item)); el("dialog-dot").className = "dot " + item.state;
         text("dialog-state",item.error || "");
         var description = item.manifest.description || "Manifest could not be loaded.";
@@ -756,10 +809,7 @@
                 };
             });
         }
-        var requests=detailRequests;detailRequests=null;
-        requestDetails(item,requests);
-        loading.building=false;finishDetailLoad(loading);
-        if(detailBusy())el("detail-loading").focus();
+
     }
     function confirmRun(item) {
         setDialogMode("confirm");

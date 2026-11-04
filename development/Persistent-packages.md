@@ -170,7 +170,9 @@ same payload path. Independently managed loader files remain shareable patches.
 
 ## Removing a failed saved installation from the menu
 
-Opening a broken tweak detail view requests `installer.sh uninstall-check ID`.
+Opening a broken tweak detail view includes `uninstall-check` in the grouped
+`installer.sh details ID "... uninstall-check ..."` request. If the batch fails,
+the UI falls back to the individual `installer.sh uninstall-check ID` request.
 This is read-only and checks the snapshot inventory, recorded ownership/settings,
 state, uninstall action and dependents without executing its worker. It returns
 `available<TAB>VERSION<TAB>STATE` only when a saved uninstaller can be offered.

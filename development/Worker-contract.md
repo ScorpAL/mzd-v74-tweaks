@@ -28,9 +28,9 @@ requirements. Command tweaks continue to execute from USB without installation.
 The launcher reads discovery metadata through one `installer.sh manifests`
 request and groups each detail view into `installer.sh details ID "section ..."`.
 These return JSON lines with each section's exit code, stdout and stderr.
-Detail metadata shares verified package reads only while holding the package
-lock; worker/recovery probes run separately after releasing it. Mutating
-operations always perform their own checks.
+Read-only detail sections verify the data they use without acquiring the global
+package lock or reusing mutation-phase verification. Failed or truncated batches
+fall back to individual queries. Mutating operations perform their own checks.
 
 The launcher batches menu status through `installer.sh statuses "id1 id2"`.
 Without a saved installation, public status returns `uninstalled` without
