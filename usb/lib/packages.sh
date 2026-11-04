@@ -632,14 +632,45 @@ mzd_package_manifests() (
         printf '%s\n' "$MZD_PACKAGE_STORE/$id/package/tweaks/$id/manifest.conf"
     done
 )
+# Compatibility for saved status helpers that reject Restore own target locks.
+# Verify every immutable installation path, not only the primary target.
+mzd_package_restored_paths() (
+    [ "${RESTORE_COMMITTED:-0}" = 1 ] &&
+        [ "$(mzd_package_state "$1")" = restoring ] &&
+        [ "$MZD_SYSTEM" = "$MZD_REPORT/system" ] &&
+        [ -d "$LOCK" ] && [ ! -L "$LOCK" ] &&
+        mzd_line_is "$LOCK" "$MZD_SYSTEM/locks" || exit 1
+    tab=$(printf '\t')
+    while IFS="$tab" read -r kind path; do
+        case "$kind" in
+            patch)
+                expected=$(awk -F "$tab" -v target="$path" '
+                    $1==target {if(value!="" && value!=$2)bad=1;value=$2}
+                    END {if(bad || length(value)!=32 || value!~/^[0-9a-f]+$/)exit 1;print value}' "$MZD_REPORT/catalog") || exit 1
+                [ -f "$path" ] && [ ! -L "$path" ] &&
+                    [ "$(mzd_hash "$path")" = "$expected" ] || exit 1 ;;
+            create|shim) [ ! -e "$path" ] && [ ! -L "$path" ] || exit 1 ;;
+            config-file|config-dir) : ;; # Mutable retained user data is not an installation.
+            *) exit 1 ;;
+        esac
+    done < "$1/paths.tsv"
+)
 mzd_package_forget_restored() (
+    scratch=$(mktemp -d /tmp/mzd-restored-check.XXXXXX) || exit 1
+    trap 'rm -rf "$scratch"' 0
     for entry in "$MZD_PACKAGE_STORE"/*; do
         [ -e "$entry" ] || continue
         mzd_package_check "$entry" || exit 1
         mzd_manifest_load "$entry/package/tweaks/${entry##*/}/manifest.conf" || exit 1
         # Do not forget unsupported/unrestored installations or unknown changes.
         if [ "$FIRMWARE" != "$RESTORE_FIRMWARE" ]; then continue; fi
-        result=$(mzd_package_worker "$entry" status); code=$?
+        result=$(mzd_package_worker "$entry" status 2> "$scratch/reason"); code=$?
+        if [ "$code" = 1 ] && [ -z "$result" ] &&
+            awk '$0=="ERROR: Target is busy; retry status after the other operation." {found=1} END {exit !found}' "$scratch/reason" &&
+            mzd_package_restored_paths "$entry"; then
+            result=uninstalled; code=0
+            printf 'Verified restored paths for saved worker: %s\n' "${entry##*/}"
+        else cat "$scratch/reason" >&2; fi
         if [ "$code" = 0 ] && [ "$result" = unavailable ] && [ -f "$APP" ] && [ ! -L "$APP" ]; then
             # A completely reset tweak need not be installable yet: its
             # prerequisites may have been reset in this same operation.
