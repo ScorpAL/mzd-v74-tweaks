@@ -175,13 +175,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tests/installer/test-es5.cjs
-      - run: node tests/installer/test-startup-errors.cjs
-      - run: node tests/installer/test-ui.cjs
-      - run: node tests/installer/test-gui-runtime.cjs
-      - run: node tests/installer/test-gui-i18n.cjs
-      - run: node tests/installer/test-gui-residents.cjs
-      - run: node tests/installer/test-gui-services.cjs
+      # Every test file of tests/installer/ (node:test); a new file there runs without editing this list.
+      # The pattern is quoted so that Node, not the shell, expands it.
+      - name: Installer UI tests (every tests/installer/*.cjs)
+        run: node --test "tests/installer/*.cjs"
       - run: node tests/tweaks/tetris/shared-sdk.cjs
       - run: node tests/tweaks/traffic-jam/behavior.cjs
       - run: node tests/tweaks/tetris/highscore.cjs
@@ -189,5 +186,4 @@ jobs:
       - run: node tests/tweaks/wallpaper-manager/cmu-client.cjs
       - run: node tests/tweaks/wallpaper-manager/cmu-host.cjs
       - run: node tests/tweaks/wallpaper-manager/localized-view.cjs
-      - run: node tests/installer/test-transport.cjs
       - run: node tests/tweaks/remove-safety-warnings/behavior.cjs
