@@ -534,21 +534,18 @@ assert.equal(control.dataList.items[2].checked, false);
 // 5. Select 1 km option (index 2)
 click(2);
 assert.equal(savedSettings.hud_maneuver_max_distance_m, 1000);
-assert.equal(control.dataList.items[0].checked, false);
-assert.equal(control.dataList.items[2].checked, true);
+assert.equal(sb, 'Android Auto Settings', 'Accepting a distance returns to Android Auto settings');
+assert.equal(control.dataList.items.length, 16);
+assert.equal(control.dataList.items[7].label1, '1 km');
+assert.equal(control.focus, 7, 'Returning restores focus to the distance setting');
 assert.equal(writes, 8);
 
-// 6. Navigate back to main settings menu
-input('back');
-assert.equal(sb, 'Android Auto Settings');
-assert.equal(control.dataList.items.length, 16);
-
-// Verify that the distance row now displays "1 km" on the right hand side
+// Verify that the distance row displays "1 km" on the right hand side
 assert.equal(control.dataList.items[7].text1, 'Show HUD turns within');
 assert.equal(control.dataList.items[7].label1, '1 km');
 assert.equal(control.dataList.items[7].hasCaret, true);
 
-// 7. Back navigation from main menu closes view
+// 6. Back navigation from main menu closes view
 input('left');
 assert.equal(backFocused, true, 'Left from the list transfers focus to the Mazda Back button');
 input('right');

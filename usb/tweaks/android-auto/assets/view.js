@@ -178,9 +178,14 @@
 
         if (page === 'distance') {
             var selectedMeters = row.meters;
-            if (state.hud_maneuver_max_distance_m !== selectedMeters) {
+            var changed = state.hud_maneuver_max_distance_m !== selectedMeters;
+            if (changed) {
                 state.hud_maneuver_max_distance_m = selectedMeters;
-                render();
+            }
+            page = 'home';
+            index = positions.home || 0;
+            render();
+            if (changed) {
                 saveSetting('hud_maneuver_max_distance_m', selectedMeters);
             }
             return;
