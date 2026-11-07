@@ -66,20 +66,22 @@ printf '/fake %s tmpfs rw 0 0\n' "$4" >> {shlex.quote(bp(mounts))}
 cp {shlex.quote(bp(saved))} "$1"
 : > {shlex.quote(bp(mounts))}
 ''')
-    chain, jump = temp / 'chain', temp / 'jump'
+    chain, jump, accept = temp / 'chain', temp / 'jump', temp / 'accept'
     write(bins / 'iptables', f'''#!/bin/sh
 case "$1:$2" in
 -S:INPUT) echo '-P INPUT DROP'; if [ -f {shlex.quote(bp(jump))} ]; then echo '-A INPUT -p tcp -m tcp --dport 22 -j MZD_AIO_SSH'; fi ;;
--S:MZD_AIO_SSH) [ -f {shlex.quote(bp(chain))} ] || exit 1; echo '-A MZD_AIO_SSH -j ACCEPT' ;;
+-S:MZD_AIO_SSH) [ -f {shlex.quote(bp(chain))} ] || exit 1; if [ -f {shlex.quote(bp(accept))} ]; then echo '-A MZD_AIO_SSH -j ACCEPT'; fi ;;
 -N:MZD_AIO_SSH) : > {shlex.quote(bp(chain))} ;;
--A:MZD_AIO_SSH) exit 0 ;;
+-I:MZD_AIO_SSH)
+    [ ! -f {shlex.quote(bp(temp / 'fail-accept'))} ] || exit 1
+    : > {shlex.quote(bp(accept))} ;;
 -I:INPUT)
     [ ! -f {shlex.quote(bp(temp / 'fail-firewall'))} ] || exit 1
     : > {shlex.quote(bp(temp / 'firewall-entered'))}
     while [ -f {shlex.quote(bp(temp / 'hold-firewall'))} ]; do sleep .1; done
     : > {shlex.quote(bp(jump))} ;;
 -D:INPUT) [ -f {shlex.quote(bp(jump))} ] || exit 1; rm {shlex.quote(bp(jump))} ;;
--F:MZD_AIO_SSH) exit 0 ;;
+-F:MZD_AIO_SSH) rm -f {shlex.quote(bp(accept))} ;;
 -X:MZD_AIO_SSH) rm -f {shlex.quote(bp(chain))} ;;
 *) exit 1 ;;
 esac
@@ -163,6 +165,11 @@ esac
     assert failed.returncode == 1 and 'fixture sshd: host key cannot be loaded' in failed.stderr, failed
     assert not ram.exists() and account.read_text() == original
     (temp / 'fail-daemon').unlink()
+    write(chain, 'existing empty chain')
+    write(temp / 'fail-accept', 'fail')
+    run('boot', 1, 'Could not allow port 22 through the firewall')
+    assert not ram.exists() and account.read_text() == original
+    (temp / 'fail-accept').unlink()
     write(temp / 'fail-firewall', 'fail')
     run('boot', 1, 'Could not allow port 22 through the firewall')
     assert not ram.exists() and account.read_text() == original
@@ -176,13 +183,15 @@ esac
     auth('install', 'disabled'); run('check', 1, 'Provide a public key')
     write(service / 'authorized_keys.conf', '-----BEGIN PRIVATE KEY-----\n')
     run('check', 1, 'Expected one OpenSSH public key')
-    auth('ignore', 'enabled'); run('check', 0, 'prerequisites checked')
+    auth('ignore', 'enabled'); run('check', 1, 'Expected one OpenSSH public key')
+    write(service / 'authorized_keys.conf', ''); run('check', 0, 'prerequisites checked')
     auth('install', 'disabled'); write(service / 'authorized_keys.conf', test_key)
     write(temp / 'reject-key', 'unsupported'); run('check', 1, 'invalid or its type is unsupported')
     (temp / 'reject-key').unlink()
     auth('install', 'enabled'); run('check', 0, 'prerequisites checked')
     auth('install', 'disabled'); run('check', 0, 'prerequisites checked')
     assert not ram.exists() and account.read_text() == original
+    write(chain, 'existing empty chain')
     write(temp / 'hold-firewall', 'hold')
     startup = temp / 'ssh-start.log'
     with startup.open('wb') as stream:
@@ -193,6 +202,7 @@ esac
             time.sleep(.1)
         else: raise AssertionError('Supervisor did not reach firewall setup')
         assert (ram / 'daemon.pid').exists(), 'Readiness test must have a live daemon.'
+        assert accept.exists(), 'Existing empty chain must have ACCEPT before readiness.'
         run('status', 1, 'not running')
         assert not (ram / 'ready').exists(), 'PID files alone must not publish readiness.'
         (temp / 'hold-firewall').unlink()
@@ -234,7 +244,12 @@ esac
             run('status', 0, 'SSH is running')
             assert background.poll() is None, state
             assert starts.read_text().splitlines() == ['start'], state
-        chain.unlink(); jump.unlink()
+        accept.unlink()
+        for _ in range(15):
+            if accept.exists(): break
+            time.sleep(.5)
+        assert accept.exists(), 'Existing chain must recover its missing ACCEPT rule.'
+        chain.unlink(); jump.unlink(); accept.unlink()
         for _ in range(15):
             if chain.exists() and jump.exists(): break
             time.sleep(.5)

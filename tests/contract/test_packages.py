@@ -87,6 +87,19 @@ esac
         checks+=1;return r
     def action(id_,name,code=0,output=None):return call(['action',id_,name],code,output)
     def text():return events.read_text() if events.exists() else ''
+    # A stdout-only preflight refusal must survive staging diagnostics, with
+    # its rejected override and scratch snapshot removed before publication.
+    rejected, rejected_target = make('rejected')
+    write(rejected/'manifest.conf', (rejected/'manifest.conf').read_text()+'preflight=true\n')
+    write(rejected/'run.sh', (rejected/'run.sh').read_text().replace('case "$1" in',
+        'case "$1" in\npreflight) printf "block\\tSupplied key is invalid.\\n"; exit 1 ;;'))
+    write(rejected/'assets/authorized_keys.conf', '')
+    write(usb/'user/rejected/authorized_keys.conf', '-----BEGIN PRIVATE KEY-----\nfixture only\n')
+    refused = action('rejected','install',1)
+    assert 'Supplied key is invalid.' in refused.stderr, refused
+    assert not rejected_target.exists() and not (store/'rejected').exists()
+    assert not list(store.glob('.stage-rejected-*')), 'Rejected overrides must not remain in persistent scratch.'
+    shutil.rmtree(rejected); shutil.rmtree(usb/'user/rejected'); store.rmdir(); events.unlink(missing_ok=True)
     folder,target=make('alpha')
     call(['uninstall-check','alpha'],1)
     # No receipt means uninstalled even if a target exists. No old patch/hash

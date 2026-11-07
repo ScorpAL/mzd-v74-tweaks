@@ -92,8 +92,10 @@ authentication() {
     ' "$AUTH_SETTINGS") || fail 'Invalid SSH authentication settings.'
     KEY_AUTH=${AUTH% *}; PASSWORD_AUTH=${AUTH#* }
     [ "$PASSWORD_AUTH" != disabled ] || [ "$KEY_AUTH" = install ] || fail 'Password login can only be disabled with an installed public key.'
-    if [ "$KEY_AUTH" = install ]; then
-        KEY_FILE="$SELF_DIR/authorized_keys.conf"
+    # Validate any supplied key, including ignored overrides, before it can
+    # become part of the persistent package snapshot. Empty defaults are allowed.
+    KEY_FILE="$SELF_DIR/authorized_keys.conf"
+    if [ "$KEY_AUTH" = install ] || [ -s "$KEY_FILE" ]; then
         [ -f "$KEY_FILE" ] && [ ! -L "$KEY_FILE" ] && [ -s "$KEY_FILE" ] || fail 'Provide a public key in user/ssh/authorized_keys.conf.'
         [ "$(wc -c < "$KEY_FILE")" -le 16384 ] || fail 'SSH public key exceeds 16 KiB.'
         awk '
@@ -108,8 +110,14 @@ authentication() {
 firewall() {
     if ! iptables -S "$CHAIN" >/dev/null 2>&1; then
         iptables -N "$CHAIN" || return 1
-        iptables -A "$CHAIN" -j ACCEPT || return 1
     fi
+    # Existing chains can survive a partial firewall reset without their rule.
+    iptables -S "$CHAIN" > "$RAM/rules.txt" || return 1
+    if ! line_is "-A $CHAIN -j ACCEPT" "$RAM/rules.txt"; then
+        iptables -I "$CHAIN" 1 -j ACCEPT || return 1
+    fi
+    iptables -S "$CHAIN" > "$RAM/rules.txt" || return 1
+    line_is "-A $CHAIN -j ACCEPT" "$RAM/rules.txt" || return 1
     iptables -S INPUT > "$RAM/rules.txt" || return 1
     if ! grep -q -- "-j $CHAIN" "$RAM/rules.txt"; then
         iptables -I INPUT 1 -p tcp --dport 22 -j "$CHAIN" || return 1

@@ -359,7 +359,12 @@ mzd_package_stage() (
     fi
     # Validate effective settings and overridden assets before old removal.
     if [ "${PREFLIGHT:-false}" = true ]; then
-        mzd_package_exec_worker "$stage/package/tweaks/$id/run.sh" preflight >/dev/null || exit 1
+        preflight_output=$(mzd_package_exec_worker "$stage/package/tweaks/$id/run.sh" preflight); preflight_code=$?
+        if [ "$preflight_code" != 0 ]; then
+            [ -z "$preflight_output" ] || printf '%s\n' "$preflight_output" >&2
+            mzd_package_error 'Candidate preflight failed; existing installation unchanged.'
+            exit 1
+        fi
     fi
     mzd_package_inventory "$stage" > "$stage/package.files" || exit 1
     mzd_package_set_state "$stage" prepared

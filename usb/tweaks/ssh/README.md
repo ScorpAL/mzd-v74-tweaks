@@ -6,7 +6,9 @@ Choose Install or Uninstall in the installer.
 Installation waits for the owned supervisor, SSH daemon and initial firewall
 setup to be ready, up to 15 seconds. A fast startup continues immediately;
 no Wi-Fi address is required. A startup failure or timeout retains diagnostics
-and rolls back the new boot hook and runtime changes.
+and stops the new service before rolling back the boot hook and runtime changes.
+If stopping or cleanup fails, installation reports a critical error and warns
+not to reboot; remaining files are retained for recovery.
 
 Wi-Fi is automatically enabled at every startup, even if it was switched off.
 Configure a saved network and automatic connection in the Mazda menu first.
@@ -55,3 +57,6 @@ To change these installed options, uninstall and reinstall. Updates retain the
 installed option values, as with other installer settings. For key-enabled
 updates, supply the public key on USB again. A missing/invalid replacement key
 refuses the update before removing the working installation.
+
+Any non-empty supplied key file is validated even when key login is ignored,
+so a private or malformed key cannot be retained in an installed package.
