@@ -147,6 +147,7 @@
                 session.control = fw.instantiateControl('system', session.container, 'List2Ctrl', {
                     titleConfiguration: 'noTitle',
                     numberedList: true,
+                    smallItemText: true,
                     focussedItem: menu.index || 0,
                     dataList: {
                         itemCountKnown: true,
@@ -173,19 +174,40 @@
             var control, event, capture;
             if (!session || session.frame !== frame || session.token !== token || !session.control) { return; }
             control = session.control;
+            function dispatch(controllerEvent) {
+                var common = global.framework.common;
+                var leftBtn = common && common.leftBtn;
+                var response;
+                if (leftBtn && leftBtn.btnInstance && leftBtn.btnInstance.hasFocus) {
+                    response = leftBtn.handleControllerEvent(controllerEvent);
+                    if (response === 'giveFocusRight') {
+                        response = control.handleControllerEvent('acceptFocusFromLeft');
+                        if (response === 'consumed') {
+                            leftBtn.handleControllerEvent('lostFocus');
+                        }
+                    }
+                    return response;
+                }
+                response = control.handleControllerEvent(controllerEvent);
+                if (response === 'giveFocusLeft' && leftBtn) {
+                    leftBtn.handleControllerEvent('acceptFocusFromRight');
+                    control.handleControllerEvent('lostFocus');
+                }
+                return response;
+            }
             if (action === 'rotateRight' || action === 'rotateLeft') {
                 if (phase === 'release') { return; }
                 event = action === 'rotateRight' ? 'cw' : 'ccw';
             } else {
                 if (['up', 'down', 'left', 'right', 'select'].indexOf(action) < 0) { return; }
                 if (phase === 'step') {
-                    control.handleControllerEvent(action + 'Start');
+                    dispatch(action + 'Start');
                     event = action;
                 } else {
                     event = phase === 'press' ? action + 'Start' : action;
                 }
             }
-            control.handleControllerEvent(event);
+            dispatch(event);
             capture = control.getContextCapture();
             send('aa-native-focus', capture.focussedItem);
         }
@@ -229,19 +251,25 @@
         var cachedSettings = null, cachedLoaded = false;
         var queue = [], inFlight = false, syncing = false;
         var syncCallbacks = [];
-        var lastSavedMessage = '', lastErrorMessage = '';
+        var lastSavingMessage = '', lastSavedMessage = '', lastErrorMessage = '', savePending = false, savingNoticeShown = false;
 
         function showSbn(text, isError) {
             var fw = global.framework;
             if (fw && fw.common && typeof fw.common.startTimedSbn === 'function') {
-                try {
-                    fw.common.startTimedSbn('androidauto', 'AASettingsNotification', isError ? 'errorNotification' : 'typeD', {
-                        sbnStyle: 'Style02',
-                        imagePath1: 'common/images/icons/IcnSbnApps.png',
-                        text1: text
-                    });
-                } catch (ignore) {}
+                fw.common.startTimedSbn('androidauto', 'AASettingsNotification', isError ? 'errorNotification' : 'typeD', {
+                    sbnStyle: 'Style02',
+                    imagePath1: 'common/images/icons/IcnSbnApps.png',
+                    text1: text
+                });
             }
+        }
+
+        function clearSaveNotice() {
+            lastSavingMessage = '';
+            lastSavedMessage = '';
+            lastErrorMessage = '';
+            savePending = false;
+            savingNoticeShown = false;
         }
 
         function frameToken(source) {
@@ -303,10 +331,9 @@
                 inFlight = false;
                 if (error) {
                     queue = [];
-                    if (lastSavedMessage || lastErrorMessage) {
-                        showSbn(lastErrorMessage || 'Failed to save Android Auto settings', true);
-                        lastSavedMessage = '';
-                        lastErrorMessage = '';
+                    if (savePending) {
+                        showSbn(lastErrorMessage || 'Failed to save settings', true);
+                        clearSaveNotice();
                     }
                     syncFromService(function () {
                         broadcastState(error);
@@ -326,10 +353,9 @@
                 if (queue.length > 0) {
                     drainQueue();
                 } else {
-                    if (lastSavedMessage) {
-                        showSbn(lastSavedMessage, false);
-                        lastSavedMessage = '';
-                        lastErrorMessage = '';
+                    if (savePending) {
+                        showSbn(lastSavedMessage || 'Settings saved', false);
+                        clearSaveNotice();
                     }
                 }
             });
@@ -341,10 +367,13 @@
                 if ((token && data.token === token) || (nativeMenu && nativeMenu.owns(event.source, data.token))) {
                     nativeMenu.close();
                     if (inFlight || queue.length > 0) {
-                        lastSavedMessage = data.savedMessage || 'Android Auto settings saved.';
-                        lastErrorMessage = data.errorMessage || 'Failed to save Android Auto settings';
-                        if (data.savingMessage) {
+                        lastSavedMessage = data.savedMessage || 'Settings saved';
+                        lastErrorMessage = data.errorMessage || 'Failed to save settings';
+                        savePending = true;
+                        if (data.savingMessage && (!savingNoticeShown || lastSavingMessage !== data.savingMessage)) {
                             showSbn(data.savingMessage, false);
+                            lastSavingMessage = data.savingMessage;
+                            savingNoticeShown = true;
                         }
                     }
                 }
@@ -383,6 +412,14 @@
                     return;
                 }
                 if (data.action === 'set' && data.payload && data.payload.key) {
+                    lastSavedMessage = data.payload.savedMessage || 'Settings saved';
+                    lastErrorMessage = data.payload.errorMessage || 'Failed to save settings';
+                    if (!savePending) {
+                        savePending = true;
+                        lastSavingMessage = data.payload.savingMessage || 'Saving settings...';
+                        showSbn(lastSavingMessage, false);
+                        savingNoticeShown = true;
+                    }
                     if (!cachedSettings) { cachedSettings = {}; }
                     cachedSettings[data.payload.key] = data.payload.value;
                     var found = false;

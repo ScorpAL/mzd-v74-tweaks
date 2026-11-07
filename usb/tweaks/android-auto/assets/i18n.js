@@ -25,9 +25,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Service unavailable. Please retry.',
             'menuError': 'The Mazda menu could not be opened. Please reopen the app.',
             'openApps': 'Open through Applications.',
-            'savingSettings': 'Saving Android Auto settings...',
-            'savedSettings': 'Android Auto settings saved.',
-            'saveError': 'Failed to save Android Auto settings'
+            'savingSettings': 'Saving settings...',
+            'savedSettings': 'Settings saved',
+            'saveError': 'Failed to save settings'
         },
         'de_DE': {
             'gui.label': 'Android Auto-Einstellungen',
@@ -53,9 +53,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Dienst nicht verfügbar. Erneut versuchen.',
             'menuError': 'Das Mazda-Menü konnte nicht geöffnet werden. Bitte App erneut öffnen.',
             'openApps': 'Über Anwendungen öffnen.',
-            'savingSettings': 'Android Auto-Einstellungen werden gespeichert...',
-            'savedSettings': 'Android Auto-Einstellungen gespeichert.',
-            'saveError': 'Fehler beim Speichern der Android Auto-Einstellungen'
+            'savingSettings': 'Einstellungen werden gespeichert...',
+            'savedSettings': 'Einstellungen gespeichert',
+            'saveError': 'Fehler beim Speichern der Einstellungen'
         },
         'es_ES': {
             'gui.label': 'Ajustes de Android Auto',
@@ -81,9 +81,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Servicio no disponible. Inténtalo de nuevo.',
             'menuError': 'No se pudo abrir el menú de Mazda. Abre de nuevo la aplicación.',
             'openApps': 'Abrir desde Aplicaciones.',
-            'savingSettings': 'Guardando ajustes de Android Auto...',
-            'savedSettings': 'Ajustes de Android Auto guardados.',
-            'saveError': 'Error al guardar los ajustes de Android Auto'
+            'savingSettings': 'Guardando ajustes...',
+            'savedSettings': 'Ajustes guardados',
+            'saveError': 'Error al guardar los ajustes'
         },
         'fr_FR': {
             'gui.label': 'Réglages Android Auto',
@@ -109,9 +109,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Service indisponible. Réessayez.',
             'menuError': 'Impossible d’ouvrir le menu Mazda. Rouvrez l’application.',
             'openApps': 'Ouvrir depuis Applications.',
-            'savingSettings': 'Enregistrement des réglages Android Auto...',
-            'savedSettings': 'Réglages Android Auto enregistrés.',
-            'saveError': 'Échec de l’enregistrement des réglages Android Auto'
+            'savingSettings': 'Enregistrement des réglages...',
+            'savedSettings': 'Réglages enregistrés',
+            'saveError': 'Échec de l’enregistrement des réglages'
         },
         'it_IT': {
             'gui.label': 'Impostazioni Android Auto',
@@ -137,9 +137,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Servizio non disponibile. Riprova.',
             'menuError': 'Impossibile aprire il menu Mazda. Riapri l’app.',
             'openApps': 'Apri da Applicazioni.',
-            'savingSettings': 'Salvataggio impostazioni Android Auto...',
-            'savedSettings': 'Impostazioni Android Auto salvate.',
-            'saveError': 'Impossibile salvare le impostazioni di Android Auto'
+            'savingSettings': 'Salvataggio impostazioni...',
+            'savedSettings': 'Impostazioni salvate',
+            'saveError': 'Impossibile salvare le impostazioni'
         },
         'nl_NL': {
             'gui.label': 'Android Auto-instellingen',
@@ -165,9 +165,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Dienst niet beschikbaar. Probeer opnieuw.',
             'menuError': 'Het Mazda-menu kon niet worden geopend. Open de app opnieuw.',
             'openApps': 'Open via Toepassingen.',
-            'savingSettings': 'Android Auto-instellingen opslaan...',
-            'savedSettings': 'Android Auto-instellingen opgeslagen.',
-            'saveError': 'Opslaan van Android Auto-instellingen mislukt'
+            'savingSettings': 'Instellingen opslaan...',
+            'savedSettings': 'Instellingen opgeslagen',
+            'saveError': 'Opslaan van instellingen mislukt'
         },
         'pt_PT': {
             'gui.label': 'Definições do Android Auto',
@@ -193,9 +193,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Serviço indisponível. Tente novamente.',
             'menuError': 'Não foi possível abrir o menu Mazda. Reabra a aplicação.',
             'openApps': 'Abrir em Aplicações.',
-            'savingSettings': 'A guardar definições do Android Auto...',
-            'savedSettings': 'Definições do Android Auto guardadas.',
-            'saveError': 'Falha ao guardar as definições do Android Auto'
+            'savingSettings': 'A guardar definições...',
+            'savedSettings': 'Definições guardadas',
+            'saveError': 'Falha ao guardar as definições'
         },
         'pt_BR': {
             'gui.label': 'Configurações do Android Auto',
@@ -221,9 +221,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Serviço indisponível. Tente novamente.',
             'menuError': 'Não foi possível abrir o menu Mazda. Reabra o aplicativo.',
             'openApps': 'Abra em Aplicativos.',
-            'savingSettings': 'Salvando configurações do Android Auto...',
-            'savedSettings': 'Configurações do Android Auto salvas.',
-            'saveError': 'Falha ao salvar as configurações do Android Auto'
+            'savingSettings': 'Salvando configurações...',
+            'savedSettings': 'Configurações salvas',
+            'saveError': 'Falha ao salvar as configurações'
         },
         'ru_RU': {
             'gui.label': 'Настройки Android Auto',
@@ -249,9 +249,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Сервис недоступен. Повторите попытку.',
             'menuError': 'Не удалось открыть меню Mazda. Откройте приложение заново.',
             'openApps': 'Откройте через Приложения.',
-            'savingSettings': 'Сохранение настроек Android Auto...',
-            'savedSettings': 'Настройки Android Auto сохранены.',
-            'saveError': 'Не удалось сохранить настройки Android Auto'
+            'savingSettings': 'Сохранение настроек...',
+            'savedSettings': 'Настройки сохранены',
+            'saveError': 'Не удалось сохранить настройки'
         },
         'fi_FI': {
             'gui.label': 'Android Auto -asetukset',
@@ -277,9 +277,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Palvelu ei ole käytettävissä. Yritä uudelleen.',
             'menuError': 'Mazda-valikkoa ei voitu avata. Avaa sovellus uudelleen.',
             'openApps': 'Avaa Sovellukset-valikosta.',
-            'savingSettings': 'Tallennetaan Android Auto -asetuksia...',
-            'savedSettings': 'Android Auto -asetukset tallennettu.',
-            'saveError': 'Android Auto -asetusten tallennus epäonnistui'
+            'savingSettings': 'Tallennetaan asetuksia...',
+            'savedSettings': 'Asetukset tallennettu',
+            'saveError': 'Asetusten tallennus epäonnistui'
         },
         'sv_SE': {
             'gui.label': 'Android Auto-inställningar',
@@ -305,9 +305,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Tjänsten är inte tillgänglig. Försök igen.',
             'menuError': 'Mazda-menyn kunde inte öppnas. Öppna appen igen.',
             'openApps': 'Öppna via Program.',
-            'savingSettings': 'Sparar Android Auto-inställningar...',
-            'savedSettings': 'Android Auto-inställningar sparades.',
-            'saveError': 'Kunde inte spara Android Auto-inställningar'
+            'savingSettings': 'Sparar inställningar...',
+            'savedSettings': 'Inställningar sparades',
+            'saveError': 'Kunde inte spara inställningar'
         },
         'da_DK': {
             'gui.label': 'Android Auto-indstillinger',
@@ -333,9 +333,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Tjenesten er ikke tilgængelig. Prøv igen.',
             'menuError': 'Mazda-menuen kunne ikke åbnes. Åbn appen igen.',
             'openApps': 'Åbn via Programmer.',
-            'savingSettings': 'Gemmer Android Auto-indstillinger...',
-            'savedSettings': 'Android Auto-indstillinger gemt.',
-            'saveError': 'Kunne ikke gemme Android Auto-indstillinger'
+            'savingSettings': 'Gemmer indstillinger...',
+            'savedSettings': 'Indstillinger gemt',
+            'saveError': 'Kunne ikke gemme indstillinger'
         },
         'no_NO': {
             'gui.label': 'Android Auto-innstillinger',
@@ -361,9 +361,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Tjenesten er utilgjengelig. Prøv igjen.',
             'menuError': 'Mazda-menyen kunne ikke åpnes. Åpne appen igjen.',
             'openApps': 'Åpne via Programmer.',
-            'savingSettings': 'Lagrer Android Auto-innstillinger...',
-            'savedSettings': 'Android Auto-innstillinger lagret.',
-            'saveError': 'Kunne ikke lagre Android Auto-innstillinger'
+            'savingSettings': 'Lagrer innstillinger...',
+            'savedSettings': 'Innstillinger lagret',
+            'saveError': 'Kunne ikke lagre innstillinger'
         },
         'cs_CS': {
             'gui.label': 'Nastavení Android Auto',
@@ -389,9 +389,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Služba není dostupná. Zkuste to znovu.',
             'menuError': 'Menu Mazda nebylo možné otevřít. Otevřete aplikaci znovu.',
             'openApps': 'Otevřete přes Aplikace.',
-            'savingSettings': 'Ukládání nastavení Android Auto...',
-            'savedSettings': 'Nastavení Android Auto uložena.',
-            'saveError': 'Uložení nastavení Android Auto se nezdařilo'
+            'savingSettings': 'Ukládání nastavení...',
+            'savedSettings': 'Nastavení uložena',
+            'saveError': 'Uložení nastavení se nezdařilo'
         },
         'hu_HU': {
             'gui.label': 'Android Auto beállítások',
@@ -417,9 +417,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'A szolgáltatás nem érhető el. Próbáld újra.',
             'menuError': 'A Mazda menü nem nyitható meg. Nyisd meg újra az alkalmazást.',
             'openApps': 'Nyisd meg az Alkalmazásokból.',
-            'savingSettings': 'Android Auto beállítások mentése...',
-            'savedSettings': 'Android Auto beállítások mentve.',
-            'saveError': 'Android Auto beállítások mentése sikertelen'
+            'savingSettings': 'Beállítások mentése...',
+            'savedSettings': 'Beállítások mentve',
+            'saveError': 'Beállítások mentése sikertelen'
         },
         'pl_PL': {
             'gui.label': 'Ustawienia Android Auto',
@@ -445,9 +445,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Usługa niedostępna. Spróbuj ponownie.',
             'menuError': 'Nie udało się otworzyć menu Mazda. Otwórz aplikację ponownie.',
             'openApps': 'Otwórz przez Aplikacje.',
-            'savingSettings': 'Zapisywanie ustawień Android Auto...',
-            'savedSettings': 'Ustawienia Android Auto zostały zapisane.',
-            'saveError': 'Nie udało się zapisać ustawień Android Auto'
+            'savingSettings': 'Zapisywanie ustawień...',
+            'savedSettings': 'Ustawienia zostały zapisane',
+            'saveError': 'Nie udało się zapisać ustawień'
         },
         'sk_SK': {
             'gui.label': 'Nastavenia Android Auto',
@@ -473,9 +473,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Služba nie je dostupná. Skúste znova.',
             'menuError': 'Menu Mazda sa nepodarilo otvoriť. Otvorte aplikáciu znova.',
             'openApps': 'Otvorte cez Aplikácie.',
-            'savingSettings': 'Ukladanie nastavení Android Auto...',
-            'savedSettings': 'Nastavenia Android Auto uložené.',
-            'saveError': 'Uloženie nastavení Android Auto zlyhalo'
+            'savingSettings': 'Ukladanie nastavení...',
+            'savedSettings': 'Nastavenia uložené',
+            'saveError': 'Uloženie nastavení zlyhalo'
         },
         'tr_TR': {
             'gui.label': 'Android Auto Ayarları',
@@ -501,9 +501,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Hizmet kullanılamıyor. Tekrar deneyin.',
             'menuError': 'Mazda menüsü açılamadı. Uygulamayı yeniden açın.',
             'openApps': 'Uygulamalar üzerinden açın.',
-            'savingSettings': 'Android Auto ayarları kaydediliyor...',
-            'savedSettings': 'Android Auto ayarları kaydedildi.',
-            'saveError': 'Android Auto ayarları kaydedilemedi'
+            'savingSettings': 'Ayarlar kaydediliyor...',
+            'savedSettings': 'Ayarlar kaydedildi',
+            'saveError': 'Ayarlar kaydedilemedi'
         },
         'et_EE': {
             'gui.label': 'Android Auto seaded',
@@ -529,9 +529,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Teenus pole saadaval. Proovi uuesti.',
             'menuError': 'Mazda menüüd ei saanud avada. Ava rakendus uuesti.',
             'openApps': 'Ava Rakenduste kaudu.',
-            'savingSettings': 'Android Auto seadete salvestamine...',
-            'savedSettings': 'Android Auto seaded salvestatud.',
-            'saveError': 'Android Auto seadete salvestamine ebaõnnestus'
+            'savingSettings': 'Seadete salvestamine...',
+            'savedSettings': 'Seaded salvestatud',
+            'saveError': 'Seadete salvestamine ebaõnnestus'
         },
         'lv_LV': {
             'gui.label': 'Android Auto iestatījumi',
@@ -557,9 +557,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Pakalpojums nav pieejams. Mēģiniet vēlreiz.',
             'menuError': 'Mazda izvēlni nevarēja atvērt. Atveriet lietotni vēlreiz.',
             'openApps': 'Atveriet sadaļā Lietotnes.',
-            'savingSettings': 'Saglabā Android Auto iestatījumus...',
-            'savedSettings': 'Android Auto iestatījumi saglabāti.',
-            'saveError': 'Neizdevās saglabāt Android Auto iestatījumus'
+            'savingSettings': 'Saglabā iestatījumus...',
+            'savedSettings': 'Iestatījumi saglabāti',
+            'saveError': 'Neizdevās saglabāt iestatījumus'
         },
         'lt_LT': {
             'gui.label': '„Android Auto“ nustatymai',
@@ -585,9 +585,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Paslauga nepasiekiama. Bandykite dar kartą.',
             'menuError': 'Nepavyko atverti „Mazda“ meniu. Atverkite programą iš naujo.',
             'openApps': 'Atverkite per Programos.',
-            'savingSettings': 'Išsaugomi „Android Auto“ nustatymai...',
-            'savedSettings': '„Android Auto“ nustatymai išsaugoti.',
-            'saveError': 'Nepavyko išsaugoti „Android Auto“ nustatymų'
+            'savingSettings': 'Išsaugomi nustatymai...',
+            'savedSettings': 'Nustatymai išsaugoti',
+            'saveError': 'Nepavyko išsaugoti nustatymų'
         },
         'el_GR': {
             'gui.label': 'Ρυθμίσεις Android Auto',
@@ -613,9 +613,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Η υπηρεσία δεν είναι διαθέσιμη. Δοκιμάστε ξανά.',
             'menuError': 'Δεν ήταν δυνατό το άνοιγμα του μενού Mazda. Ανοίξτε ξανά την εφαρμογή.',
             'openApps': 'Ανοίξτε από τις Εφαρμογές.',
-            'savingSettings': 'Αποθήκευση ρυθμίσεων Android Auto...',
-            'savedSettings': 'Οι ρυθμίσεις Android Auto αποθηκεύτηκαν.',
-            'saveError': 'Αποτυχία αποθήκευσης ρυθμίσεων Android Auto'
+            'savingSettings': 'Αποθήκευση ρυθμίσεων...',
+            'savedSettings': 'Οι ρυθμίσεις αποθηκεύτηκαν',
+            'saveError': 'Αποτυχία αποθήκευσης ρυθμίσεων'
         },
         'hr_HR': {
             'gui.label': 'Postavke za Android Auto',
@@ -641,9 +641,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Usluga nije dostupna. Pokušajte ponovno.',
             'menuError': 'Mazda izbornik nije se mogao otvoriti. Ponovno otvorite aplikaciju.',
             'openApps': 'Otvorite kroz Aplikacije.',
-            'savingSettings': 'Spremanje postavki za Android Auto...',
-            'savedSettings': 'Postavke za Android Auto su spremljene.',
-            'saveError': 'Spremanje postavki za Android Auto nije uspjelo'
+            'savingSettings': 'Spremanje postavki...',
+            'savedSettings': 'Postavke su spremljene',
+            'saveError': 'Spremanje postavki nije uspjelo'
         },
         'bg_BG': {
             'gui.label': 'Настройки на Android Auto',
@@ -669,9 +669,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Услугата не е достъпна. Опитайте отново.',
             'menuError': 'Менюто на Mazda не можа да се отвори. Отворете приложението отново.',
             'openApps': 'Отворете през Приложения.',
-            'savingSettings': 'Запазване на настройките на Android Auto...',
-            'savedSettings': 'Настройките на Android Auto са запазени.',
-            'saveError': 'Неуспешно запазване на настройките на Android Auto'
+            'savingSettings': 'Запазване на настройките...',
+            'savedSettings': 'Настройките са запазени',
+            'saveError': 'Неуспешно запазване на настройките'
         },
         'ro_RO': {
             'gui.label': 'Setări Android Auto',
@@ -697,9 +697,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Serviciu indisponibil. Încearcă din nou.',
             'menuError': 'Meniul Mazda nu a putut fi deschis. Redeschide aplicația.',
             'openApps': 'Deschide din Aplicații.',
-            'savingSettings': 'Se salvează setările Android Auto...',
-            'savedSettings': 'Setările Android Auto au fost salvate.',
-            'saveError': 'Salvarea setărilor Android Auto a eșuat'
+            'savingSettings': 'Se salvează setările...',
+            'savedSettings': 'Setările au fost salvate',
+            'saveError': 'Salvarea setărilor a eșuat'
         },
         'sr_RS': {
             'gui.label': 'Подешавања за Android Auto',
@@ -725,9 +725,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Услуга није доступна. Покушајте поново.',
             'menuError': 'Није било могуће отворити Mazda мени. Поново отворите апликацију.',
             'openApps': 'Отворите преко Апликација.',
-            'savingSettings': 'Чување подешавања за Android Auto...',
-            'savedSettings': 'Подешавања за Android Auto су сачувана.',
-            'saveError': 'Чување подешавања за Android Auto није успело'
+            'savingSettings': 'Чување подешавања...',
+            'savedSettings': 'Подешавања су сачувана',
+            'saveError': 'Чување подешавања није успело'
         },
         'uk_UA': {
             'gui.label': 'Налаштування Android Auto',
@@ -753,9 +753,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Сервіс недоступний. Спробуйте ще раз.',
             'menuError': 'Не вдалося відкрити меню Mazda. Відкрийте застосунок знову.',
             'openApps': 'Відкрийте через Застосунки.',
-            'savingSettings': 'Збереження налаштувань Android Auto...',
-            'savedSettings': 'Налаштування Android Auto збережено.',
-            'saveError': 'Не вдалося зберегти налаштування Android Auto'
+            'savingSettings': 'Збереження налаштувань...',
+            'savedSettings': 'Налаштування збережено',
+            'saveError': 'Не вдалося зберегти налаштування'
         },
         'ms_MY': {
             'gui.label': 'Tetapan Android Auto',
@@ -781,9 +781,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Perkhidmatan tidak tersedia. Cuba lagi.',
             'menuError': 'Menu Mazda tidak dapat dibuka. Buka semula aplikasi.',
             'openApps': 'Buka melalui Aplikasi.',
-            'savingSettings': 'Menyimpan tetapan Android Auto...',
-            'savedSettings': 'Tetapan Android Auto disimpan.',
-            'saveError': 'Gagal menyimpan tetapan Android Auto'
+            'savingSettings': 'Menyimpan tetapan...',
+            'savedSettings': 'Tetapan disimpan',
+            'saveError': 'Gagal menyimpan tetapan'
         },
         'id_ID': {
             'gui.label': 'Pengaturan Android Auto',
@@ -809,9 +809,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Layanan tidak tersedia. Coba lagi.',
             'menuError': 'Menu Mazda tidak dapat dibuka. Buka kembali aplikasi.',
             'openApps': 'Buka melalui Aplikasi.',
-            'savingSettings': 'Menyimpan pengaturan Android Auto...',
-            'savedSettings': 'Pengaturan Android Auto disimpan.',
-            'saveError': 'Gagal menyimpan pengaturan Android Auto'
+            'savingSettings': 'Menyimpan pengaturan...',
+            'savedSettings': 'Pengaturan disimpan',
+            'saveError': 'Gagal menyimpan pengaturan'
         },
         'ja_JP': {
             'gui.label': 'Android Auto設定',
@@ -837,9 +837,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'サービスを利用できません。再試行してください。',
             'menuError': 'マツダメニューを開けませんでした。アプリを開き直してください。',
             'openApps': 'アプリケーションから開いてください。',
-            'savingSettings': 'Android Auto設定を保存中...',
-            'savedSettings': 'Android Auto設定を保存しました。',
-            'saveError': 'Android Auto設定の保存に失敗しました'
+            'savingSettings': '設定を保存中...',
+            'savedSettings': '設定を保存しました',
+            'saveError': '設定の保存に失敗しました'
         },
         'zh_CN': {
             'gui.label': 'Android Auto设置',
@@ -865,9 +865,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': '服务不可用，请重试。',
             'menuError': '无法打开Mazda菜单，请重新打开应用。',
             'openApps': '请从应用程序打开。',
-            'savingSettings': '正在保存Android Auto设置...',
-            'savedSettings': 'Android Auto设置已保存。',
-            'saveError': 'Android Auto设置保存失败'
+            'savingSettings': '正在保存设置...',
+            'savedSettings': '设置已保存',
+            'saveError': '设置保存失败'
         },
         'zh_TW': {
             'gui.label': 'Android Auto設定',
@@ -893,9 +893,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': '服務無法使用，請重試。',
             'menuError': '無法開啟Mazda選單，請重新開啟應用程式。',
             'openApps': '請從應用程式開啟。',
-            'savingSettings': '正在儲存Android Auto設定...',
-            'savedSettings': 'Android Auto設定已儲存。',
-            'saveError': 'Android Auto設定儲存失敗'
+            'savingSettings': '正在儲存設定...',
+            'savedSettings': '設定已儲存',
+            'saveError': '設定儲存失敗'
         },
         'cn_HK': {
             'gui.label': 'Android Auto設定',
@@ -921,9 +921,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': '服務無法使用，請重試。',
             'menuError': '無法開啟Mazda選單，請重新開啟應用程式。',
             'openApps': '請從應用程式開啟。',
-            'savingSettings': '正在儲存Android Auto設定...',
-            'savedSettings': 'Android Auto設定已儲存。',
-            'saveError': 'Android Auto設定儲存失敗'
+            'savingSettings': '正在儲存設定...',
+            'savedSettings': '設定已儲存',
+            'saveError': '設定儲存失敗'
         },
         'ar_SA': {
             'gui.label': 'إعدادات Android Auto',
@@ -949,9 +949,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'الخدمة غير متاحة. حاول مجددًا.',
             'menuError': 'تعذر فتح قائمة Mazda. افتح التطبيق مجددًا.',
             'openApps': 'افتح من التطبيقات.',
-            'savingSettings': 'جارٍ حفظ إعدادات Android Auto...',
-            'savedSettings': 'تم حفظ إعدادات Android Auto.',
-            'saveError': 'فشل حفظ إعدادات Android Auto'
+            'savingSettings': 'جارٍ حفظ الإعدادات...',
+            'savedSettings': 'تم حفظ الإعدادات',
+            'saveError': 'فشل حفظ الإعدادات'
         },
         'he_IL': {
             'gui.label': 'הגדרות Android Auto',
@@ -977,9 +977,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'השירות אינו זמין. נסה שוב.',
             'menuError': 'לא ניתן היה לפתוח את תפריט Mazda. פתח מחדש את היישום.',
             'openApps': 'פתח דרך יישומים.',
-            'savingSettings': 'שומר הגדרות Android Auto...',
-            'savedSettings': 'הגדרות Android Auto נשמרו.',
-            'saveError': 'שמירת הגדרות Android Auto נכשלה'
+            'savingSettings': 'שומר הגדרות...',
+            'savedSettings': 'ההגדרות נשמרו',
+            'saveError': 'שמירת ההגדרות נכשלה'
         },
         'th_TH': {
             'gui.label': 'การตั้งค่า Android Auto',
@@ -1005,9 +1005,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'บริการไม่พร้อมใช้งาน โปรดลองอีกครั้ง',
             'menuError': 'ไม่สามารถเปิดเมนู Mazda ได้ โปรดเปิดแอปอีกครั้ง',
             'openApps': 'เปิดผ่านแอปพลิเคชัน',
-            'savingSettings': 'กำลังบันทึกการตั้งค่า Android Auto...',
-            'savedSettings': 'บันทึกการตั้งค่า Android Auto แล้ว',
-            'saveError': 'บันทึกการตั้งค่า Android Auto ไม่สำเร็จ'
+            'savingSettings': 'กำลังบันทึกการตั้งค่า...',
+            'savedSettings': 'บันทึกการตั้งค่าแล้ว',
+            'saveError': 'บันทึกการตั้งค่าไม่สำเร็จ'
         },
         'en_UK': {
             'gui.label': 'Android Auto Settings',
@@ -1033,9 +1033,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Service unavailable. Please retry.',
             'menuError': 'The Mazda menu could not be opened. Please reopen the app.',
             'openApps': 'Open through Applications.',
-            'savingSettings': 'Saving Android Auto settings...',
-            'savedSettings': 'Android Auto settings saved.',
-            'saveError': 'Failed to save Android Auto settings'
+            'savingSettings': 'Saving settings...',
+            'savedSettings': 'Settings saved',
+            'saveError': 'Failed to save settings'
         },
         'en_AU': {
             'gui.label': 'Android Auto Settings',
@@ -1061,9 +1061,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Service unavailable. Please retry.',
             'menuError': 'The Mazda menu could not be opened. Please reopen the app.',
             'openApps': 'Open through Applications.',
-            'savingSettings': 'Saving Android Auto settings...',
-            'savedSettings': 'Android Auto settings saved.',
-            'saveError': 'Failed to save Android Auto settings'
+            'savingSettings': 'Saving settings...',
+            'savedSettings': 'Settings saved',
+            'saveError': 'Failed to save settings'
         },
         'es_MX': {
             'gui.label': 'Ajustes de Android Auto',
@@ -1089,9 +1089,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Servicio no disponible. Inténtalo de nuevo.',
             'menuError': 'No se pudo abrir el menú de Mazda. Abre de nuevo la aplicación.',
             'openApps': 'Abrir desde Aplicaciones.',
-            'savingSettings': 'Guardando ajustes de Android Auto...',
-            'savedSettings': 'Ajustes de Android Auto guardados.',
-            'saveError': 'Error al guardar los ajustes de Android Auto'
+            'savingSettings': 'Guardando ajustes...',
+            'savedSettings': 'Ajustes guardados',
+            'saveError': 'Error al guardar los ajustes'
         },
         'fr_CN': {
             'gui.label': 'Réglages Android Auto',
@@ -1117,9 +1117,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': 'Service indisponible. Réessayez.',
             'menuError': 'Impossible d’ouvrir le menu Mazda. Rouvrez l’application.',
             'openApps': 'Ouvrir depuis Applications.',
-            'savingSettings': 'Enregistrement des réglages Android Auto...',
-            'savedSettings': 'Réglages Android Auto enregistrés.',
-            'saveError': 'Échec de l’enregistrement des réglages Android Auto'
+            'savingSettings': 'Enregistrement des réglages...',
+            'savedSettings': 'Réglages enregistrés',
+            'saveError': 'Échec de l’enregistrement des réglages'
         },
         'mn_TW': {
             'gui.label': 'Android Auto設定',
@@ -1145,9 +1145,9 @@ window.MzdGuiI18n.register('android-auto', {
             'serviceUnavailable': '服務無法使用，請重試。',
             'menuError': '無法開啟Mazda選單，請重新開啟應用程式。',
             'openApps': '請從應用程式開啟。',
-            'savingSettings': '正在儲存Android Auto設定...',
-            'savedSettings': 'Android Auto設定已儲存。',
-            'saveError': 'Android Auto設定儲存失敗'
+            'savingSettings': '正在儲存設定...',
+            'savedSettings': '設定已儲存',
+            'saveError': '設定儲存失敗'
         }
     }
 });

@@ -43,6 +43,20 @@
         return m + ' m';
     }
 
+    function saveSetting(key, value) {
+        post({
+            type: 'aa-request',
+            action: 'set',
+            payload: {
+                key: key,
+                value: value,
+                savingMessage: tr('savingSettings', 'Saving Android Auto settings...'),
+                savedMessage: tr('savedSettings', 'Android Auto settings saved.'),
+                errorMessage: tr('saveError', tr('error', 'Failed to save Android Auto settings'))
+            }
+        });
+    }
+
     function post(data) {
         data.token = token;
         window.parent.postMessage(data, '*');
@@ -135,7 +149,7 @@
             if (state.hud_maneuver_max_distance_m !== selectedMeters) {
                 state.hud_maneuver_max_distance_m = selectedMeters;
                 render();
-                post({type: 'aa-request', action: 'set', payload: { key: 'hud_maneuver_max_distance_m', value: selectedMeters }});
+                saveSetting('hud_maneuver_max_distance_m', selectedMeters);
             }
             return;
         }
@@ -144,7 +158,7 @@
             var newBool = !state[row.key];
             state[row.key] = newBool;
             render();
-            post({type: 'aa-request', action: 'set', payload: { key: row.key, value: newBool }});
+            saveSetting(row.key, newBool);
             return;
         }
 
@@ -152,7 +166,7 @@
             var newTransport = (state[row.key] === 'svcnavi') ? 'vbs' : 'svcnavi';
             state[row.key] = newTransport;
             render();
-            post({type: 'aa-request', action: 'set', payload: { key: row.key, value: newTransport }});
+            saveSetting(row.key, newTransport);
             return;
         }
 

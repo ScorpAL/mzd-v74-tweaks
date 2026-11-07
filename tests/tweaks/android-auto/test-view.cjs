@@ -30,11 +30,31 @@ rootNode.appendChild(frame);
 
 const document = { getElementById: () => status };
 let lastSbn = null;
+let backFocused = false;
 const common = {
     setSbName: v => { sb = v; },
     setSbNameId: (app, id) => { sb = id; },
     startTimedSbn: (uiaId, sbnId, type, props) => {
         lastSbn = { uiaId: uiaId, sbnId: sbnId, type: type, props: props };
+    },
+    leftBtn: {
+        btnInstance: {
+            get hasFocus() { return backFocused; }
+        },
+        handleControllerEvent(event) {
+            if (event === 'acceptFocusFromRight') {
+                backFocused = true;
+                return 'consumed';
+            }
+            if (event === 'lostFocus') {
+                backFocused = false;
+                return 'consumed';
+            }
+            if (event === 'rightStart' && backFocused) {
+                return 'giveFocusRight';
+            }
+            return 'ignored';
+        }
     }
 };
 
@@ -59,8 +79,18 @@ const fw = {
             props: props,
             rendered: true,
             focus: props.focussedItem || 0,
+            hasFocus: true,
             dataList: props.dataList,
             handleControllerEvent(event) {
+                if (event === 'leftStart') { return 'giveFocusLeft'; }
+                if (event === 'acceptFocusFromLeft' || event === 'acceptFocusFromRight') {
+                    this.hasFocus = true;
+                    return 'consumed';
+                }
+                if (event === 'lostFocus') {
+                    this.hasFocus = false;
+                    return 'consumed';
+                }
                 if (event === 'cw' || event === 'down') {
                     this.focus = (this.focus + 1) % this.dataList.items.length;
                 }
@@ -72,7 +102,7 @@ const fw = {
                 }
             },
             getContextCapture() {
-                return { hasFocus: true, focussedItem: this.focus, topItem: 0 };
+                return { hasFocus: this.hasFocus, focussedItem: this.focus, topItem: 0 };
             },
             restoreContext(c) {
                 this.focus = c.focussedItem;
@@ -263,6 +293,7 @@ flush();
 assert.equal(intervalsStarted, 1, 'Polling interval started on view open');
 assert.equal(sb, 'Android Auto Settings');
 assert.equal(control.dataList.items.length, 15);
+assert.equal(control.props.smallItemText, true, 'AA settings use the Safety-tab compact text size');
 
 // Check first row (touch): boolean toggle -> styleOnOff, value 1 (on)
 assert.equal(control.dataList.items[0].text1, 'Touchscreen while driving');
@@ -289,6 +320,8 @@ assert.equal(savedSettings.touch, false);
 assert.equal(control.dataList.items[0].value, 2);
 assert.equal(control.dataList.items[0].checked, false);
 assert.equal(writes, 1);
+assert.equal(lastSbn.type, 'typeD');
+assert.equal(lastSbn.props.text1, 'Settings saved', 'Successful saves notify while the settings view stays open');
 
 // Click again (toggle to ON)
 click(0);
@@ -395,6 +428,12 @@ assert.equal(control.dataList.items[7].label1, '1 km');
 assert.equal(control.dataList.items[7].hasCaret, true);
 
 // 7. Back navigation from main menu closes view
+input('left');
+assert.equal(backFocused, true, 'Left from the list transfers focus to the Mazda Back button');
+input('right');
+assert.equal(backFocused, false, 'Right from the Back button returns focus to the settings list');
+input('left');
+assert.equal(backFocused, true, 'Back button can be focused again');
 input('back');
 // Runtime calls onViewClose when view requests close
 resident.closed();
