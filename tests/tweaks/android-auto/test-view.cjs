@@ -7,10 +7,11 @@ const queue = [];
 const hostEvents = {};
 const viewEvents = {};
 const timers = new Map();
-let timer = 0, writes = 0, control = null, created = 0, destroyed = 0, attached = true, sb = 'Applications';
+let timer = 0, writes = 0, control = null, dialogConfig = null, created = 0, destroyed = 0, attached = true, sb = 'Applications';
 
-function element() {
+function element(tagName) {
     return {
+        tagName: tagName || 'div',
         children: [],
         style: { cssText: '' },
         className: '',
@@ -24,11 +25,26 @@ function element() {
     };
 }
 
+function findElement(node, className) {
+    if (node.className === className) { return node; }
+    for (let i = 0; i < node.children.length; i += 1) {
+        const found = findElement(node.children[i], className);
+        if (found) { return found; }
+    }
+    return null;
+}
+
 const status = element(), rootNode = element(), frame = element();
 rootNode.style.cssText = 'old-style';
 rootNode.appendChild(frame);
 
-const document = { getElementById: () => status };
+const head = element('head'), body = element('body');
+const document = {
+    body: body,
+    getElementById: () => status,
+    getElementsByTagName: name => name === 'head' ? [head] : name === 'iframe' ? [frame] : [],
+    createElement: tagName => element(tagName)
+};
 let lastSbn = null;
 let backFocused = false;
 const common = {
@@ -61,10 +77,21 @@ const common = {
 const originalSend = () => {};
 const fw = {
     common: common,
+    _frameworkState: 'idle',
+    _templatesLoaded: {},
+    _controlsLoaded: {},
+    _processedFilePaths: {},
+    registerCtrlLoaded(name) {
+        this._controlsLoaded[name] = { isLoaded: true, nameCounter: 0 };
+    },
+    registerTmpltLoaded(name) {
+        this._templatesLoaded[name] = { isLoaded: true, nameCounter: 0 };
+    },
     getCurrentApp: () => 'system',
     getCurrCtxtId: () => 'Applications',
     getAppInstance: () => ({
         _currentContextTemplate: {
+            divElt: { style: { visibility: 'hidden' } },
             list2Ctrl: { setLineNumbers() { this.restored = true; } }
         }
     }),
@@ -82,6 +109,9 @@ const fw = {
             hasFocus: true,
             dataList: props.dataList,
             handleControllerEvent(event) {
+                if (event === 'acceptFocusInit') {
+                    this.hasFocus = true;
+                }
                 if (event === 'leftStart') { return 'giveFocusLeft'; }
                 if (event === 'acceptFocusFromLeft' || event === 'acceptFocusFromRight') {
                     this.hasFocus = true;
@@ -118,9 +148,49 @@ const fw = {
         };
         return control;
     },
+    instantiateTemplate(app, parent, type, props) {
+        assert.equal(type, 'Dialog3Tmplt');
+        assert.equal(this._templatesLoaded.Dialog3Tmplt.isLoaded, true, 'OEM template assets are registered before instantiation');
+        assert.equal(this._frameworkState, 'idle', 'Instantiating a preloaded dialog does not change framework state');
+        assert.equal(parent.parentNode, body, 'OEM dialog root is a body-level overlay');
+        dialogConfig = props.Dialog3Ctrl;
+        const dialogElement = element();
+        dialogElement.className = 'TemplateFull Dialog3Tmplt';
+        parent.appendChild(dialogElement);
+        const button = dialogConfig.buttonConfig.button1;
+        return {
+            divElt: dialogElement,
+            dialog3Ctrl: {},
+            cleanUp() {},
+            handleControllerEvent(event) {
+                if (event === 'select') {
+                    dialogConfig.defaultSelectCallback(this, button.appData);
+                }
+            }
+        };
+    },
     destroyControl(c) {
         destroyed++;
         if (control === c) { control = null; }
+    }
+};
+
+head.appendChild = function (node) {
+    node.parentNode = head;
+    head.children.push(node);
+    if (node.tagName === 'link') {
+        node.onload();
+    } else if (node.src.indexOf('ButtonCtrl.js') >= 0) {
+        fw.registerCtrlLoaded('ButtonCtrl');
+        node.onload();
+    } else if (node.src.indexOf('Dialog3Ctrl.js') >= 0) {
+        fw.registerCtrlLoaded('Dialog3Ctrl');
+        node.onload();
+    } else if (node.src.indexOf('Dialog3Tmplt.js') >= 0) {
+        fw.registerTmpltLoaded('Dialog3Tmplt');
+        node.onload();
+    } else {
+        assert.fail('Unexpected Mazda dialog asset: ' + node.src);
     }
 };
 
@@ -222,12 +292,9 @@ host.MzdGuiResidents = {
 
 const hostContext = {
     window: host,
-    document: {
-        getElementsByTagName: () => frames,
-        createElement: element,
-        documentElement: { contains: () => attached }
-    }
+    document: document
 };
+document.documentElement = { contains: () => attached };
 
 // Run resident script
 vm.runInNewContext(fs.readFileSync(path.join(aaRoot, 'assets/resident.js'), 'utf8'), hostContext);
@@ -250,6 +317,11 @@ vm.runInNewContext(fs.readFileSync(path.join(aaRoot, 'assets/i18n.js'), 'utf8'),
     }
 });
 const texts = dictionary.languages.en_US;
+for (const language of Object.values(dictionary.languages)) {
+    for (const key of ['reboot', 'rebootInstructions', 'rebootNotice']) {
+        assert.equal(typeof language[key], 'string', 'Every language has the ' + key + ' translation');
+    }
+}
 for (const fn of viewEvents.message.slice()) {
     fn({
         source: parent,
@@ -292,7 +364,7 @@ function input(action, phase = 'step') {
 flush();
 assert.equal(intervalsStarted, 1, 'Polling interval started on view open');
 assert.equal(sb, 'Android Auto Settings');
-assert.equal(control.dataList.items.length, 15);
+assert.equal(control.dataList.items.length, 16);
 assert.equal(control.props.smallItemText, true, 'AA settings use the Safety-tab compact text size');
 
 // Check first row (touch): boolean toggle -> styleOnOff, value 1 (on)
@@ -313,6 +385,31 @@ assert.equal(control.dataList.items[7].text1, 'Show HUD turns within');
 assert.equal(control.dataList.items[7].itemStyle, 'style06');
 assert.equal(control.dataList.items[7].label1, 'Always');
 assert.equal(control.dataList.items[7].hasCaret, true);
+
+// 1b. Reboot action uses the OEM reset icon and opens the one-button instruction dialog
+assert.equal(control.dataList.items[15].text1, 'Reboot to apply changes');
+assert.equal(control.dataList.items[15].image1, 'common/images/icons/IcnUmpReset_En.png');
+control.hasFocus = false;
+click(15);
+assert.equal(dialogConfig.text1, 'To apply Android Auto settings hold NAV + MUTE until MZD reboots');
+assert.equal(dialogConfig.buttonConfig.button1.labelId, 'common.Ok', 'OEM dialog uses the localized OK button');
+assert.equal(dialogConfig.buttonConfig.button1.appData, 'ok');
+assert.notEqual(findElement(body, 'TemplateFull Dialog3Tmplt'), null, 'The OEM dialog covers the full interface');
+assert.equal(fw._frameworkState, 'idle', 'Opening the dialog does not enter the framework template-loading state');
+input('select', 'press');
+input('select', 'release');
+flush();
+assert.equal(findElement(body, 'TemplateFull Dialog3Tmplt'), null, 'Selecting OK removes the OEM dialog');
+assert.equal(control.hasFocus, true, 'Dismissing the dialog restores list focus');
+const focusBeforeDialogDismissal = control.focus;
+input('down');
+assert.notEqual(control.focus, focusBeforeDialogDismissal, 'List navigation works after dismissing the dialog');
+
+click(15);
+assert.notEqual(findElement(body, 'TemplateFull Dialog3Tmplt'), null, 'Instruction dialog can be opened again');
+dialogConfig.defaultSelectCallback(null, 'ok');
+flush();
+assert.equal(findElement(body, 'TemplateFull Dialog3Tmplt'), null, 'Touch selection dismisses the OEM dialog');
 
 // 2. Click touch row (toggle to OFF)
 click(0);
@@ -420,7 +517,7 @@ assert.equal(writes, 8);
 // 6. Navigate back to main settings menu
 input('back');
 assert.equal(sb, 'Android Auto Settings');
-assert.equal(control.dataList.items.length, 15);
+assert.equal(control.dataList.items.length, 16);
 
 // Verify that the distance row now displays "1 km" on the right hand side
 assert.equal(control.dataList.items[7].text1, 'Show HUD turns within');
@@ -437,6 +534,8 @@ assert.equal(backFocused, true, 'Back button can be focused again');
 input('back');
 // Runtime calls onViewClose when view requests close
 resident.closed();
+assert.equal(sb, 'Applications', 'Closing Android Auto settings restores the Applications header even when its template is hidden');
+assert.equal(lastSbn.props.text1, 'Reboot to apply settings', 'Leaving after a successful save prompts for a reboot');
 assert.equal(intervalsCleared, 1, 'Polling interval cleared on view close');
 assert.equal(host.refresh, undefined, 'Polling callback removed');
 assert.equal(control, null, 'List control destroyed on close');
@@ -473,6 +572,7 @@ hostEvents.message({
     }
 });
 flush();
+resident.closed();
 
 assert.notEqual(lastSbn, null, 'Saving SBN emitted on exit while save in flight');
 assert.equal(lastSbn.uiaId, 'androidauto');
@@ -489,7 +589,7 @@ flush();
 
 assert.notEqual(lastSbn, null, 'Saved SBN emitted when background save finished');
 assert.equal(lastSbn.type, 'typeD');
-assert.equal(lastSbn.props.text1, 'Android Auto settings saved.');
+assert.equal(lastSbn.props.text1, 'Reboot to apply settings');
 assert.equal(savedSettings.touch, false);
 
 // 8b. Untrusted aa-native-release is ignored
@@ -657,4 +757,4 @@ assert.equal(reloadedState.touch, false);
 hostEvents.unload();
 flush();
 
-console.log('ANDROID_AUTO_VIEW_PASSED: MZD Connect styling, styleOnOff checkboxes, distance submenu with style03 checkmarks, value display on main menu, back navigation, SBN system toast and cleanup.');
+console.log('ANDROID_AUTO_VIEW_PASSED: MZD Connect styling, OEM reboot icon and instruction dialog, modal dismissal and focus restoration, saved-change reboot notice, settings navigation, SBN system toast and cleanup.');

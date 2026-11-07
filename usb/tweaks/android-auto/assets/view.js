@@ -1,7 +1,7 @@
 (function () {
     'use strict';
     var sdk = window.MzdGuiModule, status = document.getElementById('status');
-    var ended = false, state = null, page = 'home', index = 0, positions = {home: 0, distance: 0}, notice = '';
+    var ended = false, state = null, page = 'home', index = 0, positions = {home: 0, distance: 0}, notice = '', dialog = '';
     var match = /(?:^|[&#])mzdgui=([a-zA-Z0-9-]+)(?:&|$)/.exec(window.location.hash);
     var token = match ? match[1] : '';
 
@@ -52,9 +52,26 @@
                 value: value,
                 savingMessage: tr('savingSettings', 'Saving Android Auto settings...'),
                 savedMessage: tr('savedSettings', 'Android Auto settings saved.'),
-                errorMessage: tr('saveError', tr('error', 'Failed to save Android Auto settings'))
+                errorMessage: tr('saveError', tr('error', 'Failed to save Android Auto settings')),
+                rebootNotice: tr('rebootNotice', 'Reboot to apply settings')
             }
         });
+    }
+
+    function renderDialog() {
+        post({
+            type: 'aa-native-dialog',
+            dialog: {
+                text: tr('rebootInstructions', 'To apply Android Auto settings hold NAV + MUTE until MZD reboots'),
+                buttons: [{ value: 'ok', labelId: 'common.Ok' }]
+            }
+        });
+    }
+
+    function closeDialog() {
+        dialog = '';
+        post({ type: 'aa-native-dialog', dialog: null });
+        render();
     }
 
     function post(data) {
@@ -109,6 +126,12 @@
                 });
             }
         }
+        result.push({
+            id: 'reboot',
+            action: 'reboot',
+            label: tr('reboot', 'Reboot to apply changes'),
+            image1: 'common/images/icons/IcnUmpReset_En.png'
+        });
         return result;
     }
 
@@ -136,13 +159,19 @@
     }
 
     function activate(position) {
-        if (ended || !state) { return; }
+        if (ended || !state || dialog) { return; }
         notice = '';
         index = position;
         var list = entries();
         var row = list[index];
         if (!row || row.disabled) { return; }
         positions[page] = index;
+
+        if (row.action === 'reboot') {
+            dialog = 'instructions';
+            renderDialog();
+            return;
+        }
 
         if (page === 'distance') {
             var selectedMeters = row.meters;
@@ -177,6 +206,10 @@
 
     function render() {
         if (ended || !state) { return; }
+        if (dialog) {
+            renderDialog();
+            return;
+        }
         var list = entries(), heading;
         if (index >= list.length) { index = 0; }
         heading = (page === 'distance') ?
@@ -207,6 +240,12 @@
             }
             return;
         }
+        if (data.type === 'aa-native-dialog-select') {
+            if (dialog) {
+                closeDialog();
+            }
+            return;
+        }
         if (data.type === 'aa-native-error') {
             if (status) {
                 status.textContent = tr('menuError', 'The Mazda menu could not be opened. Please reopen the app.');
@@ -230,6 +269,10 @@
         if (ended) { return false; }
         if (action === 'back') {
             if (phase === 'press') { return true; }
+            if (dialog) {
+                closeDialog();
+                return true;
+            }
             return back();
         }
         if (state) {
@@ -244,7 +287,8 @@
             type: 'aa-native-release',
             savingMessage: tr('savingSettings', 'Saving Android Auto settings...'),
             savedMessage: tr('savedSettings', 'Android Auto settings saved.'),
-            errorMessage: tr('saveError', tr('error', 'Failed to save Android Auto settings'))
+            errorMessage: tr('saveError', tr('error', 'Failed to save Android Auto settings')),
+            rebootNotice: tr('rebootNotice', 'Reboot to apply settings')
         });
         ended = true;
         window.removeEventListener('message', receive, false);

@@ -51,6 +51,11 @@ The interactive GUI allows managing runtime library settings directly on the CMU
 - **Fix cut-off navigation voice** (`aa_audio_low_latency`) - fixes the issue where spoken navigation directions (such as from Google Maps or Waze) get clipped or cut off at the beginning or end of words. It keeps the car audio channel ready so voice guidance plays smoothly without delays.
 
 Settings are read from and atomically written to `/tmp/mnt/data_persist/oem-aa-mod/libpatch.conf` via the secure local GUI service.
+After a setting is saved, leaving the settings list displays a **Reboot to apply
+settings** notification. The list also includes a reboot action that displays
+instructions to hold **NAV + MUTE** until MZD reboots. The GUI exposes no
+supported user-initiated CMU reboot API, so the dialog does not reboot the CMU
+itself.
 
 ## User settings and configuration overrides
 

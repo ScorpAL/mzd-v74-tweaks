@@ -3,6 +3,9 @@ window.MzdGuiI18n.register('android-auto', {
     'languages': {
         'en_US': {
             'gui.label': 'Android Auto Settings',
+            'reboot': 'Reboot to apply changes',
+            'rebootInstructions': 'To apply Android Auto settings hold NAV + MUTE until MZD reboots',
+            'rebootNotice': 'Reboot to apply settings',
             'title': 'Android Auto Settings',
             'touch': 'Touchscreen while driving',
             'hud': 'Show navigation on HUD',
@@ -31,6 +34,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'de_DE': {
             'gui.label': 'Android Auto-Einstellungen',
+            'reboot': 'Neustart zum Anwenden',
+            'rebootInstructions': 'Halten Sie NAV + MUTE gedrückt, bis MZD neu startet, um die Android-Einstellungen anzuwenden',
+            'rebootNotice': 'Zum Anwenden neu starten',
             'title': 'Android Auto-Einstellungen',
             'touch': 'Touchscreen während der Fahrt',
             'hud': 'Navigation auf HUD anzeigen',
@@ -59,6 +65,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'es_ES': {
             'gui.label': 'Ajustes de Android Auto',
+            'reboot': 'Reiniciar para aplicar',
+            'rebootInstructions': 'Para aplicar los ajustes de Android, mantén pulsados NAV + MUTE hasta que MZD se reinicie',
+            'rebootNotice': 'Reinicia para aplicar',
             'title': 'Ajustes de Android Auto',
             'touch': 'Pantalla táctil en marcha',
             'hud': 'Mostrar navegación en HUD',
@@ -87,6 +96,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'fr_FR': {
             'gui.label': 'Réglages Android Auto',
+            'reboot': 'Redémarrer pour appliquer',
+            'rebootInstructions': 'Pour appliquer les réglages Android, maintenez NAV + MUTE jusqu’au redémarrage de MZD',
+            'rebootNotice': 'Redémarrer pour appliquer',
             'title': 'Réglages Android Auto',
             'touch': 'Écran tactile en roulant',
             'hud': 'Afficher navigation sur HUD',
@@ -115,6 +127,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'it_IT': {
             'gui.label': 'Impostazioni Android Auto',
+            'reboot': 'Riavvia per applicare',
+            'rebootInstructions': 'Per applicare le impostazioni Android, tieni premuti NAV + MUTE finché MZD non si riavvia',
+            'rebootNotice': 'Riavvia per applicare',
             'title': 'Impostazioni Android Auto',
             'touch': 'Touchscreen durante la guida',
             'hud': 'Mostra navigazione su HUD',
@@ -143,6 +158,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'nl_NL': {
             'gui.label': 'Android Auto-instellingen',
+            'reboot': 'Herstarten om toe te passen',
+            'rebootInstructions': 'Houd NAV + MUTE ingedrukt totdat MZD opnieuw opstart om de Android-instellingen toe te passen',
+            'rebootNotice': 'Herstart om toe te passen',
             'title': 'Android Auto-instellingen',
             'touch': 'Touchscreen tijdens het rijden',
             'hud': 'Navigatie op HUD weergeven',
@@ -171,6 +189,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'pt_PT': {
             'gui.label': 'Definições do Android Auto',
+            'reboot': 'Reiniciar para aplicar',
+            'rebootInstructions': 'Para aplicar as definições do Android, mantenha NAV + MUTE premidos até o MZD reiniciar',
+            'rebootNotice': 'Reiniciar para aplicar',
             'title': 'Definições do Android Auto',
             'touch': 'Ecrã tátil em andamento',
             'hud': 'Mostrar navegação no HUD',
@@ -199,6 +220,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'pt_BR': {
             'gui.label': 'Configurações do Android Auto',
+            'reboot': 'Reiniciar para aplicar',
+            'rebootInstructions': 'Para aplicar as configurações do Android, mantenha NAV + MUTE pressionados até o MZD reiniciar',
+            'rebootNotice': 'Reinicie para aplicar',
             'title': 'Configurações do Android Auto',
             'touch': 'Touchscreen ao dirigir',
             'hud': 'Mostrar navegação no HUD',
@@ -227,6 +251,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'ru_RU': {
             'gui.label': 'Настройки Android Auto',
+            'reboot': 'Перезагрузить для применения',
+            'rebootInstructions': 'Чтобы применить настройки Android, удерживайте NAV + MUTE, пока MZD не перезагрузится',
+            'rebootNotice': 'Перезагрузите для применения',
             'title': 'Настройки Android Auto',
             'touch': 'Сенсорный экран во время движения',
             'hud': 'Навигация на HUD',
@@ -255,6 +282,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'fi_FI': {
             'gui.label': 'Android Auto -asetukset',
+            'reboot': 'Käynnistä uudelleen',
+            'rebootInstructions': 'Ota Android-asetukset käyttöön pitämällä NAV + MUTE painettuna, kunnes MZD käynnistyy uudelleen',
+            'rebootNotice': 'Käynnistä uudelleen',
             'title': 'Android Auto -asetukset',
             'touch': 'Kosketusnäyttö ajon aikana',
             'hud': 'Näytä navigointi HUD-näytöllä',
@@ -283,6 +313,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'sv_SE': {
             'gui.label': 'Android Auto-inställningar',
+            'reboot': 'Starta om för att tillämpa',
+            'rebootInstructions': 'Håll NAV + MUTE intryckta tills MZD startar om för att tillämpa Android-inställningarna',
+            'rebootNotice': 'Starta om för att tillämpa',
             'title': 'Android Auto-inställningar',
             'touch': 'Pekskärm under körning',
             'hud': 'Visa navigation på HUD',
@@ -311,6 +344,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'da_DK': {
             'gui.label': 'Android Auto-indstillinger',
+            'reboot': 'Genstart for at anvende',
+            'rebootInstructions': 'Hold NAV + MUTE nede, indtil MZD genstarter, for at anvende Android-indstillingerne',
+            'rebootNotice': 'Genstart for at anvende',
             'title': 'Android Auto-indstillinger',
             'touch': 'Berøringsskærm under kørsel',
             'hud': 'Vis navigation på HUD',
@@ -339,6 +375,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'no_NO': {
             'gui.label': 'Android Auto-innstillinger',
+            'reboot': 'Start på nytt for å bruke',
+            'rebootInstructions': 'Hold NAV + MUTE inne til MZD starter på nytt for å bruke Android-innstillingene',
+            'rebootNotice': 'Start på nytt for å bruke',
             'title': 'Android Auto-innstillinger',
             'touch': 'Berøringsskjerm under kjøring',
             'hud': 'Vis navigasjon på HUD',
@@ -367,6 +406,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'cs_CS': {
             'gui.label': 'Nastavení Android Auto',
+            'reboot': 'Restartovat pro použití',
+            'rebootInstructions': 'Nastavení Androidu použijete podržením NAV + MUTE, dokud se MZD nerestartuje',
+            'rebootNotice': 'Restartujte pro použití',
             'title': 'Nastavení Android Auto',
             'touch': 'Dotyková obrazovka během jízdy',
             'hud': 'Zobrazit navigaci na HUD',
@@ -395,6 +437,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'hu_HU': {
             'gui.label': 'Android Auto beállítások',
+            'reboot': 'Újraindítás az alkalmazáshoz',
+            'rebootInstructions': 'Az Android-beállítások alkalmazásához tartsa lenyomva a NAV + MUTE gombokat a MZD újraindulásáig',
+            'rebootNotice': 'Újraindítás az alkalmazáshoz',
             'title': 'Android Auto beállítások',
             'touch': 'Érintőképernyő vezetés közben',
             'hud': 'Navigáció megjelenítése a HUD-on',
@@ -423,6 +468,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'pl_PL': {
             'gui.label': 'Ustawienia Android Auto',
+            'reboot': 'Uruchom ponownie, by zastosować',
+            'rebootInstructions': 'Aby zastosować ustawienia Androida, przytrzymaj NAV + MUTE, aż MZD uruchomi się ponownie',
+            'rebootNotice': 'Uruchom ponownie, by zastosować',
             'title': 'Ustawienia Android Auto',
             'touch': 'Ekran dotykowy podczas jazdy',
             'hud': 'Pokaż nawigację na HUD',
@@ -451,6 +499,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'sk_SK': {
             'gui.label': 'Nastavenia Android Auto',
+            'reboot': 'Reštartovať pre použitie',
+            'rebootInstructions': 'Nastavenia Androidu použijete podržaním NAV + MUTE, kým sa MZD nereštartuje',
+            'rebootNotice': 'Reštartujte pre použitie',
             'title': 'Nastavenia Android Auto',
             'touch': 'Dotyková obrazovka počas jazdy',
             'hud': 'Zobraziť navigáciu na HUD',
@@ -479,6 +530,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'tr_TR': {
             'gui.label': 'Android Auto Ayarları',
+            'reboot': 'Uygulamak için yeniden başlat',
+            'rebootInstructions': 'Android ayarlarını uygulamak için MZD yeniden başlayana kadar NAV + MUTE düğmelerini basılı tutun',
+            'rebootNotice': 'Uygulamak için yeniden başlatın',
             'title': 'Android Auto Ayarları',
             'touch': 'Sürüş sırasında dokunmatik ekran',
             'hud': 'Navigasyonu HUD\'da göster',
@@ -507,6 +561,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'et_EE': {
             'gui.label': 'Android Auto seaded',
+            'reboot': 'Taaskäivita rakendamiseks',
+            'rebootInstructions': 'Androidi seadete rakendamiseks hoidke NAV + MUTE all, kuni MZD taaskäivitub',
+            'rebootNotice': 'Taaskäivita rakendamiseks',
             'title': 'Android Auto seaded',
             'touch': 'Puuteekraan sõidu ajal',
             'hud': 'Kuva navigatsioon HUD-il',
@@ -535,6 +592,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'lv_LV': {
             'gui.label': 'Android Auto iestatījumi',
+            'reboot': 'Restartēt, lai lietotu',
+            'rebootInstructions': 'Lai lietotu Android iestatījumus, turiet NAV + MUTE, līdz MZD tiek restartēts',
+            'rebootNotice': 'Restartējiet, lai lietotu',
             'title': 'Android Auto iestatījumi',
             'touch': 'Skārienekrāns braukšanas laikā',
             'hud': 'Rādīt navigāciju uz HUD',
@@ -563,6 +623,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'lt_LT': {
             'gui.label': '„Android Auto“ nustatymai',
+            'reboot': 'Paleisti iš naujo ir pritaikyti',
+            'rebootInstructions': 'Norėdami pritaikyti „Android“ nustatymus, laikykite NAV + MUTE, kol MZD bus paleista iš naujo',
+            'rebootNotice': 'Paleiskite iš naujo pritaikymui',
             'title': '„Android Auto“ nustatymai',
             'touch': 'Jutiklinis ekranas važiuojant',
             'hud': 'Rodyti navigaciją HUD',
@@ -591,6 +654,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'el_GR': {
             'gui.label': 'Ρυθμίσεις Android Auto',
+            'reboot': 'Επανεκκίνηση για εφαρμογή',
+            'rebootInstructions': 'Για να εφαρμοστούν οι ρυθμίσεις Android, κρατήστε πατημένα τα NAV + MUTE μέχρι να γίνει επανεκκίνηση του MZD',
+            'rebootNotice': 'Επανεκκίνηση για εφαρμογή',
             'title': 'Ρυθμίσεις Android Auto',
             'touch': 'Οθόνη αφής κατά την οδήγηση',
             'hud': 'Εμφάνιση πλοήγησης στο HUD',
@@ -619,6 +685,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'hr_HR': {
             'gui.label': 'Postavke za Android Auto',
+            'reboot': 'Ponovno pokreni za primjenu',
+            'rebootInstructions': 'Za primjenu postavki Androida držite NAV + MUTE dok se MZD ponovno ne pokrene',
+            'rebootNotice': 'Ponovno pokrenite za primjenu',
             'title': 'Postavke za Android Auto',
             'touch': 'Zaslon osjetljiv na dodir tijekom vožnje',
             'hud': 'Prikaži navigaciju na HUD-u',
@@ -647,6 +716,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'bg_BG': {
             'gui.label': 'Настройки на Android Auto',
+            'reboot': 'Рестартирайте за прилагане',
+            'rebootInstructions': 'За да приложите настройките на Android, задръжте NAV + MUTE, докато MZD се рестартира',
+            'rebootNotice': 'Рестартирайте за прилагане',
             'title': 'Настройки на Android Auto',
             'touch': 'Сензорен екран по време на шофиране',
             'hud': 'Показване на навигация на HUD',
@@ -675,6 +747,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'ro_RO': {
             'gui.label': 'Setări Android Auto',
+            'reboot': 'Reporniți pentru aplicare',
+            'rebootInstructions': 'Pentru a aplica setările Android, țineți apăsat NAV + MUTE până când MZD repornește',
+            'rebootNotice': 'Reporniți pentru aplicare',
             'title': 'Setări Android Auto',
             'touch': 'Ecran tactil în timpul conducerii',
             'hud': 'Afișează navigația pe HUD',
@@ -703,6 +778,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'sr_RS': {
             'gui.label': 'Подешавања за Android Auto',
+            'reboot': 'Поново покрените за примену',
+            'rebootInstructions': 'Да бисте применили Android подешавања, држите NAV + MUTE док се MZD поново не покрене',
+            'rebootNotice': 'Поново покрените за примену',
             'title': 'Подешавања за Android Auto',
             'touch': 'Екран осетљив на додир током вожње',
             'hud': 'Прикажи навигацију на HUD-у',
@@ -731,6 +809,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'uk_UA': {
             'gui.label': 'Налаштування Android Auto',
+            'reboot': 'Перезапустити для застосування',
+            'rebootInstructions': 'Щоб застосувати налаштування Android, утримуйте NAV + MUTE, доки MZD не перезапуститься',
+            'rebootNotice': 'Перезапустіть для застосування',
             'title': 'Налаштування Android Auto',
             'touch': 'Сенсорний екран під час руху',
             'hud': 'Показувати навігацію на HUD',
@@ -759,6 +840,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'ms_MY': {
             'gui.label': 'Tetapan Android Auto',
+            'reboot': 'Mulakan semula untuk guna',
+            'rebootInstructions': 'Untuk menggunakan tetapan Android, tahan NAV + MUTE sehingga MZD dimulakan semula',
+            'rebootNotice': 'Mulakan semula untuk guna',
             'title': 'Tetapan Android Auto',
             'touch': 'Skrin sentuh semasa memandu',
             'hud': 'Tunjukkan navigasi pada HUD',
@@ -787,6 +871,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'id_ID': {
             'gui.label': 'Pengaturan Android Auto',
+            'reboot': 'Mulai ulang untuk menerapkan',
+            'rebootInstructions': 'Untuk menerapkan setelan Android, tahan NAV + MUTE hingga MZD dimulai ulang',
+            'rebootNotice': 'Mulai ulang untuk menerapkan',
             'title': 'Pengaturan Android Auto',
             'touch': 'Layar sentuh saat berkendara',
             'hud': 'Tampilkan navigasi di HUD',
@@ -815,6 +902,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'ja_JP': {
             'gui.label': 'Android Auto設定',
+            'reboot': '変更を適用するため再起動',
+            'rebootInstructions': 'Androidの設定を適用するには、MZDが再起動するまでNAV + MUTEを長押ししてください',
+            'rebootNotice': '設定を適用するため再起動',
             'title': 'Android Auto設定',
             'touch': '走行中のタッチパネル操作',
             'hud': 'HUDにナビ案内を表示',
@@ -843,6 +933,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'zh_CN': {
             'gui.label': 'Android Auto设置',
+            'reboot': '重新启动以应用更改',
+            'rebootInstructions': '要应用 Android 设置，请按住 NAV + MUTE，直到 MZD 重新启动',
+            'rebootNotice': '重新启动以应用设置',
             'title': 'Android Auto设置',
             'touch': '行车时启用触屏',
             'hud': '在HUD上显示导航',
@@ -871,6 +964,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'zh_TW': {
             'gui.label': 'Android Auto設定',
+            'reboot': '重新啟動以套用變更',
+            'rebootInstructions': '若要套用 Android 設定，請按住 NAV + MUTE，直到 MZD 重新啟動',
+            'rebootNotice': '重新啟動以套用設定',
             'title': 'Android Auto設定',
             'touch': '行車時啟用觸控螢幕',
             'hud': '在HUD上顯示導航',
@@ -899,6 +995,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'cn_HK': {
             'gui.label': 'Android Auto設定',
+            'reboot': '重新啟動以套用變更',
+            'rebootInstructions': '若要套用 Android 設定，請按住 NAV + MUTE，直到 MZD 重新啟動',
+            'rebootNotice': '重新啟動以套用設定',
             'title': 'Android Auto設定',
             'touch': '行車時啟用觸控螢幕',
             'hud': '在HUD上顯示導航',
@@ -927,6 +1026,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'ar_SA': {
             'gui.label': 'إعدادات Android Auto',
+            'reboot': 'أعد التشغيل للتغييرات',
+            'rebootInstructions': 'لتطبيق إعدادات Android، اضغط باستمرار على NAV + MUTE حتى تتم إعادة تشغيل MZD',
+            'rebootNotice': 'أعد التشغيل للتطبيق',
             'title': 'إعدادات Android Auto',
             'touch': 'شاشة اللمس أثناء القيادة',
             'hud': 'إظهار الملاحة على HUD',
@@ -955,6 +1057,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'he_IL': {
             'gui.label': 'הגדרות Android Auto',
+            'reboot': 'הפעל מחדש להחלת השינויים',
+            'rebootInstructions': 'כדי להחיל את הגדרות Android, החזק את NAV + MUTE עד ש-MZD יופעל מחדש',
+            'rebootNotice': 'הפעל מחדש להחלה',
             'title': 'הגדרות Android Auto',
             'touch': 'מסך מגע בזמן נהיגה',
             'hud': 'הצג ניווט ב-HUD',
@@ -983,6 +1088,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'th_TH': {
             'gui.label': 'การตั้งค่า Android Auto',
+            'reboot': 'เริ่มระบบใหม่เพื่อใช้',
+            'rebootInstructions': 'หากต้องการใช้การตั้งค่า Android ให้กด NAV + MUTE ค้างไว้จนกว่า MZD จะเริ่มระบบใหม่',
+            'rebootNotice': 'เริ่มระบบใหม่เพื่อใช้',
             'title': 'การตั้งค่า Android Auto',
             'touch': 'หน้าจอสัมผัสขณะขับขี่',
             'hud': 'แสดงการนำทางบน HUD',
@@ -1011,6 +1119,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'en_UK': {
             'gui.label': 'Android Auto Settings',
+            'reboot': 'Reboot to apply changes',
+            'rebootInstructions': 'To apply Android Auto settings hold NAV + MUTE until MZD reboots',
+            'rebootNotice': 'Reboot to apply settings',
             'title': 'Android Auto Settings',
             'touch': 'Touchscreen while driving',
             'hud': 'Show navigation on HUD',
@@ -1039,6 +1150,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'en_AU': {
             'gui.label': 'Android Auto Settings',
+            'reboot': 'Reboot to apply changes',
+            'rebootInstructions': 'To apply Android Auto settings hold NAV + MUTE until MZD reboots',
+            'rebootNotice': 'Reboot to apply settings',
             'title': 'Android Auto Settings',
             'touch': 'Touchscreen while driving',
             'hud': 'Show navigation on HUD',
@@ -1067,6 +1181,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'es_MX': {
             'gui.label': 'Ajustes de Android Auto',
+            'reboot': 'Reiniciar para aplicar cambios',
+            'rebootInstructions': 'Para aplicar los ajustes de Android, mantén pulsados NAV + MUTE hasta que MZD se reinicie',
+            'rebootNotice': 'Reinicia para aplicar ajustes',
             'title': 'Ajustes de Android Auto',
             'touch': 'Pantalla táctil al conducir',
             'hud': 'Mostrar navegación en HUD',
@@ -1095,6 +1212,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'fr_CN': {
             'gui.label': 'Réglages Android Auto',
+            'reboot': 'Redémarrer pour appliquer',
+            'rebootInstructions': 'Pour appliquer les réglages Android, maintenez NAV + MUTE jusqu’au redémarrage de MZD',
+            'rebootNotice': 'Redémarrer pour appliquer',
             'title': 'Réglages Android Auto',
             'touch': 'Écran tactile en roulant',
             'hud': 'Afficher navigation sur HUD',
@@ -1123,6 +1243,9 @@ window.MzdGuiI18n.register('android-auto', {
         },
         'mn_TW': {
             'gui.label': 'Android Auto設定',
+            'reboot': '重新啟動以套用變更',
+            'rebootInstructions': '若要套用 Android 設定，請按住 NAV + MUTE，直到 MZD 重新啟動',
+            'rebootNotice': '重新啟動以套用設定',
             'title': 'Android Auto設定',
             'touch': '行車時啟用觸控螢幕',
             'hud': '在HUD上顯示導航',
