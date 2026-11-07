@@ -7,14 +7,14 @@ local DEFAULTS = {
     hud_transport = 'svcnavi',
     force_street_name = false,
     hud_fold_latin = true,
-    use_protocol_v1_6 = true,
+    use_protocol_v1_6 = false,
     roundabout_prepend_exit_number = false,
     compass_always_on = false,
     bt_pairing_bypass_all_devices = false,
     bt_pairing_show_device_notification = false,
     mute_pauses_phone = true,
     unmute_starts_playback = false,
-    block_headunit_media_play = true,
+    block_headunit_media_play = false,
     aa_audio_low_latency = false,
     hud_maneuver_max_distance_m = 0
 }
