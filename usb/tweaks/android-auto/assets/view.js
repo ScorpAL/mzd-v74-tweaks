@@ -35,7 +35,7 @@
     function formatDistance(meters) {
         var m = Number(meters) || 0;
         if (!m || m === 0) {
-            return tr('always', 'Always');
+            return tr('default', 'Default');
         }
         if (m >= 1000) {
             return (m / 1000) + ' km';

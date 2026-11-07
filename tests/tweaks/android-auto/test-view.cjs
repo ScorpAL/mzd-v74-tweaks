@@ -380,10 +380,10 @@ assert.equal(control.dataList.items[2].itemStyle, 'styleOnOff');
 assert.equal(control.dataList.items[2].value, 1);
 assert.equal(control.dataList.items[2].checked, true);
 
-// Check row 7 (hud_maneuver_max_distance_m): style06 with label1="Always" and hasCaret=true
+// Check row 7 (hud_maneuver_max_distance_m): style06 with label1="Default" and hasCaret=true
 assert.equal(control.dataList.items[7].text1, 'Show HUD turns within');
 assert.equal(control.dataList.items[7].itemStyle, 'style06');
-assert.equal(control.dataList.items[7].label1, 'Always');
+assert.equal(control.dataList.items[7].label1, 'Default');
 assert.equal(control.dataList.items[7].hasCaret, true);
 
 // 1b. Reboot action uses the OEM reset icon and opens the one-button instruction dialog
@@ -493,8 +493,8 @@ click(7);
 assert.equal(sb, 'Show HUD turns within');
 assert.equal(control.dataList.items.length, 10); // 10 distance options
 
-// Verify distance options: style03, image1 'tick', only 0m (Always) is checked
-assert.equal(control.dataList.items[0].text1, 'Always');
+// Verify distance options: style03, image1 'tick', only 0m (Default) is checked
+assert.equal(control.dataList.items[0].text1, 'Default');
 assert.equal(control.dataList.items[0].itemStyle, 'style03');
 assert.equal(control.dataList.items[0].image1, 'tick');
 assert.equal(control.dataList.items[0].checked, true);
