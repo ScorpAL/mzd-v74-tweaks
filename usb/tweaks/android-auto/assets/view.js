@@ -62,8 +62,11 @@
         post({
             type: 'aa-native-dialog',
             dialog: {
-                text: tr('rebootInstructions', 'To apply Android Auto settings hold NAV + MUTE until MZD reboots'),
-                buttons: [{ value: 'ok', labelId: 'common.Ok' }]
+                text: tr('rebootQuestion', 'Do you want to reboot MZD to apply Android Auto settings?'),
+                buttons: [
+                    { value: 'no', labelId: 'common.No' },
+                    { value: 'yes', labelId: 'common.Yes' }
+                ]
             }
         });
     }
@@ -168,7 +171,7 @@
         positions[page] = index;
 
         if (row.action === 'reboot') {
-            dialog = 'instructions';
+            dialog = 'reboot';
             renderDialog();
             return;
         }
@@ -241,8 +244,18 @@
             return;
         }
         if (data.type === 'aa-native-dialog-select') {
+            var reboot = dialog === 'reboot' && data.index === 'yes';
             if (dialog) {
                 closeDialog();
+            }
+            if (reboot) {
+                post({
+                    type: 'aa-request',
+                    action: 'reboot',
+                    payload: {
+                        errorMessage: tr('rebootError', 'Hold NAV + MUTE to reboot')
+                    }
+                });
             }
             return;
         }

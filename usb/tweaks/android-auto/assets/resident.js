@@ -186,7 +186,7 @@
                 destroyDialog(true);
                 return;
             }
-            if (typeof spec.text !== 'string' || !spec.buttons || spec.buttons.length !== 1) {
+            if (typeof spec.text !== 'string' || !spec.buttons || spec.buttons.length !== 2) {
                 throw new Error('Invalid confirmation dialog.');
             }
             signature = JSON.stringify(spec);
@@ -217,7 +217,12 @@
                             initialFocus: 0,
                             text1: spec.text,
                             buttonConfig: {
-                                button1: {appData: button.value, label: button.label, labelId: button.labelId}
+                                button1: {appData: button.value, label: button.label, labelId: button.labelId},
+                                button2: {
+                                    appData: spec.buttons[1].value,
+                                    label: spec.buttons[1].label,
+                                    labelId: spec.buttons[1].labelId
+                                }
                             },
                             defaultSelectCallback: function (source, value) {
                                 if (session && session.frame === frame && session.token === token && session.dialogRequest === request) {
@@ -678,6 +683,14 @@
                     } else {
                         syncFromService();
                     }
+                    return;
+                }
+                if (data.action === 'reboot') {
+                    context.service.request('reboot', {}, function (error) {
+                        if (error) {
+                            showSbn(data.payload && data.payload.errorMessage || 'Hold NAV + MUTE to reboot', false);
+                        }
+                    });
                     return;
                 }
                 if (data.action === 'set' && data.payload && data.payload.key) {

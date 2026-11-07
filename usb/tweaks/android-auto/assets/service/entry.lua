@@ -172,6 +172,10 @@ return function(context)
                 end
                 write_settings({ [key] = value })
                 return { success = true, settings = read_settings() }
+            elseif operation == 'reboot' then
+                local result = os.execute('reboot')
+                assert(result == 0 or result == true, 'Failed to reboot MZD')
+                return { success = true }
             elseif operation == 'save' then
                 local settings = args.settings
                 assert(type(settings) == 'table', 'Settings table expected')

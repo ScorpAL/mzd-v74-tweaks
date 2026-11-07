@@ -7,7 +7,7 @@ const queue = [];
 const hostEvents = {};
 const viewEvents = {};
 const timers = new Map();
-let timer = 0, writes = 0, control = null, dialogConfig = null, created = 0, destroyed = 0, attached = true, sb = 'Applications';
+let timer = 0, writes = 0, reboots = 0, control = null, dialogConfig = null, created = 0, destroyed = 0, attached = true, sb = 'Applications';
 
 function element(tagName) {
     return {
@@ -154,17 +154,24 @@ const fw = {
         assert.equal(this._frameworkState, 'idle', 'Instantiating a preloaded dialog does not change framework state');
         assert.equal(parent.parentNode, body, 'OEM dialog root is a body-level overlay');
         dialogConfig = props.Dialog3Ctrl;
+        const buttons = [dialogConfig.buttonConfig.button1, dialogConfig.buttonConfig.button2];
+        let dialogFocus = dialogConfig.initialFocus || 0;
         const dialogElement = element();
         dialogElement.className = 'TemplateFull Dialog3Tmplt';
         parent.appendChild(dialogElement);
-        const button = dialogConfig.buttonConfig.button1;
         return {
             divElt: dialogElement,
             dialog3Ctrl: {},
             cleanUp() {},
             handleControllerEvent(event) {
+                if (event === 'right' || event === 'down' || event === 'cw') {
+                    dialogFocus = 1;
+                }
+                if (event === 'left' || event === 'up' || event === 'ccw') {
+                    dialogFocus = 0;
+                }
                 if (event === 'select') {
-                    dialogConfig.defaultSelectCallback(this, button.appData);
+                    dialogConfig.defaultSelectCallback(this, buttons[dialogFocus].appData);
                 }
             }
         };
@@ -275,6 +282,9 @@ const resident = {
                     writes++;
                     savedSettings[args.key] = args.value;
                     cb(null, { success: true, settings: Object.assign({}, savedSettings) });
+                } else if (op === 'reboot') {
+                    reboots++;
+                    cb(null, { success: true });
                 } else {
                     throw Error('Unexpected operation: ' + op);
                 }
@@ -317,11 +327,20 @@ vm.runInNewContext(fs.readFileSync(path.join(aaRoot, 'assets/i18n.js'), 'utf8'),
     }
 });
 const texts = dictionary.languages.en_US;
-for (const language of Object.values(dictionary.languages)) {
-    for (const key of ['reboot', 'rebootInstructions', 'rebootNotice']) {
+for (const [locale, language] of Object.entries(dictionary.languages)) {
+    for (const key of ['reboot', 'rebootNotice']) {
         assert.equal(typeof language[key], 'string', 'Every language has the ' + key + ' translation');
     }
+    assert.equal(typeof language.rebootQuestion, 'string', 'Every language has a reboot confirmation question');
+    if (locale.indexOf('en_') !== 0) {
+        assert.notEqual(language.rebootQuestion, 'Do you want to reboot MZD to apply Android Auto settings?', locale + ' has a translated reboot question');
+    }
+    assert.equal(typeof language.rebootError, 'string', 'Every language has a reboot instruction notification');
+    assert.equal(language.rebootError.length <= 48, true, 'Reboot instruction notification fits a short message');
+    assert.equal(Object.prototype.hasOwnProperty.call(language, 'rebootInstructions'), false, 'Obsolete reboot instructions are removed');
 }
+assert.equal(texts.rebootQuestion, 'Do you want to reboot MZD to apply Android Auto settings?');
+assert.equal(texts.rebootError, 'Hold NAV + MUTE to reboot');
 for (const fn of viewEvents.message.slice()) {
     fn({
         source: parent,
@@ -386,30 +405,35 @@ assert.equal(control.dataList.items[7].itemStyle, 'style06');
 assert.equal(control.dataList.items[7].label1, 'Default');
 assert.equal(control.dataList.items[7].hasCaret, true);
 
-// 1b. Reboot action uses the OEM reset icon and opens the one-button instruction dialog
+// 1b. Reboot action uses the OEM reset icon and opens the two-button confirmation dialog
 assert.equal(control.dataList.items[15].text1, 'Reboot to apply changes');
 assert.equal(control.dataList.items[15].image1, 'common/images/icons/IcnUmpReset_En.png');
 control.hasFocus = false;
 click(15);
-assert.equal(dialogConfig.text1, 'To apply Android Auto settings hold NAV + MUTE until MZD reboots');
-assert.equal(dialogConfig.buttonConfig.button1.labelId, 'common.Ok', 'OEM dialog uses the localized OK button');
-assert.equal(dialogConfig.buttonConfig.button1.appData, 'ok');
+assert.equal(dialogConfig.text1, 'Do you want to reboot MZD to apply Android Auto settings?');
+assert.equal(dialogConfig.initialFocus, 0, 'No is the default selection');
+assert.equal(dialogConfig.buttonConfig.button1.labelId, 'common.No', 'OEM dialog uses the localized No button first');
+assert.equal(dialogConfig.buttonConfig.button1.appData, 'no');
+assert.equal(dialogConfig.buttonConfig.button2.labelId, 'common.Yes', 'OEM dialog uses the localized Yes button second');
+assert.equal(dialogConfig.buttonConfig.button2.appData, 'yes');
 assert.notEqual(findElement(body, 'TemplateFull Dialog3Tmplt'), null, 'The OEM dialog covers the full interface');
 assert.equal(fw._frameworkState, 'idle', 'Opening the dialog does not enter the framework template-loading state');
-input('select', 'press');
-input('select', 'release');
+input('select');
 flush();
-assert.equal(findElement(body, 'TemplateFull Dialog3Tmplt'), null, 'Selecting OK removes the OEM dialog');
+assert.equal(reboots, 0, 'Default No selection does not reboot');
+assert.equal(findElement(body, 'TemplateFull Dialog3Tmplt'), null, 'Selecting No removes the OEM dialog');
 assert.equal(control.hasFocus, true, 'Dismissing the dialog restores list focus');
 const focusBeforeDialogDismissal = control.focus;
 input('down');
 assert.notEqual(control.focus, focusBeforeDialogDismissal, 'List navigation works after dismissing the dialog');
 
 click(15);
-assert.notEqual(findElement(body, 'TemplateFull Dialog3Tmplt'), null, 'Instruction dialog can be opened again');
-dialogConfig.defaultSelectCallback(null, 'ok');
+assert.notEqual(findElement(body, 'TemplateFull Dialog3Tmplt'), null, 'Confirmation dialog can be opened again');
+input('right');
+input('select');
 flush();
-assert.equal(findElement(body, 'TemplateFull Dialog3Tmplt'), null, 'Touch selection dismisses the OEM dialog');
+assert.equal(findElement(body, 'TemplateFull Dialog3Tmplt'), null, 'Selecting Yes removes the OEM dialog');
+assert.equal(reboots, 1, 'Yes requests reboot through the GUI service');
 
 // 2. Click touch row (toggle to OFF)
 click(0);
@@ -757,4 +781,4 @@ assert.equal(reloadedState.touch, false);
 hostEvents.unload();
 flush();
 
-console.log('ANDROID_AUTO_VIEW_PASSED: MZD Connect styling, OEM reboot icon and instruction dialog, modal dismissal and focus restoration, saved-change reboot notice, settings navigation, SBN system toast and cleanup.');
+console.log('ANDROID_AUTO_VIEW_PASSED: MZD Connect styling, OEM reboot icon and confirmation dialog, No/Yes reboot behavior, modal dismissal and focus restoration, saved-change reboot notice, settings navigation, SBN system toast and cleanup.');
