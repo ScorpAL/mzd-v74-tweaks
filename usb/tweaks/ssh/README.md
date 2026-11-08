@@ -33,6 +33,9 @@ Action reports and `run.log` are saved on the originating USB under
 Optional SSH runtime logs use `reports/ssh/runtime-<timestamp>-<unique>/run.log`
 on an attached USB containing the matching `mzd-ssh-log-marker.txt`.
 
+Runtime files live in `/tmp/mzd-ssh/`; the owned firewall chain is `MZD_SSH`.
+The USB log marker contains `MZD-SSH-v1`.
+
 ## Optional public-key login
 
 The installer offers **SSH public key: Ignore / Install** (default Ignore) and

@@ -415,7 +415,7 @@ esac
                     assert (snapshot/'settings.conf').read_bytes()==(service/'settings.conf').read_bytes()
                     (usb/'user/ssh/public.key').unlink()
                     manifest=worker/'manifest.conf'
-                    write(manifest,manifest.read_text().replace('version=0.8.11','version=0.8.12'))
+                    write(manifest,manifest.read_text().replace('version=0.8.12','version=0.8.13'))
                     managed('update',code=1)
                     assert (service/'public.key').read_text()==key
                     managed('status','installed')
