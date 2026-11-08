@@ -613,6 +613,33 @@ local ok, err = pcall(function()
 end)
 assert(not ok, "Expected operation to fail on rename error")
 assert(#removed_paths > 0, "Temporary staging file should be cleaned up on failure")
+
+-- 4. Nothing is read at startup; a reboot covers only changes made through the service
+files.rename = function(src, dst) assert(os.rename(src, dst)) end
+files.write_new(conf, "touch = true\\nhud = true\\n")
+local reads = 0
+local plain_read, plain_exists = files.read, files.exists
+files.read = function(p) reads = reads + 1; return plain_read(p) end
+files.exists = function(p) reads = reads + 1; return plain_exists(p) end
+local booted = factory({{ files = files, data = staging, config = {{ libpatch = conf }} }})
+assert(reads == 0, "The service reads nothing when it starts")
+local executed = {{}}
+os.execute = function(cmd) table.insert(executed, cmd); return 0 end
+assert(booted.request("get").rebootRequired == false, "Unchanged settings need no reboot")
+assert(reads > 0, "Settings are read on request")
+assert(not pcall(booted.request, "reboot", {{}}) and #executed == 0, "Reboot refused without saved changes")
+files.write_new(conf, "touch = true\\nhud = true\\ncompass_always_on = true\\n")
+local edited = booted.request("get")
+assert(edited.settings.compass_always_on == true, "Every get reads the current file")
+assert(edited.rebootRequired == false, "An outside edit does not ask for a reboot")
+assert(booted.request("set", {{ key = "touch", value = false }}).rebootRequired == true, "A changed setting needs a reboot")
+assert(booted.request("set", {{ key = "touch", value = true }}).rebootRequired == false, "Restoring the previous value needs no reboot")
+assert(booted.request("save", {{ settings = {{ hud = false }} }}).rebootRequired == true, "Save reports a pending reboot")
+assert(booted.request("reboot", {{}}).success == true and executed[1] == "reboot", "Reboot runs after a saved change")
+os.execute = function() return 1 end
+local reboot_ok, reboot_err = pcall(booted.request, "reboot", {{}})
+assert(not reboot_ok and tostring(reboot_err):find("status 1", 1, true), "Reboot failure reports its status: " .. tostring(reboot_err))
+files.read, files.exists = plain_read, plain_exists
 '''
         r = subprocess.run([lua, '-e', lua_code], capture_output=True, text=True)
         assert r.returncode == 0, (r.returncode, r.stdout, r.stderr)
