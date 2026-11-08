@@ -194,12 +194,14 @@ independent registration, load/timeout/error handling and idempotent cleanup.
 A failure in one cooperative resident does not replace or close other modules.
 As with views, this is not a sandbox against hostile code or infinite loops.
 
-Because the resident persists across view openings, it can maintain in-memory state
-caches to render views instantly on subsequent opens, queue rapid consecutive user
+Because the resident persists across view openings, it can keep in-memory state
+(Android Auto Settings still reads its settings again on every open), queue rapid consecutive user
 requests safely, and continue asynchronous persistence to its Lua backend service
 even if the driver closes the view before writes complete. When completing saves
 in the background, residents can display non-intrusive native Status Bar Notifications
-(SBN) via `framework.common.startTimedSbn` to confirm that changes were saved safely.
+(SBN) via `framework.common.startTimedSbn` to confirm that changes were saved safely,
+or that a reboot is needed to apply them. Keep notifications best-effort: a failed
+SBN must not stop a save.
 
 A registered Lua entrypoint returns `function(context) ... end`. It returns a
 table with `request(operation,args)`, optional `image(kind,key)`, `tick()` and
@@ -208,7 +210,23 @@ there is no shared arbitrary command/path endpoint. `context.files` provides
 checked file operations, `context.data` is its owned mutable data folder, and
 `context.urls` generates token-protected binary image URLs. Lua dependencies are
 loaded relative to that service's entrypoint with a per-module cache. Services
-share one process and are trusted, not a privilege boundary.
+share one process and are trusted, not a privilege boundary. A service must not
+read or write module files while it starts or from `tick()`; it reads them when a
+request needs them, so a drive without the view does no extra disk access.
+
+Tweak workers never reboot (see the [worker contract](Worker-contract.md)). A GUI
+service may offer a reboot operation only to apply its own saved settings, and
+only under these rules:
+
+- The driver confirms it in the view. Default to **No**.
+- The resident sends it only after every queued save has finished.
+- It covers only changes made through that service. Whoever changes the files
+  another way, for example over SSH, is responsible for the reboot.
+- The service refuses it when nothing is waiting to be applied, flushes writes
+  before calling `reboot`, and reports a failed command with its exit status.
+- The view gives a manual fallback when the request fails.
+
+Android Auto Settings is the reference implementation (`usb/tweaks/android-auto/assets`).
 
 The first service consumer adds one adjacent marker/command pair to the existing
 `/jci/scripts/stage_wifi.sh`, under the same target lock as SSH. It starts the
