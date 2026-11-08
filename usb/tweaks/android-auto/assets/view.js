@@ -56,8 +56,6 @@
             type: 'aa-request',
             action: 'texts',
             payload: {
-                saving: tr('savingSettings', 'Saving settings...'),
-                saved: tr('savedSettings', 'Settings saved'),
                 saveError: tr('saveError', 'Failed to save settings'),
                 reboot: tr('reboot', 'Reboot to apply changes'),
                 rebootFallback: tr('rebootFallback', 'Hold NAV + MUTE to reboot')

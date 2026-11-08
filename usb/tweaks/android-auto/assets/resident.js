@@ -446,8 +446,6 @@
     global.MzdGuiResidents.register('android-auto', function (context) {
         'use strict';
         var TEXTS = {
-            saving: 'Saving settings...',
-            saved: 'Settings saved',
             saveError: 'Failed to save settings',
             reboot: 'Reboot to apply changes',
             rebootFallback: 'Hold NAV + MUTE to reboot'
@@ -465,11 +463,9 @@
 
         /*
          * Notification rules (all share one SBN slot):
-         * - The first change of a batch shows "Saving settings...".
-         * - A batch that finishes while the list is open shows "Settings saved".
          * - Leaving the list, or a batch finishing after the list was left,
          *   shows the reboot notice when the saved settings differ from the
-         *   ones MZD booted with. A finishing batch otherwise shows "Settings saved".
+         *   ones MZD booted with.
          * - A failed save shows only its error. No reboot notice follows until
          *   the list is opened again.
          */
@@ -621,17 +617,14 @@
                 broadcastState('');
                 if (queue.length > 0) {
                     drainQueue();
-                } else if (viewOpen) {
-                    showSbn(texts.saved, false);
-                } else {
-                    showSbn(rebootRequired && !saveFailed ? texts.reboot : texts.saved, false);
+                } else if (!viewOpen && rebootRequired && !saveFailed) {
+                    showSbn(texts.reboot, false);
                 }
             });
         }
 
         function queueSetting(name, value) {
             var i;
-            if (!saving()) { showSbn(texts.saving, false); }
             if (!cachedSettings) { cachedSettings = {}; }
             cachedSettings[name] = value;
             for (i = 0; i < queue.length; i += 1) {

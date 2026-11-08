@@ -426,7 +426,7 @@ assert.equal(texts.always, 'Always');
 for (const [, key, fallback] of viewSource.matchAll(/tr\('([a-zA-Z0-9_]+)', '([^']*)'\)/g)) {
     assert.equal(fallback, texts[key], 'view.js fallback for ' + key + ' matches en_US');
 }
-for (const [name, key] of Object.entries({ saving: 'savingSettings', saved: 'savedSettings', saveError: 'saveError', reboot: 'reboot', rebootFallback: 'rebootFallback' })) {
+for (const [name, key] of Object.entries({ saveError: 'saveError', reboot: 'reboot', rebootFallback: 'rebootFallback' })) {
     assert(residentSource.includes(name + ": '" + texts[key] + "'"), 'resident.js default for ' + name + ' matches en_US');
 }
 
@@ -514,14 +514,11 @@ assert.equal(dialogConfig, null, 'A disabled reboot row does not open the confir
 holdSaves();
 click(0);
 assert.equal(control.dataList.items[0].checked, false);
-assert.equal(lastSbn.props.text1, 'Saving settings...');
 assert.equal(rebootRow().disabled, true, 'Reboot stays disabled while a save is in progress');
 releaseSave();
 assert.equal(savedSettings.touch, false);
 assert.equal(writes, 1);
 assert.equal(rebootRow().disabled, false, 'A successful save enables reboot');
-assert.equal(lastSbn.type, 'typeD');
-assert.equal(lastSbn.props.text1, 'Settings saved', 'Successful saves notify while the settings view stays open');
 
 // 3. Restoring the boot value disables reboot again
 click(0);
@@ -678,8 +675,6 @@ residentMessage({
     type: 'aa-request',
     action: 'texts',
     payload: {
-        saving: 'Enregistrement...',
-        saved: 'Enregistré',
         saveError: 'Échec de l’enregistrement',
         reboot: 'Redémarrer pour appliquer',
         rebootFallback: 'Maintenir NAV + MUTE'
@@ -691,11 +686,7 @@ lastSbn = null;
 holdSaves();
 residentMessage({ type: 'aa-request', action: 'set', payload: { key: 'touch', value: false } });
 assert.equal(writes, 11);
-assert.equal(lastSbn.uiaId, 'androidauto');
-assert.equal(lastSbn.type, 'typeD');
-assert.equal(lastSbn.props.sbnStyle, 'Style02');
-assert.equal(lastSbn.props.imagePath1, 'common/images/icons/IcnSbnApps.png');
-assert.equal(lastSbn.props.text1, 'Enregistrement...');
+assert.equal(lastSbn, null, 'No saving notification is shown');
 let reopened = null;
 viewEvents.message = [event => { if (event.data && event.data.type === 'aa-response') { reopened = event.data; } }];
 residentMessage({ type: 'aa-request', action: 'get' });
@@ -723,7 +714,6 @@ residentMessage({
 });
 residentMessage({ type: 'aa-request', action: 'set', payload: { key: 'force_street_name', value: true } });
 assert.equal(savedSettings.force_street_name, true);
-assert.equal(lastSbn.props.text1, 'Enregistré');
 holdSaves();
 residentMessage({ type: 'aa-request', action: 'set', payload: { key: 'hud', value: false } });
 sbns.length = 0;
@@ -877,4 +867,4 @@ flush();
     assert.equal(head.children.length, assetsBefore, 'Already registered OEM dialog components are reused');
 }
 
-console.log('ANDROID_AUTO_VIEW_PASSED: MZD Connect styling, reboot row enabled only for changes saved in the view, fresh settings on every open, single OEM confirmation dialog, No/Yes and failed reboot, dialog failure recovery, Back button focus handoff, localized save and reboot notices, settings navigation and cleanup.');
+console.log('ANDROID_AUTO_VIEW_PASSED: MZD Connect styling, reboot row enabled only for changes saved in the view, fresh settings on every open, single OEM confirmation dialog, No/Yes and failed reboot, dialog failure recovery, Back button focus handoff, localized reboot notices, settings navigation and cleanup.');
