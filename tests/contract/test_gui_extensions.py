@@ -127,6 +127,13 @@ exec '''+copy_command+''' "$@"
   call('gui-example','install');call('second-example','install')
   assert 'view-lifecycle=1' in (provider/'package/lib/gui-runtime/api.conf').read_text()
   call('second-example','uninstall');call('gui-example','uninstall');absent()
+  # A phone-capable provider still needs replacement for parking support.
+  write(api,current.replace('parking-lifecycle=1\n',''))
+  call('gui-example','install');write(api,current)
+  before={str(p.relative_to(persist)):p.read_bytes() for p in persist.rglob('*') if p.is_file()}
+  r=call('second-example','install',1);assert 'Uninstall ALL GUI tweaks' in r.stdout+r.stderr
+  assert before=={str(p.relative_to(persist)):p.read_bytes() for p in persist.rglob('*') if p.is_file()}
+  call('gui-example','uninstall');absent()
   print('GUI_HELPER_COMPAT_PASSED:',checks,'real actions; old helper blocks install/update before mutation, saved uninstall and current reuse work.')
   raise SystemExit(0)
  if '--ssh-coexist-only' in sys.argv:
