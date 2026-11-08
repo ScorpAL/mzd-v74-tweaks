@@ -23,7 +23,7 @@ check() {
     for path in "$SERVICE"/* "$SERVICE"/.[!.]* "$SERVICE"/..?*; do
         [ -e "$path" ] || [ -L "$path" ] || continue
         case "${path##*/}" in
-            service.sh|sshd_config|password.hash|authorized_keys.conf)
+            service.sh|sshd_config|password.hash|public.key)
                 [ ! -L "$path" ] && cmp -s "$path" "$HERE/assets/${path##*/}" || fail 'Unknown or altered service file; manual review required.' ;;
             settings.conf)
                 expected=${MZD_SETTINGS_FILE:-$HERE/assets/settings.conf}
@@ -71,7 +71,7 @@ case "$1" in
         [ -e "$SERVICE" ] || exit 0
         # Runtime must already have been removed by the prepare phase.
         [ ! -e "$RAM" ] || critical 'SSH runtime still exists; payload retained.'
-        rm -f "$SERVICE/enabled" "$SERVICE/service.sh" "$SERVICE/sshd_config" "$SERVICE/password.hash" "$SERVICE/authorized_keys.conf" "$SERVICE/settings.conf" || exit 1
+        rm -f "$SERVICE/enabled" "$SERVICE/service.sh" "$SERVICE/sshd_config" "$SERVICE/password.hash" "$SERVICE/public.key" "$SERVICE/settings.conf" || exit 1
         rmdir "$SERVICE" || fail 'Service directory could not be removed.'
         # Remove the now-empty owned parent, retaining any other tweak folders.
         rmdir "$(dirname "$SERVICE")" 2>/dev/null || :

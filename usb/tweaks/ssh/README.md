@@ -38,8 +38,8 @@ on an attached USB containing the matching `mzd-ssh-log-marker.txt`.
 The installer offers **SSH public key: Ignore / Install** (default Ignore) and
 **Password login: Enabled / Disabled** (default Enabled).
 
-Place one OpenSSH public key in `user/ssh/authorized_keys.conf` on the USB and
-select Install. This uses the existing `.conf` override mechanism: the key is
+Place one OpenSSH public key in `user/ssh/public.key` on the USB and
+select Install. The manifest declares a conditional file import: the key is
 copied into the saved package and does not depend on the USB remaining inserted.
 Do not copy a private key. No bundled key is provided. The CMU's own `ssh-keygen`
 validates the key; types unsupported by its factory OpenSSH are refused.
@@ -58,5 +58,6 @@ installed option values, as with other installer settings. For key-enabled
 updates, supply the public key on USB again. A missing/invalid replacement key
 refuses the update before removing the working installation.
 
-Any non-empty supplied key file is validated even when key login is ignored,
-so a private or malformed key cannot be retained in an installed package.
+With Ignore, the USB key is neither validated nor copied into the saved package
+or service payload. With Install, the CMU validates exactly one public key before
+the existing installation is removed.

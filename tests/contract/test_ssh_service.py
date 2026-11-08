@@ -181,12 +181,13 @@ esac
         write(service / 'settings.conf', 'ssh_key='+key+'\nssh_password='+password+'\n')
     auth('ignore', 'disabled'); run('check', 1, 'only be disabled with an installed public key')
     auth('install', 'disabled'); run('check', 1, 'Provide a public key')
-    write(service / 'authorized_keys.conf', '-----BEGIN PRIVATE KEY-----\n')
+    write(service / 'public.key', '-----BEGIN PRIVATE KEY-----\n')
     run('check', 1, 'Expected one OpenSSH public key')
-    auth('ignore', 'enabled'); run('check', 1, 'Expected one OpenSSH public key')
-    write(service / 'authorized_keys.conf', ''); run('check', 0, 'prerequisites checked')
-    auth('install', 'disabled'); write(service / 'authorized_keys.conf', test_key)
+    auth('ignore', 'enabled'); run('check', 0, 'prerequisites checked')
+    write(service / 'public.key', ''); run('check', 0, 'prerequisites checked')
+    auth('install', 'disabled'); write(service / 'public.key', test_key)
     write(temp / 'reject-key', 'unsupported'); run('check', 1, 'invalid or its type is unsupported')
+    auth('ignore', 'enabled'); run('check', 0, 'prerequisites checked')
     (temp / 'reject-key').unlink()
     auth('install', 'enabled'); run('check', 0, 'prerequisites checked')
     auth('install', 'disabled'); run('check', 0, 'prerequisites checked')
@@ -223,8 +224,9 @@ esac
         assert 'SSH startup phase: launch sshd' in startup.read_text()
         assert 'PasswordAuthentication no' in (ram / 'sshd_config').read_text()
         assert 'PubkeyAuthentication yes' in (ram / 'sshd_config').read_text()
-        assert (ram / 'authorized_keys.conf').read_text() == test_key
-        assert (ram / 'authorized_keys.conf').stat().st_mode & 0o777 == 0o600
+        assert 'AuthorizedKeysFile '+bp(ram / 'public.key') in (ram / 'sshd_config').read_text(), 'sshd must reference the key file actually installed in RAM'
+        assert (ram / 'public.key').read_text() == test_key
+        assert (ram / 'public.key').stat().st_mode & 0o777 == 0o600
         runtime_logs = list((usb / 'reports/ssh').glob('runtime-*/run.log'))
         assert any('fixture daemon ready' in p.read_text() for p in runtime_logs)
         assert all(p.read_text().startswith('Start: ') for p in runtime_logs), 'runtime log starts with the time line'

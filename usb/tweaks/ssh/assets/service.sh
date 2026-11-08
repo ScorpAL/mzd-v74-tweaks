@@ -92,11 +92,10 @@ authentication() {
     ' "$AUTH_SETTINGS") || fail 'Invalid SSH authentication settings.'
     KEY_AUTH=${AUTH% *}; PASSWORD_AUTH=${AUTH#* }
     [ "$PASSWORD_AUTH" != disabled ] || [ "$KEY_AUTH" = install ] || fail 'Password login can only be disabled with an installed public key.'
-    # Validate any supplied key, including ignored overrides, before it can
-    # become part of the persistent package snapshot. Empty defaults are allowed.
-    KEY_FILE="$SELF_DIR/authorized_keys.conf"
-    if [ "$KEY_AUTH" = install ] || [ -s "$KEY_FILE" ]; then
-        [ -f "$KEY_FILE" ] && [ ! -L "$KEY_FILE" ] && [ -s "$KEY_FILE" ] || fail 'Provide a public key in user/ssh/authorized_keys.conf.'
+    # Ignored keys are excluded during package staging and never validated here.
+    KEY_FILE="$SELF_DIR/public.key"
+    if [ "$KEY_AUTH" = install ]; then
+        [ -f "$KEY_FILE" ] && [ ! -L "$KEY_FILE" ] && [ -s "$KEY_FILE" ] || fail 'Provide a public key in user/ssh/public.key.'
         [ "$(wc -c < "$KEY_FILE")" -le 16384 ] || fail 'SSH public key exceeds 16 KiB.'
         awk '
             NF==0 || $1~/^#/ {next}
@@ -154,7 +153,7 @@ teardown() {
     fi
     remove_firewall || RESULT=1
     if [ "$RESULT" = 0 ] && [ -d "$RAM" ]; then
-        rm -f "$RAM/owner" "$RAM/passwd" "$RAM/supervisor.pid" "$RAM/daemon.pid" "$RAM/sshd.pid" "$RAM/ports.txt" "$RAM/rules.txt" "$RAM/sshd_config" "$RAM/authorized_keys.conf"
+        rm -f "$RAM/owner" "$RAM/passwd" "$RAM/supervisor.pid" "$RAM/daemon.pid" "$RAM/sshd.pid" "$RAM/ports.txt" "$RAM/rules.txt" "$RAM/sshd_config" "$RAM/public.key"
         rmdir "$RAM" || RESULT=1
     fi
     return "$RESULT"
@@ -267,7 +266,7 @@ awk -v password="$PASSWORD_AUTH" -v key="$KEY_AUTH" '
 ' "$TEMPLATE" > "$CONFIG" || fail 'Could not prepare SSH authentication configuration.'
 chmod 600 "$CONFIG" || fail 'Could not protect SSH configuration.'
 if [ "$KEY_AUTH" = install ]; then
-    cp "$SELF_DIR/authorized_keys.conf" "$RAM/authorized_keys.conf" && chmod 600 "$RAM/authorized_keys.conf" || fail 'Could not copy the public key into RAM.'
+    cp "$SELF_DIR/public.key" "$RAM/public.key" && chmod 600 "$RAM/public.key" || fail 'Could not copy the public key into RAM.'
 fi
 "$SSHD" -t -f "$CONFIG" || fail 'Generated SSH configuration is not valid.'
 if port_busy; then fail 'Port 22 is already in use. Existing service is left unchanged.'; fi

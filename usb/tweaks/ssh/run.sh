@@ -149,7 +149,7 @@ ssh_payload_ok() {
     then
         return 1
     fi
-    for _file in service.sh sshd_config password.hash authorized_keys.conf settings.conf
+    for _file in service.sh sshd_config password.hash public.key settings.conf
     do
         _source=$(ssh_payload_source "$_file") || return 1
         if [ -L "$SERVICE/$_file" ] || ! cmp -s "$_source" "$SERVICE/$_file"
@@ -170,7 +170,7 @@ mzd_check_prerequisites() {
 # Worker-specific persistent-state checks; shared status code knows no tweak IDs.
 mzd_status_assets() {
     mzd_require_assets "$PAYLOAD/service.sh" "$PAYLOAD/sshd_config" \
-        "$PAYLOAD/password.hash" "$PAYLOAD/usb-log-marker.txt" "$PAYLOAD/authorized_keys.conf" "$PAYLOAD/settings.conf"
+        "$PAYLOAD/password.hash" "$PAYLOAD/usb-log-marker.txt" "$PAYLOAD/public.key" "$PAYLOAD/settings.conf"
 }
 
 mzd_status_target_missing() {
@@ -206,7 +206,7 @@ mzd_check_status() {
 }
 
 ssh_prepare() {
-    for _file in service.sh sshd_config password.hash usb-log-marker.txt authorized_keys.conf settings.conf
+    for _file in service.sh sshd_config password.hash usb-log-marker.txt public.key settings.conf
     do
         mzd_asset_readable "$PAYLOAD/$_file" || mzd_fail 'SSH asset is missing or unreadable.'
     done
@@ -241,18 +241,18 @@ ssh_prepare() {
         mkdir "$_stage" || mzd_fail 'Cannot prepare SSH service directory.'
 
         # Publish a directory only after all payload files and saved settings are verified.
-        for _file in service.sh sshd_config password.hash authorized_keys.conf settings.conf
+        for _file in service.sh sshd_config password.hash public.key settings.conf
         do
             _source=$(ssh_payload_source "$_file") || exit 1
             if ! cp "$_source" "$_stage/$_file" || ! cmp -s "$_source" "$_stage/$_file"
             then
-                rm -f "$_stage/service.sh" "$_stage/sshd_config" "$_stage/password.hash" "$_stage/authorized_keys.conf" "$_stage/settings.conf"
+                rm -f "$_stage/service.sh" "$_stage/sshd_config" "$_stage/password.hash" "$_stage/public.key" "$_stage/settings.conf"
                 rmdir "$_stage"
                 mzd_fail 'Cannot copy and verify SSH service payload.'
             fi
         done
         if ! chmod 700 "$_stage/service.sh" ||
-            ! chmod 600 "$_stage/sshd_config" "$_stage/password.hash" "$_stage/authorized_keys.conf" "$_stage/settings.conf"
+            ! chmod 600 "$_stage/sshd_config" "$_stage/password.hash" "$_stage/public.key" "$_stage/settings.conf"
         then
             mzd_fail 'Cannot set SSH payload permissions.'
         fi
@@ -326,7 +326,7 @@ ssh_complete() {
         rm -f "$SERVICE/enabled"
         sync
         sh "$SERVICE/service.sh" stop || mzd_fatal 'Boot hook removed; service cleanup failed. Do NOT reboot.'
-        for _file in service.sh sshd_config password.hash authorized_keys.conf settings.conf
+        for _file in service.sh sshd_config password.hash public.key settings.conf
         do
             rm -f "$SERVICE/$_file"
         done
