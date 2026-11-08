@@ -71,6 +71,13 @@ Subsequent consumers reuse compatible, byte-verified support and update only the
 derived registry. Different compatible USB runtime versions do not replace an
 existing provider implicitly.
 
+Provider 0.5.0 declares `view-lifecycle=1` for status-bar layouts and phone
+suspend/resume. Current USB packages reject GUI installations and updates when
+the installed provider lacks this capability, before removing any installed
+consumer. Uninstall all GUI tweaks, optionally keeping their settings, then
+reinstall from the current USB package. Removing an older consumer remains
+available through its saved uninstaller.
+
 The registry contains data only. Applications entries exist at boot, while a
 consumer HTML view and its JavaScript load only when selected. Each intermediate menu exists only while a registered consumer uses its path.
 Removing the last consumer of one path retains other paths and shared support
@@ -104,6 +111,28 @@ MzdGuiModule.onDispose(function () {
 MzdGuiModule.ready(); // Call after the view is usable, within eight seconds.
 // MzdGuiModule.close();
 ```
+
+Views default to a fullscreen 800x480 area. A view can opt into the original
+Mazda status bar with `MzdGuiModule.setLayout('with-status-bar')`; its iframe
+then occupies 800x416 below the 64-pixel bar. Use `fullscreen` to return to the
+default. Fit the view to its iframe dimensions. Layout requests use the same
+source/token checks as other view messages and do not change native contexts.
+If a resident temporarily replaces the view root with a native settings list,
+request the layout again after releasing that list to restore the view title.
+
+A view can opt into phone interruption handling by registering
+`MzdGuiModule.onSuspend(fn)` and `MzdGuiModule.onResume(fn)`. Stop view timers
+and data requests on suspend; rebuild any native settings list on resume. The
+same iframe remains in memory, hidden and detached from resident access during
+the call. The SDK and parent release input to the native phone interface.
+Only known phone-call contexts qualify. Resume requires the original
+Applications context sequence and a completed framework transition. Temporary
+Applications ready/displayed callbacks mask the incoming OEM list during the
+return animation and remove the polling delay at completion; original callbacks
+are delegated and restored when the session closes. Deliberate
+navigation or an unknown return identity closes the view. Without opt-in,
+context changes retain the existing close behavior. No synthetic MMUI messages
+or forced native context switches are used.
 
 Messages require the active iframe source and per-open token. Exceptions, load
 errors and startup timeouts close a direct Applications view or return a grouped

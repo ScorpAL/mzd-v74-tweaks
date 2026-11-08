@@ -49,6 +49,8 @@ function harness(failStartup = false, unavailable = false, extraModules = []) {
   let selecting = false;
   let serial = 0,
     context = "Applications",
+    currentApp = "system",
+    sequence = 66,
     disposed = 0;
 
   function node(tag) {
@@ -118,8 +120,10 @@ function harness(failStartup = false, unavailable = false, extraModules = []) {
         sbName = id;
       }
     },
-    getCurrentApp: () => "system",
+    _frameworkState: "idle",
+    getCurrentApp: () => currentApp,
     getCurrCtxtId: () => context,
+    getCurrCtxtSeqNo: () => sequence,
     getAppInstance() {
       if (failStartup) throw Error("startup failure");
       return app;
@@ -248,8 +252,10 @@ function harness(failStartup = false, unavailable = false, extraModules = []) {
         "MzdGui.Open." + (id === "games" ? "menu.0" : "module." + id)
       );
     },
-    context(v) {
+    context(v, app = "system", seq = sequence) {
       context = v;
+      currentApp = app;
+      sequence = seq;
     },
     event,
     get disposed() {
@@ -841,4 +847,99 @@ test("the translated Hello World example changes its labels once and keeps its s
   assert.equal(translatedApi.input("back", "step"), false);
   translatedApi.dispose();
   assert.equal(translatedNodes.close.onclick, null);
+});
+
+test("status-bar layout and phone interruption lifecycle", () => {
+// Opt-in status-bar layout uses the authenticated SDK path; other views stay fullscreen.
+{
+ const h=harness(); h.open('one'); const frame=h.frame(), root=frame.parentNode;
+ const token=frame.src.split('#mzdgui=')[1], events={};
+ const parent={postMessage(data){h.event('message',{source:frame.contentWindow,data});}};
+ const child=frame.contentWindow;
+ child.parent=parent;child.location={hash:'#mzdgui='+token};
+ child.addEventListener=(name,fn)=>events[name]=fn;child.removeEventListener=name=>delete events[name];
+ vm.runInNewContext(sdk,{window:child});
+ h.event('message',{source:{},data:{type:'mzd-gui-layout',token,message:'with-status-bar'}});
+ assert.notEqual(root.style.top,'64px','foreign frame cannot change layout');
+ child.MzdGuiModule.setLayout('with-status-bar');
+ assert.equal(root.style.top,'64px');assert.equal(root.style.height,'416px');
+ assert.equal(root.style.zIndex,'9','view covers side chrome (8), below status bar (10)');assert.equal(frame.style.height,'416px');assert.equal(h.title(),'One');
+ child.MzdGuiModule.setLayout('invalid');assert.equal(root.style.height,'416px');
+ child.MzdGuiModule.setLayout('fullscreen');assert.equal(root.style.top,'0px');assert.equal(frame.style.height,'480px');
+ child.MzdGuiModule.close();assert.equal(h.title(),'Applications');assert.equal(h.doc.body.children.length,0);
+ h.open('games');h.choose(0);assert(h.frame().style.cssText.includes('height:480px'),'next view retains default fullscreen');
+}
+console.log('GUI_STATUS_BAR_LAYOUT_PASSED: real SDK/runtime opt-in, viewport, title restoration, invalid/foreign requests and unchanged fullscreen defaults.');
+
+// Actual runtime + SDK: retain one opted-in view across a phone interruption.
+function callFixture(optIn=true) {
+ const h=harness();h.open('one');const frame=h.frame(), child=frame.contentWindow, events={};
+ const token=frame.src.split('#mzdgui=')[1], parent={postMessage(data){h.event('message',{source:child,data});}};
+ let suspended=0,resumed=0,disposed=0;
+ child.parent=parent;child.location={hash:'#mzdgui='+token};
+ child.addEventListener=(name,fn)=>events[name]=fn;child.removeEventListener=name=>delete events[name];
+ child.postMessage=data=>{if(events.message)events.message({source:parent,data});};
+ vm.runInNewContext(sdk,{window:child});
+ child.MzdGuiModule.onDispose(()=>disposed++);
+ if(optIn){child.MzdGuiModule.onSuspend(()=>suspended++);child.MzdGuiModule.onResume(()=>resumed++);}
+ child.MzdGuiModule.ready();
+ return {h,frame,child,events,token,parent,tick(){for(const fn of [...h.intervals.values()])fn();},get disposed(){return disposed;},get suspended(){return suspended;},get resumed(){return resumed;}};
+}
+{
+ const c=callFixture();let input=0,consumed=0;c.child.MzdGuiModule.onInput(()=>{input++;return true;});
+ c.h.context('ActiveCall','phone',67);c.tick();c.tick();
+ assert.equal(c.suspended,1);assert.equal(c.disposed,0);assert.equal(c.frame.parentNode.style.display,'none');
+ const key={keyCode:13,preventDefault(){consumed++;},stopImmediatePropagation(){consumed++;}};
+ c.h.event('keydown',key);c.events.keydown(key);assert.equal(input,0);assert.equal(consumed,0,'phone input must be released');
+ c.h.context('Applications','system',66);c.h.win.framework._frameworkState='transition';c.tick();assert.equal(c.resumed,0);
+ const replacement={divElt:{style:{visibility:'visible'}},list2Ctrl:{setLineNumbers(){}}};c.h.app._currentContextTemplate=replacement;
+ c.h.win.framework._frameworkState='idle';c.tick();c.tick();
+ assert.equal(c.resumed,1);assert.equal(c.h.frame(),c.frame,'same iframe and state retained');assert.equal(replacement.divElt.style.visibility,'hidden');
+ c.child.MzdGuiModule.close();assert.equal(c.disposed,1);assert.equal(replacement.divElt.style.visibility,'visible');
+}
+for(const [context,app,seq] of [['Home','system',68],['NowPlaying','usbaudio',68],['Map','navigation',68],['Applications','system',68],['RecentCalls','phone',68]]) {
+ const c=callFixture();c.h.context('IncomingCall','phone',67);c.tick();assert.equal(c.suspended,1);
+ c.h.context(context,app,seq);c.tick();assert.equal(c.resumed,0);assert.equal(c.h.doc.body.children.length,0);assert.equal(c.disposed,1);
+}
+{
+ const c=callFixture(false);c.h.context('ActiveCall','phone',67);c.tick();assert.equal(c.h.doc.body.children.length,0,'non-opted-in views still close');
+}
+{
+ const c=callFixture();delete c.h.win.framework.getCurrCtxtSeqNo;c.child.MzdGuiModule.close();c.h.open('one');
+ const frame=c.h.frame(), token=frame.src.split('#mzdgui=')[1];
+ c.h.event('message',{source:frame.contentWindow,data:{type:'mzd-gui-lifecycle',token,message:'phone'}});
+ c.h.event('message',{source:frame.contentWindow,data:{type:'mzd-gui-ready',token}});
+ c.h.context('ActiveCall','phone',67);c.tick();assert.equal(c.h.doc.body.children.length,0,'unknown return identity must close safely');
+}
+console.log('GUI_PHONE_LIFECYCLE_PASSED: actual SDK/runtime suspend/resume, same-frame state, native input release, transition readiness, template replacement, deliberate navigation, no sequence and opt-in only.');
+
+// Mazda ready/displayed callbacks prevent the Applications flash on return.
+{
+ const c=callFixture(false);let readyCalls=0,displayedCalls=0;
+ const originalReady=function(value){readyCalls++;assert.equal(value,'ready-argument');return 17;};
+ const originalDisplayed=function(value){displayedCalls++;assert.equal(value,'displayed-argument');return 18;};
+ const entry={readyFunction:originalReady,displayedFunction:originalDisplayed};
+ c.h.app._contextTable={Applications:entry};
+ c.child.MzdGuiModule.onSuspend(()=>{});c.child.MzdGuiModule.onResume(()=>{});
+ c.h.context('ActiveCall','phone',67);c.tick();
+ c.h.context('Applications','system',66);c.h.win.framework._frameworkState='transition';
+ const template={divElt:{className:'List2Tmplt',style:{visibility:'visible'}},list2Ctrl:{setLineNumbers(){}}};
+ c.h.app._currentContext={ctxtId:'Applications',contextSeq:66};c.h.app._currentContextTemplate=template;
+ assert.equal(entry.readyFunction('ready-argument'),17);assert.equal(readyCalls,1);
+ assert(template.divElt.className.includes('MzdGuiReturnMask'),'list masked before its transition begins');
+ assert.equal(c.frame.parentNode.style.display,'none','phone remains in front until transition ends');
+ c.h.win.framework._frameworkState='idle';
+ assert.equal(entry.displayedFunction('displayed-argument'),18);assert.equal(displayedCalls,1);
+ assert.equal(c.frame.parentNode.style.display,'','resume is immediate, without waiting for the polling interval');
+ assert.equal(template.divElt.style.visibility,'hidden');assert(!template.divElt.className.includes('MzdGuiReturnMask'));
+ c.child.MzdGuiModule.close();assert.equal(entry.readyFunction,originalReady);assert.equal(entry.displayedFunction,originalDisplayed);
+ assert.equal(template.divElt.style.visibility,'visible');
+}
+{
+ const c=callFixture(false), entry={readyFunction(){}};c.h.app._contextTable={Applications:entry};
+ c.child.MzdGuiModule.onSuspend(()=>{});c.child.MzdGuiModule.close();
+ assert(!Object.hasOwn(entry,'displayedFunction'),'temporary callback removed exactly on close');
+}
+console.log('GUI_PHONE_RETURN_TRANSITION_PASSED: masked incoming list, immediate displayed callback, original callback delegation and exact hook cleanup.');
+
 });
