@@ -28,7 +28,7 @@ mzd_originals_capture() (
         mv "$stage/package/originals/directories.next" "$stage/package/originals/directories.tsv" || exit 1
     while IFS="$tab" read -r kind target; do
         [ "$kind" = patch ] || continue
-        index=$((index+1)); original=''; owned=1
+        index=$((index+1)); original=''; metadata_source=''; owned=1
         for other in "$MZD_PACKAGE_STORE"/*; do
             [ -d "$other" ] && [ -f "$other/package/originals/records.tsv" ] || continue
             mzd_package_check "$other" || exit 1
@@ -43,7 +43,20 @@ mzd_originals_capture() (
             [ "$(stat -c '%a:%u:%g:%Y' "$original")" = "$metadata" ] || exit 1
             break
         done
+        if [ -z "$original" ] && [ ! -e "$target.org" ] && [ ! -L "$target.org" ]; then
+            # Old GUI receipts did not declare their implicit startup patch.
+            for other in "$MZD_PACKAGE_STORE"/*; do
+                [ -d "$other" ] && [ ! -f "$other/package/originals/records.tsv" ] || continue
+                mzd_package_check "$other" || exit 1
+                if awk -F "$tab" -v p="$target" '$1=="patch" && $2==p {found=1} END {exit !found}' "$other/paths.tsv" ||
+                    { [ "$target" = /jci/scripts/stage_wifi.sh ] && awk -F= '$1=="gui_service" && length($2) {found=1} END {exit !found}' "$other/package/tweaks/${other##*/}/manifest.conf"; }; then
+                    mzd_package_error 'An older installed tweak shares this target without original-state records. Uninstall the older tweak first; nothing changed.'
+                    exit 1
+                fi
+            done
+        fi
         if [ -z "$original" ]; then
+            metadata_source=$target
             if [ -e "$target.org" ] || [ -L "$target.org" ]; then original="$target.org"; owned=0
             elif [ -e "$target" ] || [ -L "$target" ]; then original=$target
             else original=absent; fi
@@ -57,6 +70,12 @@ mzd_originals_capture() (
             [ "$budget" -ge "$size" ] || { mzd_package_error 'Not enough persistent space for original files.'; exit 1; }
             budget=$((budget-size))
             cp -a "$original" "$stage/package/originals/file-$index" || exit 1
+            if [ -n "$metadata_source" ] && [ "$metadata_source" != "$original" ]; then
+                [ -f "$metadata_source" ] && [ ! -L "$metadata_source" ] || exit 1
+                chown "$(stat -c '%u:%g' "$metadata_source")" "$stage/package/originals/file-$index" &&
+                    chmod "$(stat -c '%a' "$metadata_source")" "$stage/package/originals/file-$index" &&
+                    touch -r "$metadata_source" "$stage/package/originals/file-$index" || exit 1
+            fi
             hash=$(md5sum "$stage/package/originals/file-$index" | cut -d ' ' -f1) || exit 1
             metadata=$(stat -c '%a:%u:%g:%Y' "$stage/package/originals/file-$index") || exit 1
             printf '%s\t%s\t%s\t%s\t%s\n' "$index" "$target" "$hash" "$metadata" "$owned" >> "$records" || exit 1
@@ -81,7 +100,10 @@ mzd_originals_validate() (
 
 mzd_originals_cleanup() {
     result=0
-    if [ -n "${MZD_ORIGINAL_TEMP:-}" ]; then rm -f "$MZD_ORIGINAL_TEMP" || result=1; fi
+    if [ -n "${MZD_ORIGINAL_TEMP:-}" ]; then
+        if rm -f "$MZD_ORIGINAL_TEMP"; then rm -f "$MZD_ORIGINAL_ENTRY/uninstall-temp" || result=1
+        else result=1; fi
+    fi
     mzd_system_cleanup || result=1
     return "$result"
 }
@@ -100,10 +122,31 @@ mzd_originals_finish() (
     ROOT="$entry/package"; HERE="$ROOT/tweaks/${entry##*/}"
     for library in report system shim; do . "$ROOT/lib/$library.sh" || exit 1; done
     mzd_manifest_load "$HERE/manifest.conf" || exit 1
-    ACTION=uninstall; MZD_ORIGINAL_TEMP=''; MZD_ORIGINALS_CLEANUP=1
-    mzd_begin "$HERE/run.sh" "$ID" mzd_originals_cleanup
+    ACTION=uninstall; MZD_ORIGINAL_TEMP=''; MZD_ORIGINAL_ENTRY=$entry; MZD_ORIGINALS_CLEANUP=1
+    mzd_begin "$HERE/run.sh" "$ID" mzd_originals_cleanup uninstall-cleanup
     mzd_system_begin
-    tab=$(printf '\t'); index=0
+    mzd_system_lock "$LOCK" || exit 1
+    if [ -n "${GUI_SERVICE:-}" ]; then mzd_system_lock /tmp/mzd-stage_wifi-tweak.lock || exit 1; fi
+    tab=$(printf '\t'); index=0; notes=''
+    # Durable intent is written before creating a fixed-name temporary file.
+    # A retry removes only the file identified by this package's own journal.
+    if [ -f "$entry/uninstall-temp" ]; then
+        pending=$(cat "$entry/uninstall-temp") || exit 1
+        row=$(awk -F "$tab" -v row="$pending" '($1 "\t" $2)==row {print $2}' "$entry/package/originals/records.tsv") || exit 1
+        [ -n "$row" ] || mzd_fail 'Invalid uninstall temporary ownership record.'
+        temporary="$row.mzd-uninstall-$ID"
+        if [ -e "$temporary" ] || [ -L "$temporary" ]; then
+            mzd_asset_readable "$temporary" || mzd_fail 'Owned uninstall temporary is not a regular file.'
+            mzd_system_watchdog_disable || exit 1
+            mount_point=$(mzd_shim_mount "$row") || exit 1
+            mzd_system_remount_rw "$mount_point" || exit 1
+            MZD_ORIGINAL_TEMP=$temporary
+            rm -f "$temporary" || exit 1
+            MZD_ORIGINAL_TEMP=''
+        fi
+        rm -f "$entry/uninstall-temp" || exit 1
+    fi
+    rm -f "$entry/uninstall-temp.next" || exit 1
     : > "$MZD_REPORT/originals.tsv" || exit 1
     while IFS="$tab" read -r number target hash metadata owned; do
         index=$((index+1)); [ "$number" = "$index" ] || mzd_fail 'Invalid original file index.'
@@ -128,12 +171,16 @@ mzd_originals_finish() (
         restore_metadata=0; [ "$current" != "$hash" ] || restore_metadata=1
         if [ -e "$target.org" ] || [ -L "$target.org" ]; then
             mzd_asset_readable "$target.org" && cmp -s "$target.org" "$original" || mzd_fail 'Original backup differs from the saved baseline; nothing deleted.'
+            if [ "$owned" = 1 ] && [ "$restore_metadata" = 0 ]; then
+                notes="$notes
+Retained $target.org: target still contains changes outside the saved original."
+            fi
+        elif [ "$owned" = 1 ] && [ "$restore_metadata" = 0 ]; then
+            mzd_fail 'Target differs and its original backup is missing; saved package retained.'
         fi
         printf '%s\t%s\t%s\t%s\t%s\n' "$number" "$target" "$restore_metadata" "$current" "$owned" >> "$MZD_REPORT/originals.tsv" || exit 1
     done < "$entry/package/originals/records.tsv"
     if [ -s "$MZD_REPORT/originals.tsv" ]; then
-        mzd_system_lock "$LOCK" || exit 1
-        if [ -n "${GUI_SERVICE:-}" ]; then mzd_system_lock /tmp/mzd-stage_wifi-tweak.lock || exit 1; fi
         mzd_system_watchdog_disable || exit 1
         while IFS="$tab" read -r number target restore_metadata current owned; do
             original="$entry/package/originals/file-$number"
@@ -141,13 +188,17 @@ mzd_originals_finish() (
             mzd_system_remount_rw "$mount_point" || exit 1
             [ "$(mzd_hash "$target")" = "$current" ] || mzd_fail 'Target changed before cleanup.'
             [ "$restore_metadata" = 1 ] || continue
-            temporary="$target.mzd-uninstall-$$"
-            [ ! -e "$temporary" ] && [ ! -L "$temporary" ] || mzd_fail 'Uninstall temporary already exists.'
+            temporary="$target.mzd-uninstall-$ID"
+            [ ! -e "$temporary" ] && [ ! -L "$temporary" ] || mzd_fail 'Unowned uninstall temporary already exists; nothing deleted.'
+            printf '%s\t%s\n' "$number" "$target" > "$entry/uninstall-temp.next" &&
+                mv "$entry/uninstall-temp.next" "$entry/uninstall-temp" || exit 1
+            sync
             MZD_ORIGINAL_TEMP=$temporary
             cp -a "$original" "$MZD_ORIGINAL_TEMP" && cmp -s "$MZD_ORIGINAL_TEMP" "$original" || exit 1
             sync
             mv -f "$MZD_ORIGINAL_TEMP" "$target" || exit 1
             MZD_ORIGINAL_TEMP=''
+            rm -f "$entry/uninstall-temp" || exit 1
             [ "$(stat -c '%a:%u:%g:%Y' "$target")" = "$(stat -c '%a:%u:%g:%Y' "$original")" ] || mzd_fail 'Original metadata could not be restored.'
         done < "$MZD_REPORT/originals.tsv"
         sync
@@ -155,7 +206,7 @@ mzd_originals_finish() (
         while IFS="$tab" read -r number target restore_metadata current owned; do
             original="$entry/package/originals/file-$number"
             [ "$(mzd_hash "$target")" = "$current" ] || exit 1
-            [ "$owned" = 1 ] || continue
+            [ "$owned" = 1 ] && [ "$restore_metadata" = 1 ] || continue
             if [ -e "$target.org" ] || [ -L "$target.org" ]; then
                 mzd_asset_readable "$target.org" && cmp -s "$target.org" "$original" || exit 1
                 rm -f "$target.org" || exit 1
@@ -188,6 +239,6 @@ mzd_originals_finish() (
         # Never recurse or remove unknown contents, shared data or retained configs.
         rmdir "$directory" 2>/dev/null || :
     done < "$entry/package/originals/directories.tsv"
-    MZD_SUCCESS="Original file metadata restored; unused .org backups removed.
+    MZD_SUCCESS="Uninstall cleanup completed.$notes
 Reports: $MZD_REPORT"
 )

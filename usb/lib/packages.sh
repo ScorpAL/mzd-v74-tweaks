@@ -84,7 +84,7 @@ mzd_package_check_full() (
     mzd_package_tree_ok "$entry" || { mzd_package_error 'Saved package contains unsupported files.'; exit 1; }
     for path in "$entry"/* "$entry"/.[!.]* "$entry"/..?*; do
         [ -e "$path" ] || continue
-        case "${path##*/}" in package|package.files|paths.tsv|state.conf|state.next|failure.log|failure.next) ;;
+        case "${path##*/}" in package|package.files|paths.tsv|state.conf|state.next|failure.log|failure.next|uninstall-temp|uninstall-temp.next) ;;
             *) mzd_package_error 'Unexpected files in saved installation; nothing deleted.'; exit 1 ;;
         esac
     done

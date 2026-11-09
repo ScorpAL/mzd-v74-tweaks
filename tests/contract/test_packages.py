@@ -30,7 +30,10 @@ with tempfile.TemporaryDirectory(prefix='cmu-packages-') as directory:
     for lib in (usb/'lib').glob('*.sh'):
         write(lib,lib.read_text().replace('/proc/mounts',bp(mounts)).replace('/tmp/mnt/data_persist',bp(persist)).replace('/sys/class/gpio/Watchdog\\ Disable/value',bp(base/'watchdog')))
     write(base/'watchdog','0\n')
-    write(bins/'mount','#!/bin/sh\n[ "$2" != ro,remount ] || [ ! -f '+shlex.quote(bp(base/'fail-original-remount'))+' ]\n')
+    write(bins/'mount', """#!/bin/sh
+[ "$2" != ro,remount ] || [ ! -f FAIL ] || exit 1
+awk -v p="$3" -v mode="$2" '{$4=($2==p?(mode=="rw,remount"?"rw":"ro"):$4);print}' MOUNTS > MOUNTS.next && mv MOUNTS.next MOUNTS
+""".replace('FAIL',shlex.quote(bp(base/'fail-original-remount'))).replace('MOUNTS',shlex.quote(bp(mounts))))
     write(mounts,f'/dev/mmcblk0p2 {bp(persist)} relfs rw 0 0\n/dev/sdb1 {bp(usb)} vfat rw 0 0\n')
     write(bins/'sync','#!/bin/sh\nexit 0\n')
     write(bins/'df','#!/bin/sh\nif [ -f '+shlex.quote(bp(base/'no-space'))+' ]; then free=1; elif [ -f '+shlex.quote(bp(base/'custom-free'))+' ]; then free=$(cat '+shlex.quote(bp(base/'custom-free'))+'); else free=900000; fi\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted\\nfixture 1000000 100000 %s 10%% persist\\n" "$free"\n')
@@ -419,7 +422,10 @@ esac
     # all install/remove/update calls use the production package controller.
     original_target=base/'shared-original';original_backup=Path(str(original_target)+'.org')
     write(base/'watchdog','0\n')
-    with mounts.open('a') as f:f.write('root / relfs rw 0 0\n')
+    with mounts.open('a') as f:f.write('root / relfs ro 0 0\n')
+    def assert_restored():
+        assert any(row.split()[1:4]==['/','relfs','ro'] for row in mounts.read_text().splitlines())
+        assert (base/'watchdog').read_text()=='0\n'
     for lib in (usb/'lib').glob('*.sh'):
         write(lib,lib.read_text().replace('/proc/mounts',bp(mounts)).replace('/sys/class/gpio/Watchdog\\ Disable/value',bp(base/'watchdog')))
     write(bins/'rm',"""#!/bin/sh
@@ -455,6 +461,7 @@ esac
         assert not (base/'created-parents').exists(), 'last consumer must remove its empty parent directories'
         assert (st.st_mode & 0o7777,st.st_uid,st.st_gid,st.st_mtime_ns)==meta
         assert not (store/'cleanup-a').exists() and not (store/'cleanup-b').exists()
+        assert_restored()
     # Metadata damage is rejected before the saved uninstaller changes anything.
     action('cleanup-a','install');baseline=store/'cleanup-a/package/originals/file-1'
     baseline.chmod(0o600);before=original_target.read_bytes()
@@ -464,15 +471,21 @@ esac
     action('cleanup-a','install');write(base/'fail-original-remove','1')
     action('cleanup-a','uninstall',1)
     assert original_backup.exists() and (store/'cleanup-a/package/originals/file-1').exists()
+    assert_restored()
     (base/'fail-original-remove').unlink();action('cleanup-a','uninstall')
+    assert_restored()
     assert not original_backup.exists() and not (store/'cleanup-a').exists()
     # A cleanup failure must retain severity 2 and the recoverable snapshot.
     write(mounts,mounts.read_text().replace('root / relfs rw','root / relfs ro'))
     action('cleanup-a','install');write(base/'fail-original-remount','1')
     action('cleanup-a','uninstall',2)
     assert original_target.read_text()=='original bytes\n' and (store/'cleanup-a/package/originals/file-1').exists()
-    (base/'fail-original-remount').unlink();action('cleanup-a','uninstall')
-    write(mounts,mounts.read_text().replace('root / relfs ro','root / relfs rw'))
+    assert any(row.split()[1:4]==['/','relfs','rw'] for row in mounts.read_text().splitlines())
+    assert (base/'watchdog').read_text()=='0\n'
+    (base/'fail-original-remount').unlink()
+    # Explicit recovery of the failed mount cleanup before retrying.
+    write(mounts,mounts.read_text().replace('root / relfs rw','root / relfs ro'))
+    action('cleanup-a','uninstall');assert_restored()
     # Update uses the first baseline even while the old version is still active.
     st=original_target.stat();meta=(st.st_mode & 0o7777,st.st_uid,st.st_gid,st.st_mtime_ns)
     action('cleanup-a','install')
@@ -480,5 +493,44 @@ esac
     action('cleanup-a','update');action('cleanup-a','uninstall')
     st=original_target.stat()
     assert (st.st_mode & 0o7777,st.st_uid,st.st_gid,st.st_mtime_ns)==meta and not original_backup.exists()
+    # Pre-existing backup bytes and metadata are independent of target metadata.
+    shutil.copyfile(original_target,original_backup);original_backup.chmod(0o600);os.utime(original_backup,(1000000000,1000000000))
+    target_meta=original_target.stat();backup_meta=original_backup.stat()
+    action('cleanup-a','install');action('cleanup-a','uninstall')
+    restored=original_target.stat()
+    assert (restored.st_mode,restored.st_uid,restored.st_gid,restored.st_mtime_ns)==(target_meta.st_mode,target_meta.st_uid,target_meta.st_gid,target_meta.st_mtime_ns)
+    assert original_backup.stat().st_mtime_ns==backup_meta.st_mtime_ns and original_backup.stat().st_mode==backup_meta.st_mode
+    original_backup.unlink();assert_restored()
+    # A mismatched backup refuses cleanup and preserves both recovery copies.
+    action('cleanup-a','install');original_backup.write_text('foreign backup\n')
+    action('cleanup-a','uninstall',1)
+    assert original_backup.read_text()=='foreign backup\n' and (store/'cleanup-a/package/originals/file-1').exists()
+    shutil.copyfile(store/'cleanup-a/package/originals/file-1',original_backup)
+    action('cleanup-a','uninstall');assert_restored()
+    # Keep the only pristine backup when unrelated changes remain.
+    action('cleanup-a','install');original_target.write_text(original_target.read_text()+'unrelated\n')
+    r=action('cleanup-a','uninstall')
+    assert 'Retained ' in r.stdout and original_backup.read_text()=='original bytes\n'
+    assert original_target.read_text()=='original bytes\nunrelated\n'
+    original_target.write_text('original bytes\n');original_backup.unlink();assert_restored()
+    # Simulated power loss: an owned partial temp is removed using durable intent.
+    action('cleanup-a','install');temporary=Path(str(original_target)+'.mzd-uninstall-cleanup-a')
+    write(store/'cleanup-a/uninstall-temp','1\t'+bp(original_target)+'\n');write(temporary,'partial copy')
+    action('cleanup-a','uninstall')
+    assert not temporary.exists() and not (store/'cleanup-a').exists();assert_restored()
+    # A colliding name without our journal is never adopted or removed.
+    action('cleanup-a','install');write(temporary,'foreign temporary')
+    action('cleanup-a','uninstall',1);assert temporary.read_text()=='foreign temporary'
+    assert (store/'cleanup-a/package/originals/file-1').exists();assert_restored()
+    temporary.unlink();action('cleanup-a','uninstall');assert_restored()
+    # Update while another package still patches the same target.
+    action('cleanup-a','install');action('cleanup-b','install')
+    p=usb/'tweaks/cleanup-a/manifest.conf';write(p,p.read_text().replace('version=2.0.0','version=3.0.0'))
+    action('cleanup-a','update');assert 'cleanup-b' in original_target.read_text() and original_backup.exists()
+    action('cleanup-b','uninstall');assert 'cleanup-a' in original_target.read_text() and original_backup.exists()
+    action('cleanup-a','uninstall');assert original_target.read_text()=='original bytes\n' and not original_backup.exists()
+    assert_restored()
+    cleanup_reports=list((usb/'reports/cleanup-a').glob('uninstall-cleanup-*'))
+    assert cleanup_reports and all((r/'originals.tsv').exists() for r in cleanup_reports)
     print('ORIGINAL_CLEANUP_PASSED: shared owners in both removal orders, exact timestamps/mode/UID/GID, backup deletion failure/retry and Update.')
 print('PERSISTENT_PACKAGES_PASSED:',checks,'real adapter checks; snapshots, fast status, versions, failures, space, ownership, requirements and no legacy adoption.')

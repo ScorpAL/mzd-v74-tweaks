@@ -373,6 +373,7 @@ esac
                 assert r.returncode==code,(id_,action,r.returncode,r.stdout,r.stderr)
                 if expected is not None:assert r.stdout==expected+'\n',(id_,r.stdout,r.stderr)
                 checks+=1
+                return r
             if id_ == 'list-beep':
                 backup=Path(str(target)+'.org');backup.unlink(missing_ok=True)
                 write(target,original);target.chmod(0o640);os.utime(target,(1234567800,1234567890))
@@ -387,11 +388,13 @@ esac
                 assert target.read_text()==original and not backup.exists()
                 restored=target.stat()
                 assert (restored.st_mode & 0o7777,restored.st_uid,restored.st_gid,restored.st_mtime_ns)==expected_meta
-                # Unrelated later edits survive, but our own backup does not.
-                managed('install');write(target,target.read_text()+'// unrelated sentinel\n');managed('uninstall')
-                assert target.read_text()==original+'// unrelated sentinel\n' and not backup.exists()
+                # Unrelated later edits survive; keep the last original backup and explain why.
+                managed('install');write(target,target.read_text()+'// unrelated sentinel\n');result=managed('uninstall')
+                assert target.read_text()==original+'// unrelated sentinel\n' and backup.read_text()==original
+                assert 'Retained ' in result.stdout
                 # Existing backups belong to the pre-install state and are retained.
-                write(backup,original)
+                write(backup,original);managed('install');managed('uninstall')
+                assert backup.read_text()==original, 'pre-existing backup must be kept'
             if id_ == 'hud-street-name':
                 env['TEST_HUD'] = 'whud'
                 r = subprocess.run([SHELL, bp(adapter), 'preflight-info', id_], env=env, capture_output=True, text=True, timeout=15)

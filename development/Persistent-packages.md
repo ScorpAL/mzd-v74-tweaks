@@ -46,7 +46,11 @@ controller keeps shared targets until their last registered consumer is gone.
 For an exact original it restores the saved metadata, then removes only `.org`
 backups created by our installations. Pre-existing backups remain part of the
 pre-install state. Unrelated later content changes are preserved, including their
-current metadata. No foreign content is overwritten to force an OEM checksum.
+current metadata. If the target differs from the original, retain its `.org`
+backup and explain why in the result; never discard the last pristine copy.
+No foreign content is overwritten to force an OEM checksum. Pre-existing backup
+bytes may be used as an original, but restored metadata comes from the actual
+pre-install target, not from the backup file.
 
 Created empty directories are recorded too, including shared parents and config
 parents. Cleanup uses only `rmdir`; unknown contents and retained settings are
@@ -56,6 +60,17 @@ each removal, even when another tweak such as SSH remains installed.
 Every target is checked before backup deletion. Failures retain the package and
 its original snapshots for a retry. Old saved packages without these snapshots
 keep their original removal behavior; no original timestamps are invented.
+Before installing onto a shared target without an original backup, remove older
+consumers lacking original-state records first. This includes old GUI services
+before installing/updating SSH on `stage_wifi.sh`. A new installation refuses this
+mix before mutation, rather than leaving an uninstall that cannot complete.
+
+The worker report and `uninstall-cleanup-...` report are distinct. Cleanup writes
+a durable per-package intent record before creating its fixed-name temporary.
+A retry can remove an interrupted partial copy only with that matching record;
+a colliding file without ownership evidence is left untouched. Power-loss
+behavior is covered by an interrupted-state fixture, not a hardware power-cut test.
+
 Conversely, a new saved worker refuses uninstall through an older controller
 that cannot perform the final cleanup, before changing its target.
 Config removal and `--preserve-config` keep their existing meaning. USB reports

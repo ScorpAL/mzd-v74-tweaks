@@ -169,6 +169,16 @@ exec '''+copy_command+''' "$@"
      assert not (persist/'mzd-tweaks').exists(), 'empty framework containers left after final uninstall'
      # The last managed consumer removes its own shared OEM backup.
   call('ssh','uninstall');assert not (persist/'mzd-tweaks').exists(), 'no-op uninstall recreated storage'
+  # Legacy GUI receipts lacked both original snapshots and startup ownership.
+  package_source=(usb/'lib/packages.sh').read_text();paths_source=(usb/'lib/gui-extension.sh').read_text()
+  write(usb/'lib/packages.sh',package_source.replace('. "$stage/package/lib/originals.sh" && mzd_originals_capture "$stage" || exit 1',''))
+  write(usb/'lib/gui-extension.sh','\n'.join(line for line in paths_source.splitlines() if '${MZD_GUI_STARTUP:-' not in line)+'\n')
+  call('tetris','install');before=startup.read_bytes();assert not backup.exists()
+  write(usb/'lib/packages.sh',package_source);write(usb/'lib/gui-extension.sh',paths_source)
+  refused=call('ssh','install',1)
+  assert 'Uninstall the older tweak first' in refused.stderr and startup.read_bytes()==before
+  assert not (persist/'mzd-tweaks/installed/ssh').exists() and not backup.exists()
+  call('tetris','uninstall');absent();assert startup.read_bytes()==original
   # Read-only checks must reject unknown, duplicate, partial or altered GUI data.
   valid=original.replace(b'#!/bin/sh\n',b'#!/bin/sh\n'+gui_block,1)
   malformed=[valid+b'# unrelated edit\n',valid.replace(gui_block,gui_block*2),valid.replace(b'supervisor.sh boot',b'supervisor.sh other'),valid.rstrip(b'\n')]
@@ -181,6 +191,12 @@ exec '''+copy_command+''' "$@"
   print('SSH_GUI_COEXIST_PASSED:',checks,'real actions/checks; both GUI consumers, both install/removal orders, exact OEM backup and unmanaged-change refusal.')
   raise SystemExit(0)
  if '--services-only' in sys.argv:
+  write(mounts,mounts.read_text().replace(bp(data)+' relfs rw',bp(data)+' relfs ro'))
+  write(bins/'mount','''#!/bin/sh
+awk -v p="$3" -v mode="$2" '{$4=($2==p?(mode=="rw,remount"?"rw":"ro"):$4);print}' '''+shlex.quote(bp(mounts))+''' > '''+shlex.quote(bp(mounts))+'''.next && mv '''+shlex.quote(bp(mounts))+'''.next '''+shlex.quote(bp(mounts))+'''
+''')
+  def data_readonly():
+   assert any(row.split()[1:4]==[bp(data),'relfs','ro'] for row in mounts.read_text().splitlines())
   startup=b/'startup';original=startup.read_bytes()
   call('gui-hello-world','install')
   call('gui-example','install');deep('gui-example','installed')
@@ -192,9 +208,11 @@ exec '''+copy_command+''' "$@"
   call('second-example','install');assert startup.read_text().count('# MZD shared GUI services')==1
   hook_before=hook.read_bytes();hook.unlink()
   call('gui-example','uninstall');assert hook.exists() and startup.read_bytes()!=original and not user_data.exists()
-  assert hook.read_bytes()==hook_before
+  assert hook.read_bytes()==hook_before and modules.is_dir() and (modules/'second-example').is_dir()
+  data_readonly()
   call('second-example','uninstall');assert hook.exists() and startup.read_bytes()==original and not (base/'mzd-gui-services.tsv').read_text()
   call('gui-hello-world','uninstall');absent();assert not (base/'mzd-gui-services.tsv').exists()
+  assert not modules.exists();data_readonly()
   # Old immutable providers and saved uninstallers must be removed explicitly.
   call('gui-hello-world','install')
   for q in [provider/'package/lib/gui-runtime/api.conf',runtime/'api.conf',persist/'mzd-tweaks/installed/gui-hello-world/package/lib/gui-runtime/api.conf']:
