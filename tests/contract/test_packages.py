@@ -27,6 +27,10 @@ with tempfile.TemporaryDirectory(prefix='cmu-packages-') as directory:
     pkg=usb/'lib/packages.sh'
     source=pkg.read_text().replace('MZD_PACKAGE_STORE=/tmp/mnt/data_persist/mzd-tweaks/installed','MZD_PACKAGE_STORE='+shlex.quote(bp(store))).replace('MZD_PACKAGE_MOUNT=/tmp/mnt/data_persist','MZD_PACKAGE_MOUNT='+shlex.quote(bp(persist))).replace('MZD_PACKAGE_MOUNTS=/proc/mounts','MZD_PACKAGE_MOUNTS='+shlex.quote(bp(mounts))).replace('MZD_PACKAGE_LOCK=/tmp/mzd-packages.lock','MZD_PACKAGE_LOCK='+shlex.quote(bp(lock)))
     write(pkg,source.replace('/jci/version.ini',bp(version)))
+    for lib in (usb/'lib').glob('*.sh'):
+        write(lib,lib.read_text().replace('/proc/mounts',bp(mounts)).replace('/tmp/mnt/data_persist',bp(persist)).replace('/sys/class/gpio/Watchdog\\ Disable/value',bp(base/'watchdog')))
+    write(base/'watchdog','0\n')
+    write(bins/'mount','#!/bin/sh\n[ "$2" != ro,remount ] || [ ! -f '+shlex.quote(bp(base/'fail-original-remount'))+' ]\n')
     write(mounts,f'/dev/mmcblk0p2 {bp(persist)} relfs rw 0 0\n/dev/sdb1 {bp(usb)} vfat rw 0 0\n')
     write(bins/'sync','#!/bin/sh\nexit 0\n')
     write(bins/'df','#!/bin/sh\nif [ -f '+shlex.quote(bp(base/'no-space'))+' ]; then free=1; elif [ -f '+shlex.quote(bp(base/'custom-free'))+' ]; then free=$(cat '+shlex.quote(bp(base/'custom-free'))+'); else free=900000; fi\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted\\nfixture 1000000 100000 %s 10%% persist\\n" "$free"\n')
@@ -410,4 +414,71 @@ esac
     write(target,'unmanaged\n');action('alpha','install',1);action('alpha','uninstall',1)
     assert target.read_text()=='unmanaged\n' and not entry.exists()
     assert not list(store.glob('.stage-*')) and not lock.exists()
+    # Real controller cleanup with two cooperative owners of one original file.
+    # Only mount/watchdog effects are mocked; content, metadata, snapshots and
+    # all install/remove/update calls use the production package controller.
+    original_target=base/'shared-original';original_backup=Path(str(original_target)+'.org')
+    write(base/'watchdog','0\n')
+    with mounts.open('a') as f:f.write('root / relfs rw 0 0\n')
+    for lib in (usb/'lib').glob('*.sh'):
+        write(lib,lib.read_text().replace('/proc/mounts',bp(mounts)).replace('/sys/class/gpio/Watchdog\\ Disable/value',bp(base/'watchdog')))
+    write(bins/'rm',"""#!/bin/sh
+for arg do
+ case "$arg" in *.org) [ ! -f FAIL ] || exit 1;; esac
+done
+exec /bin/rm "$@"
+""".replace('FAIL',shlex.quote(bp(base/'fail-original-remove'))))
+    for id_ in ['cleanup-a','cleanup-b']:
+        dest,_=make(id_,target=original_target,extra='patch\t'+bp(original_target)+'\ncreate\t'+bp(base/'created-parents'/id_)+'\n')
+        write(dest/'run.sh',"""#!/bin/sh
+set -eu
+TARGET=TARGET_PATH
+TAG=TAG_VALUE
+OWN_DIR=DIR_VALUE
+case "$1" in
+ status) if awk -v tag="$TAG" '$0==tag {found=1} END {exit !found}' "$TARGET"; then printf 'installed\\n';else printf 'uninstalled\\n';fi;;
+ install) mkdir -p "$OWN_DIR"; [ -e "$TARGET.org" ] || cp -a "$TARGET" "$TARGET.org";printf '%s\\n' "$TAG" >> "$TARGET";;
+ uninstall) temp=$(mktemp);awk -v tag="$TAG" '$0!=tag' "$TARGET" > "$temp";cat "$temp" > "$TARGET";rm "$temp";;
+ *) exit 1;;
+esac
+""".replace('TARGET_PATH',shlex.quote(bp(original_target))).replace('TAG_VALUE',shlex.quote(id_)).replace('DIR_VALUE',shlex.quote(bp(base/'created-parents'/id_))))
+    for order in [('cleanup-a','cleanup-b'),('cleanup-b','cleanup-a')]:
+        write(original_target,'original bytes\n');original_target.chmod(0o640);os.utime(original_target,(1234567800,1234567890))
+        if os.geteuid()==0:os.chown(original_target,123,456)
+        st=original_target.stat();meta=(st.st_mode & 0o7777,st.st_uid,st.st_gid,st.st_mtime_ns)
+        action('cleanup-a','install');action('cleanup-b','install')
+        action(order[0],'uninstall')
+        assert original_backup.exists() and order[1] in original_target.read_text()
+        action(order[1],'uninstall')
+        st=original_target.stat()
+        assert original_target.read_text()=='original bytes\n' and not original_backup.exists()
+        assert not (base/'created-parents').exists(), 'last consumer must remove its empty parent directories'
+        assert (st.st_mode & 0o7777,st.st_uid,st.st_gid,st.st_mtime_ns)==meta
+        assert not (store/'cleanup-a').exists() and not (store/'cleanup-b').exists()
+    # Metadata damage is rejected before the saved uninstaller changes anything.
+    action('cleanup-a','install');baseline=store/'cleanup-a/package/originals/file-1'
+    baseline.chmod(0o600);before=original_target.read_bytes()
+    action('cleanup-a','uninstall',1);assert original_target.read_bytes()==before
+    baseline.chmod(0o640);action('cleanup-a','uninstall')
+    # A failed backup deletion retains the saved baseline and can be retried.
+    action('cleanup-a','install');write(base/'fail-original-remove','1')
+    action('cleanup-a','uninstall',1)
+    assert original_backup.exists() and (store/'cleanup-a/package/originals/file-1').exists()
+    (base/'fail-original-remove').unlink();action('cleanup-a','uninstall')
+    assert not original_backup.exists() and not (store/'cleanup-a').exists()
+    # A cleanup failure must retain severity 2 and the recoverable snapshot.
+    write(mounts,mounts.read_text().replace('root / relfs rw','root / relfs ro'))
+    action('cleanup-a','install');write(base/'fail-original-remount','1')
+    action('cleanup-a','uninstall',2)
+    assert original_target.read_text()=='original bytes\n' and (store/'cleanup-a/package/originals/file-1').exists()
+    (base/'fail-original-remount').unlink();action('cleanup-a','uninstall')
+    write(mounts,mounts.read_text().replace('root / relfs ro','root / relfs rw'))
+    # Update uses the first baseline even while the old version is still active.
+    st=original_target.stat();meta=(st.st_mode & 0o7777,st.st_uid,st.st_gid,st.st_mtime_ns)
+    action('cleanup-a','install')
+    p=usb/'tweaks/cleanup-a/manifest.conf';write(p,p.read_text().replace('version=1.0.0','version=2.0.0'))
+    action('cleanup-a','update');action('cleanup-a','uninstall')
+    st=original_target.stat()
+    assert (st.st_mode & 0o7777,st.st_uid,st.st_gid,st.st_mtime_ns)==meta and not original_backup.exists()
+    print('ORIGINAL_CLEANUP_PASSED: shared owners in both removal orders, exact timestamps/mode/UID/GID, backup deletion failure/retry and Update.')
 print('PERSISTENT_PACKAGES_PASSED:',checks,'real adapter checks; snapshots, fast status, versions, failures, space, ownership, requirements and no legacy adoption.')

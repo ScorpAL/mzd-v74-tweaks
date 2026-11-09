@@ -18,6 +18,17 @@ mzd_gui_assets() (
 )
 mzd_gui_paths() (
     mzd_gui_assets "$1" || exit 1
+    if [ -n "$GUI_SERVICE" ]; then
+        printf 'patch\t%s\n' "${MZD_GUI_STARTUP:-/jci/scripts/stage_wifi.sh}"
+        module_data="${MZD_GUI_USER_DATA:-/tmp/mnt/data_persist/mzd-tweaks/gui-data}/$ID"
+        declared=0
+        if [ -n "$CONFIGS" ]; then
+            . "${1%/tweaks/*}/lib/config-data.sh" || exit 1
+            records=$(mzd_config_records "$1") || exit 1
+            if printf '%s\n' "$records" | awk -F "$(printf '\t')" -v p="$module_data" '$2=="dir" && $3==p {found=1} END {exit !found}'; then declared=1; fi
+        fi
+        [ "$declared" = 1 ] || printf 'create\t%s\n' "$module_data"
+    fi
     printf 'create\t%s/%s\ncreate\t%s/%s/manifest.conf\n' "$MZD_GUI_MODULES" "$ID" "$MZD_GUI_MODULES" "$ID"
     find "$1/assets" -print | LC_ALL=C sort | while IFS= read -r path; do printf 'create\t%s/%s/%s\n' "$MZD_GUI_MODULES" "$ID" "${path#"$1/"}"; done
 )

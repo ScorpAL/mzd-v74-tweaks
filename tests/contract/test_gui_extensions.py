@@ -54,7 +54,8 @@ with tempfile.TemporaryDirectory(prefix='cmu-gui-') as folder:
   write(b/'startup','#!/bin/sh\necho original\n')
  p=usb/'tweaks/restore-originals/manifest.conf';write(p,p.read_text().replace('target=/jci','target='+bp(data)))
  write(version,'JCI_SW_VER="MAZ_CMU-150_74.00.324"\n');write(mounts,'mock '+bp(usb)+' vfat rw 0 0\n/dev/mmcblk0p1 '+bp(data)+' relfs rw 0 0\nmock '+bp(persist)+' relfs rw 0 0\nmock '+bp(b)+' relfs rw 0 0\n')
- replacements={'MZD_GUI_STARTUP_MOUNT=/':'MZD_GUI_STARTUP_MOUNT='+bp(b),'/jci/scripts/stage_wifi.sh':bp(b/'startup'),'/tmp/mzd-stage_wifi-tweak.lock':bp(b/'startup.lock'),'/tmp/mnt/data_persist':bp(persist),'/tmp/mnt/data':bp(data),'/tmp/mzd-packages.lock':bp(b/'packages.lock'),'/tmp/mzd-gui-extension.lock':bp(b/'gui.lock'),'/tmp/mzd-restore-originals.lock':bp(b/'restore.lock'),'/jci/version.ini':bp(version),'/proc/mounts':bp(mounts)}
+ write(b/'watchdog','0\n')
+ replacements={'MZD_SHIM_ROOT=/':'MZD_SHIM_ROOT='+bp(b),'MZD_GUI_STARTUP_MOUNT=/':'MZD_GUI_STARTUP_MOUNT='+bp(b),'/jci/scripts/stage_wifi.sh':bp(b/'startup'),'/tmp/mzd-stage_wifi-tweak.lock':bp(b/'startup.lock'),'/tmp/mnt/data_persist':bp(persist),'/tmp/mnt/data':bp(data),'/tmp/mzd-packages.lock':bp(b/'packages.lock'),'/tmp/mzd-gui-extension.lock':bp(b/'gui.lock'),'/tmp/mzd-restore-originals.lock':bp(b/'restore.lock'),'/jci/version.ini':bp(version),'/proc/mounts':bp(mounts),'/sys/class/gpio/Watchdog\\ Disable/value':bp(b/'watchdog')}
  if '--ssh-coexist-only' in sys.argv:
   replacements['/tmp/mnt/resources']=bp(b/'resources')
   replacements['/sys/class/gpio/Watchdog\\ Disable/value']=bp(b/'watchdog')
@@ -161,9 +162,10 @@ exec '''+copy_command+''' "$@"
        remaining=removal[1];deep(remaining,'installed')
        assert (gui_block in startup.read_bytes())==(remaining==gui_id)
        assert (b'# MZD v74 SSH\n' in startup.read_bytes())==(remaining=='ssh')
-     absent();assert startup.read_bytes()==original and backup.read_bytes()==original
-     # Ordinary patch uninstall retains the verified shared OEM backup.
-     backup.unlink()
+     absent();assert startup.read_bytes()==original and not backup.exists()
+     assert not (persist/'mzd-tweaks').exists(), 'empty framework containers left after final uninstall'
+     # The last managed consumer removes its own shared OEM backup.
+  call('ssh','uninstall');assert not (persist/'mzd-tweaks').exists(), 'no-op uninstall recreated storage'
   # Read-only checks must reject unknown, duplicate, partial or altered GUI data.
   valid=original.replace(b'#!/bin/sh\n',b'#!/bin/sh\n'+gui_block,1)
   malformed=[valid+b'# unrelated edit\n',valid.replace(gui_block,gui_block*2),valid.replace(b'supervisor.sh boot',b'supervisor.sh other'),valid.rstrip(b'\n')]
@@ -185,7 +187,7 @@ exec '''+copy_command+''' "$@"
   owner_bytes=(user_data/'owner').read_bytes();(user_data/'owner').write_bytes(owner_bytes.rstrip(b'\n'));deep('gui-example','broken');(user_data/'owner').write_bytes(owner_bytes);deep('gui-example','installed')
   write(user_data/'user-file','keep user data\n')
   call('second-example','install');assert startup.read_text().count('# MZD shared GUI services')==1
-  call('gui-example','uninstall');assert hook.exists() and startup.read_bytes()!=original and (user_data/'user-file').exists()
+  call('gui-example','uninstall');assert hook.exists() and startup.read_bytes()!=original and not user_data.exists()
   call('second-example','uninstall');assert hook.exists() and startup.read_bytes()==original and not (base/'mzd-gui-services.tsv').read_text()
   call('gui-hello-world','uninstall');absent();assert not (base/'mzd-gui-services.tsv').exists()
   # Old immutable providers and saved uninstallers must be removed explicitly.
@@ -199,7 +201,7 @@ exec '''+copy_command+''' "$@"
   assert 'predates resident services' in diagnostics,diagnostics
   assert startup.read_bytes()==original and not (modules/'gui-example').exists() and not (persist/'mzd-tweaks/installed/gui-example').exists()
   call('gui-hello-world','uninstall');absent()
-  print('GUI_SERVICES_PACKAGES_PASSED:',checks,'real entrypoint checks; shared startup, both service consumers, last cleanup, retained user data and old-provider refusal.')
+  print('GUI_SERVICES_PACKAGES_PASSED:',checks,'real entrypoint checks; shared startup, both service consumers, last cleanup, owned data removal and old-provider refusal.')
   raise SystemExit(0)
  if traffic_profile:
   startup=b/'startup';original=startup.read_bytes()

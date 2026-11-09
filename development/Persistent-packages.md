@@ -19,6 +19,7 @@ installed/<id>/
     package.files
     paths.tsv
     package/
+        originals/         # Immutable original bytes, metadata and backup ownership
         settings.conf      # Effective settings, only when declared
         tweaks/<id>/       # Manifest, worker, assets and reset hook
         lib/               # This version's complete shared runtime snapshot
@@ -30,6 +31,36 @@ copied per installed package: an old uninstaller never sources new USB helpers.
 Helper fixes do not silently alter existing snapshots; update their packages to
 adopt them. Package format, state meanings, lock paths and reset session ledger
 are a stable interface. Future incompatible changes need a new supported format.
+
+## Complete uninstall
+
+New installations save each existing patch target before its first mutation in
+`package/originals/`. The saved inventory covers the baseline bytes and records
+mode, numeric owner/group, modification time and whether this installation
+created the `.org` backup. A later consumer of the same target copies the first
+consumer's baseline, rather than recording already patched content. GUI service
+consumers also declare their shared startup script as a patch target.
+
+After the saved uninstaller and its uninstalled-state check succeed, the package
+controller keeps shared targets until their last registered consumer is gone.
+For an exact original it restores the saved metadata, then removes only `.org`
+backups created by our installations. Pre-existing backups remain part of the
+pre-install state. Unrelated later content changes are preserved, including their
+current metadata. No foreign content is overwritten to force an OEM checksum.
+
+Created empty directories are recorded too, including shared parents and config
+parents. Cleanup uses only `rmdir`; unknown contents and retained settings are
+never recursively removed. Empty framework containers are pruned after the last
+installation record is removed.
+
+Every target is checked before backup deletion. Failures retain the package and
+its original snapshots for a retry. Old saved packages without these snapshots
+keep their original removal behavior; no original timestamps are invented.
+Conversely, a new saved worker refuses uninstall through an older controller
+that cannot perform the final cleanup, before changing its target.
+Config removal and `--preserve-config` keep their existing meaning. USB reports
+remain on USB. Access time may change through normal file reads; Linux `ctime`
+is not restored. Backup-based Restore is a separate operation and is unchanged.
 
 ## Operations
 

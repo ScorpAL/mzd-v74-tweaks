@@ -234,12 +234,13 @@ shared Lua/LuaSocket host via the owned supervisor. Original GUI JS and native
 MMUI binaries are not changed. Removing the last service consumer removes only
 that pair and stops the verified owned process; ordinary GUI consumers may remain.
 The final GUI consumer removes the verified shared GUI hook/runtime/registries.
-Module user data under `/tmp/mnt/data_persist/mzd-tweaks/gui-data/<id>` is retained
-separately from immutable snapshots. Unknown existing data folders are refused.
-Consumers that offer complete user-data removal must declare their module data
-directory with `config.<name>.path` in the manifest (trailing `/`). The package
-controller then removes it after successful uninstall unless `--preserve-config`
-was requested. Wallpaper Manager declares its entire module data directory,
+Module user data under `/tmp/mnt/data_persist/mzd-tweaks/gui-data/<id>` is separate
+from immutable snapshots. Unknown existing data folders are refused. New managed
+uninstall removes the owned module data after its writers have stopped. Consumers
+that offer preservation must declare their module data directory with
+`config.<name>.path` in the manifest (trailing `/`); `--preserve-config` then keeps
+that data. Undeclared service staging data is removed even when an unrelated
+config elsewhere is preserved. Wallpaper Manager declares its entire module data directory,
 including imported images and settings; Update preserves it automatically.
 
 The service binds an ephemeral port on 127.0.0.1. A RAM-only descriptor supplies

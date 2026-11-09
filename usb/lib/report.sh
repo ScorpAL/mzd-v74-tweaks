@@ -101,6 +101,10 @@ mzd_fatal() {
 # Explicit session start: script path, tweak ID, optional cleanup function.
 # Only MZD_USB/MZD_REPORT/MZD_CLEANUP are shared session variables.
 mzd_begin() {
+  if [ "${ACTION:-}" = uninstall ] && [ -f "${ROOT:-}/originals/records.tsv" ] && [ "${MZD_ORIGINALS_CLEANUP:-0}" != 1 ]; then
+    printf 'This installation needs the newer installer for complete cleanup. Use the USB package it was installed with or a newer version. Nothing changed.\n' >&2
+    exit 1
+  fi
   MZD_CLEANUP=${3:-}
   MZD_USB=${MZD_ORIGIN_USB:-$(dirname "$1")}
   while [ "$MZD_USB" != / ] && ! grep -q " $MZD_USB " /proc/mounts
