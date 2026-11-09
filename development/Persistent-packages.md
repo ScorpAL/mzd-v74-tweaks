@@ -50,8 +50,8 @@ current metadata. No foreign content is overwritten to force an OEM checksum.
 
 Created empty directories are recorded too, including shared parents and config
 parents. Cleanup uses only `rmdir`; unknown contents and retained settings are
-never recursively removed. Empty framework containers are pruned after the last
-installation record is removed.
+never recursively removed. Unused empty framework containers are pruned after
+each removal, even when another tweak such as SSH remains installed.
 
 Every target is checked before backup deletion. Failures retain the package and
 its original snapshots for a retry. Old saved packages without these snapshots

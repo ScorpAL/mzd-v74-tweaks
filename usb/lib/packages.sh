@@ -313,7 +313,8 @@ mzd_package_remove() {
     # Restrict recursive deletion to a validated direct child of the store.
     [ "$1" = "$MZD_PACKAGE_STORE/${1##*/}" ] || return 2
     if ! rm -rf "$1"; then mzd_package_error 'Uninstall succeeded but package cleanup failed.'; return 2; fi
-    if [ "$MZD_PACKAGE_STORE" = "$MZD_PACKAGE_MOUNT/mzd-tweaks/installed" ] && rmdir "$MZD_PACKAGE_STORE" 2>/dev/null; then
+    if [ "$MZD_PACKAGE_STORE" = "$MZD_PACKAGE_MOUNT/mzd-tweaks/installed" ]; then
+        rmdir "$MZD_PACKAGE_STORE" 2>/dev/null || :
         for container in config-owners data gui-data shims ''; do
             directory="$MZD_PACKAGE_MOUNT/mzd-tweaks${container:+/$container}"
             [ -d "$directory" ] && [ ! -L "$directory" ] || continue

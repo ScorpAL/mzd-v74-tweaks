@@ -162,6 +162,9 @@ exec '''+copy_command+''' "$@"
        remaining=removal[1];deep(remaining,'installed')
        assert (gui_block in startup.read_bytes())==(remaining==gui_id)
        assert (b'# MZD v74 SSH\n' in startup.read_bytes())==(remaining=='ssh')
+       if remaining=='ssh':
+        for container in ['config-owners','data','gui-data']:
+         assert not (persist/'mzd-tweaks'/container).exists(), 'unused data container retained alongside SSH'
      absent();assert startup.read_bytes()==original and not backup.exists()
      assert not (persist/'mzd-tweaks').exists(), 'empty framework containers left after final uninstall'
      # The last managed consumer removes its own shared OEM backup.
